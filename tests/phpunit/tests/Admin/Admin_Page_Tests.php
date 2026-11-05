@@ -243,6 +243,23 @@ class Admin_Page_Tests extends WP_UnitTestCase {
 		$this->assertStringContainsString( 'is not configured yet', $html );
 	}
 
+	public function test_the_test_tab_names_the_plugin_that_replaces_wp_mail() {
+		$registry = new Provider_Registry();
+		$settings = new Settings( $registry, new Credentials() );
+		$tracker  = new class( $settings ) extends Delivery_Tracker {
+			public function get_wp_mail_owner(): string {
+				return 'FluentSMTP';
+			}
+		};
+
+		$this->admin_page = new Admin_Page( $settings, $registry, new Log_Repository(), WP_SMTP_MAIN_FILE, $tracker );
+
+		$html = $this->render( 'test' );
+
+		$this->assertStringContainsString( 'FluentSMTP replaces the WordPress mailer', $html );
+		$this->assertStringNotContainsString( 'is not configured yet', $html );
+	}
+
 	public function test_the_test_tab_asks_for_the_recipient_with_the_current_user_as_default() {
 		$user = wp_get_current_user();
 

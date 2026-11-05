@@ -141,7 +141,8 @@ class Delivery_Tracker {
 		$configured = $this->settings->is_configured();
 
 		if ( 'handled' === $this->state ) {
-			return $this->settings->get_provider_slug();
+			// A replaced wp_mail(), like the one in FluentSMTP, can change PHPMailer after phpmailer_init.
+			return '' === $this->get_wp_mail_owner() ? $this->settings->get_provider_slug() : self::PROVIDER_OTHER;
 		}
 
 		if ( null !== $this->state ) {

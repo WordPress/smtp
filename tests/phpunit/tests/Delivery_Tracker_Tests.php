@@ -52,6 +52,21 @@ class Delivery_Tracker_Tests extends WP_UnitTestCase {
 		return $phpmailer;
 	}
 
+	private function tracker_with_wp_mail_owner( string $owner ): Delivery_Tracker {
+		return new class( new Settings( $this->registry, new Credentials() ), $owner ) extends Delivery_Tracker {
+			private $owner;
+
+			public function __construct( Settings $settings, string $owner ) {
+				parent::__construct( $settings );
+				$this->owner = $owner;
+			}
+
+			public function get_wp_mail_owner(): string {
+				return $this->owner;
+			}
+		};
+	}
+
 	public function test_add_hooks_registers_the_hooks() {
 		$this->tracker->add_hooks();
 
@@ -68,6 +83,18 @@ class Delivery_Tracker_Tests extends WP_UnitTestCase {
 		$this->tracker->inspect( $phpmailer );
 
 		$this->assertSame( 'smtp', $this->tracker->get_provider() );
+	}
+
+	public function test_an_email_sent_through_a_replaced_wp_mail_is_credited_to_another_plugin() {
+		$this->configure_plugin();
+		$tracker   = $this->tracker_with_wp_mail_owner( 'FluentSMTP' );
+		$phpmailer = $this->configured_phpmailer();
+
+		// FluentSMTP runs phpmailer_init and then sets its own host in send().
+		$tracker->remember( $phpmailer );
+		$tracker->inspect( $phpmailer );
+
+		$this->assertSame( Delivery_Tracker::PROVIDER_OTHER, $tracker->get_provider() );
 	}
 
 	public function test_an_email_reconfigured_after_the_provider_is_credited_to_another_plugin() {

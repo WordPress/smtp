@@ -445,7 +445,7 @@ class Admin_Page {
 
 		$this->render_other_mailer_notice();
 
-		if ( ! $this->settings->is_configured() ) {
+		if ( ! $this->settings->is_configured() && '' === $this->tracker->get_wp_mail_owner() ) {
 			?>
 			<div class="notice notice-warning inline">
 				<p><?php esc_html_e( 'SMTP is not configured yet, so the test email will be sent with the default WordPress mailer.', 'smtp' ); ?></p>
