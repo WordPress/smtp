@@ -5,6 +5,8 @@
  * @package smtp
  */
 
+use WordPress\SMTP\Alerts\Alert_Dispatcher;
+use WordPress\SMTP\Alerts\Alert_Settings;
 use WordPress\SMTP\Credentials;
 use WordPress\SMTP\Log_Repository;
 use WordPress\SMTP\Migration;
@@ -29,6 +31,9 @@ class Uninstall_Tests extends WP_UnitTestCase {
 		$this->create_log_table();
 		update_option( Settings::OPTION, array( 'host' => 'smtp.example.com' ) );
 		( new Credentials() )->set( 'password', 'secret' );
+		( new Credentials() )->set( Alert_Settings::get_secret_key( 'slack', 'webhook_url' ), 'https://hooks.slack.com/services/secret' );
+		update_option( Alert_Settings::OPTION, array( 'enabled' => true ) );
+		update_option( Alert_Dispatcher::STATE_OPTION, array( 'slack' => array( 'last_sent' => time() ) ) );
 		update_option( Migration::LEGACY_OPTION, array( 'host' => 'smtp.example.com' ) );
 		update_option( Migration::DONE_OPTION, '1' );
 		update_option( Migration::NOTICE_OPTION, Migration::NOTICE_MIGRATED );
@@ -58,6 +63,8 @@ class Uninstall_Tests extends WP_UnitTestCase {
 		$this->assertFalse( get_option( Settings::OPTION ) );
 		$this->assertFalse( get_option( Credentials::OPTION ) );
 		$this->assertFalse( get_option( Log_Repository::DB_VERSION_OPTION ) );
+		$this->assertFalse( get_option( Alert_Settings::OPTION ) );
+		$this->assertFalse( get_option( Alert_Dispatcher::STATE_OPTION ) );
 		$this->assertFalse( get_option( Migration::LEGACY_OPTION ) );
 		$this->assertFalse( get_option( Migration::DONE_OPTION ) );
 		$this->assertFalse( get_option( Migration::NOTICE_OPTION ) );
