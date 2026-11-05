@@ -138,16 +138,34 @@ class Logger {
 		}
 
 		$recipients = isset( $mail_data['to'] ) ? (array) $mail_data['to'] : array();
+		$recipients = array_filter( array_map( 'strval', array_filter( $recipients, 'is_scalar' ) ) );
 		$subject    = isset( $mail_data['subject'] ) && is_string( $mail_data['subject'] ) ? $mail_data['subject'] : '';
 
 		$this->repository->insert(
 			array(
-				'recipient' => sanitize_text_field( implode( ', ', array_filter( array_map( 'strval', $recipients ) ) ) ),
-				'subject'   => sanitize_text_field( $subject ),
+				'recipient' => $this->clean_text( implode( ', ', $recipients ) ),
+				'subject'   => $this->clean_text( $subject ),
 				'status'    => $status,
-				'error'     => sanitize_text_field( $error ),
+				'error'     => $this->clean_text( $error ),
 				'provider'  => $this->settings->is_configured() ? $this->settings->get_provider_slug() : 'default',
 			)
 		);
+	}
+
+	/**
+	 * Prepares a text value for storage.
+	 *
+	 * Values are stored as sent and escaped on output. Stripping tags here would remove
+	 * addresses written as `Name <email>` and the addresses PHPMailer quotes in its errors.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @param string $text Raw text.
+	 * @return string Text with invalid UTF-8, control characters and line breaks removed.
+	 */
+	private function clean_text( string $text ): string {
+		$text = wp_check_invalid_utf8( $text, true );
+
+		return trim( (string) preg_replace( '/[\x00-\x1F\x7F]+/', ' ', $text ) );
 	}
 }
