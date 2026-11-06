@@ -40,6 +40,7 @@ smtp/
 │   │   ├── Alert_Settings.php         # smtp_alert_settings option, channel secrets through Credentials
 │   │   ├── Alert_Dispatcher.php       # wp_mail_failed listener, throttling, delivery state
 │   │   └── Slack_Channel.php          # Slack Incoming Webhook channel
+│   ├── Error_Hints.php       # Explains failed sends, based on the connection log
 │   └── Admin/                # Tools > SMTP screen
 │       ├── Admin_Page.php    # Tabs (the Email log tab comes first once configured), Settings API registration, field rendering
 │       ├── Alerts_Tab.php    # Alerts tab (channel select, fields shown per channel), admin-post handler for the test alert
