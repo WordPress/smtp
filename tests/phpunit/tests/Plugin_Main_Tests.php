@@ -6,7 +6,12 @@
  */
 
 use WordPress\SMTP\Alerts\Alert_Dispatcher;
+use WordPress\SMTP\CLI\Command;
+use WordPress\SMTP\CLI\Settings_Command;
+use WordPress\SMTP\Credentials;
 use WordPress\SMTP\Plugin_Main;
+use WordPress\SMTP\Provider_Registry;
+use WordPress\SMTP\Settings;
 use WordPress\SMTP\Test_Utils\Traits\With_Log_Table;
 
 class Plugin_Main_Tests extends WP_UnitTestCase {
@@ -43,6 +48,18 @@ class Plugin_Main_Tests extends WP_UnitTestCase {
 		}
 
 		$this->assertTrue( $found );
+	}
+
+	public function test_register_cli_commands_adds_the_commands() {
+		require_once TESTS_PLUGIN_DIR . '/tests/phpunit/utils/wp-cli-stub.php';
+		WP_CLI::reset();
+
+		$registry = new Provider_Registry();
+
+		( new Plugin_Main( WP_SMTP_MAIN_FILE ) )->register_cli_commands( new Settings( $registry, new Credentials() ), $registry );
+
+		$this->assertInstanceOf( Command::class, WP_CLI::$commands['smtp'] );
+		$this->assertInstanceOf( Settings_Command::class, WP_CLI::$commands['smtp settings'] );
 	}
 
 	public function test_schedule_purge_schedules_a_daily_event() {
