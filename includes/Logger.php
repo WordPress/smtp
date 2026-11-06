@@ -164,8 +164,35 @@ class Logger {
 	 * @return string Text with invalid UTF-8, control characters and line breaks removed.
 	 */
 	private function clean_text( string $text ): string {
-		$text = wp_check_invalid_utf8( $text, true );
+		$text = $this->scrub_utf8( $text );
 
 		return trim( (string) preg_replace( '/[\x00-\x1F\x7F]+/', ' ', $text ) );
+	}
+
+	/**
+	 * Replaces invalid UTF-8 sequences in a string.
+	 *
+	 * The strip mode of wp_check_invalid_utf8() relies on iconv() before WordPress 6.9,
+	 * which raises a notice on invalid input with some iconv implementations.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @param string $text Raw text.
+	 * @return string Valid UTF-8 text.
+	 */
+	private function scrub_utf8( string $text ): string {
+		if ( '' !== wp_check_invalid_utf8( $text ) ) {
+			return $text;
+		}
+
+		if ( function_exists( 'wp_scrub_utf8' ) ) {
+			return wp_scrub_utf8( $text );
+		}
+
+		if ( function_exists( 'mb_convert_encoding' ) ) {
+			return (string) mb_convert_encoding( $text, 'UTF-8', 'UTF-8' );
+		}
+
+		return '';
 	}
 }
