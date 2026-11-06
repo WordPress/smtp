@@ -32,7 +32,7 @@ class Uninstall_Tests extends WP_UnitTestCase {
 		update_option( Settings::OPTION, array( 'host' => 'smtp.example.com' ) );
 		( new Credentials() )->set( 'password', 'secret' );
 		( new Credentials() )->set( Alert_Settings::get_secret_key( 'slack', 'webhook_url' ), 'https://hooks.slack.com/services/secret' );
-		update_option( Alert_Settings::OPTION, array( 'enabled' => true ) );
+		update_option( Alert_Settings::OPTION, array( 'channel' => 'slack' ) );
 		update_option( Alert_Dispatcher::STATE_OPTION, array( 'slack' => array( 'last_sent' => time() ) ) );
 		update_option( Migration::LEGACY_OPTION, array( 'host' => 'smtp.example.com' ) );
 		update_option( Migration::DONE_OPTION, '1' );

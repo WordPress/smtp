@@ -67,14 +67,8 @@ class Alerts_Tab_Tests extends WP_UnitTestCase {
 		);
 	}
 
-	private function configure_slack( bool $enabled = true ) {
-		update_option(
-			Alert_Settings::OPTION,
-			array(
-				'enabled'  => true,
-				'channels' => array( 'slack' => array( 'enabled' => $enabled ) ),
-			)
-		);
+	private function configure_slack( bool $selected = true ) {
+		update_option( Alert_Settings::OPTION, array( 'channel' => $selected ? 'slack' : '' ) );
 		( new Credentials() )->set( Alert_Settings::get_secret_key( 'slack', 'webhook_url' ), self::WEBHOOK );
 	}
 
@@ -114,6 +108,16 @@ class Alerts_Tab_Tests extends WP_UnitTestCase {
 
 		$this->assertSame( 10, has_action( 'admin_init', array( $this->tab, 'register_settings' ) ) );
 		$this->assertSame( 10, has_action( 'admin_post_smtp_send_test_alert', array( $this->tab, 'handle_test' ) ) );
+		$this->assertSame( 10, has_action( 'admin_enqueue_scripts', array( $this->tab, 'enqueue_script' ) ) );
+	}
+
+	public function test_the_toggle_script_is_only_enqueued_on_the_smtp_screen() {
+		$this->tab->enqueue_script( 'index.php' );
+		$this->assertFalse( wp_script_is( 'smtp-alerts', 'enqueued' ) );
+
+		$this->tab->enqueue_script( 'tools_page_smtp' );
+		$this->assertTrue( wp_script_is( 'smtp-alerts', 'enqueued' ) );
+		$this->assertStringContainsString( 'data-smtp-alert-channel', implode( '', wp_scripts()->get_data( 'smtp-alerts', 'after' ) ) );
 	}
 
 	public function test_register_settings_registers_the_option_in_its_own_group() {
@@ -126,12 +130,14 @@ class Alerts_Tab_Tests extends WP_UnitTestCase {
 		$this->assertSame( array( $this->settings, 'sanitize' ), $registered[ Alert_Settings::OPTION ]['sanitize_callback'] );
 	}
 
-	public function test_render_shows_the_switches_and_the_slack_fields() {
+	public function test_render_shows_the_channel_select_with_none_selected_by_default() {
 		$this->as_admin();
 		$html = $this->render();
 
-		$this->assertStringContainsString( 'name="smtp_alert_settings[enabled]"', $html );
-		$this->assertStringContainsString( 'name="smtp_alert_settings[channels][slack][enabled]"', $html );
+		$this->assertStringContainsString( 'name="smtp_alert_settings[channel]"', $html );
+		$this->assertMatchesRegularExpression( '/<option value=""\s+selected=\'selected\'>None<\/option>/', $html );
+		$this->assertStringContainsString( '<option value="slack"', $html );
+		$this->assertMatchesRegularExpression( '/data-smtp-alert-channel="slack"\s+hidden>/', $html );
 		$this->assertStringContainsString( 'name="smtp_alert_settings[channels][slack][webhook_url]"', $html );
 		$this->assertStringContainsString( "name='option_page' value='" . Alerts_Tab::OPTION_GROUP . "'", $html );
 		$this->assertStringContainsString( 'tab=alerts', $html );
@@ -145,19 +151,31 @@ class Alerts_Tab_Tests extends WP_UnitTestCase {
 		$html = $this->render();
 
 		$this->assertStringNotContainsString( 'SECRETPART', $html );
-		$this->assertStringContainsString( 'A value is saved.', $html );
+		$this->assertStringContainsString( 'A value is already saved.', $html );
+		$this->assertMatchesRegularExpression( '/data-smtp-alert-channel="slack"\s+>/', $html );
 		$this->assertStringContainsString( 'Send test alert to Slack', $html );
 	}
 
-	public function test_an_enabled_unconfigured_channel_shows_a_warning() {
+	public function test_a_selected_unconfigured_channel_shows_a_warning() {
 		$this->as_admin();
-		update_option( Alert_Settings::OPTION, array( 'channels' => array( 'slack' => array( 'enabled' => true ) ) ) );
+		update_option( Alert_Settings::OPTION, array( 'channel' => 'slack' ) );
 
-		$this->assertStringContainsString( 'enabled but not configured', $this->render() );
+		$html = $this->render();
+
+		$this->assertStringContainsString( 'selected but not fully configured', $html );
+		$this->assertStringNotContainsString( 'Send test alert', $html );
+	}
+
+	public function test_the_test_button_is_hidden_when_no_channel_is_selected() {
+		$this->as_admin();
+		$this->configure_slack( false );
+
+		$this->assertStringNotContainsString( 'Send test alert', $this->render() );
 	}
 
 	public function test_the_last_delivery_error_is_shown_escaped() {
 		$this->as_admin();
+		$this->configure_slack();
 		update_option(
 			Alert_Dispatcher::STATE_OPTION,
 			array(
@@ -170,7 +188,7 @@ class Alerts_Tab_Tests extends WP_UnitTestCase {
 
 		$html = $this->render();
 
-		$this->assertStringContainsString( 'The last alert could not be delivered', $html );
+		$this->assertStringContainsString( 'The last alert to Slack could not be delivered', $html );
 		$this->assertStringContainsString( '&lt;b&gt;HTTP 404&lt;/b&gt;', $html );
 	}
 
@@ -244,6 +262,7 @@ class Alerts_Tab_Tests extends WP_UnitTestCase {
 
 		$html = $this->render();
 
+		$this->assertStringContainsString( '<option value="fake"', $html );
 		$this->assertStringContainsString( 'name="smtp_alert_settings[channels][fake][room]"', $html );
 		$this->assertStringContainsString( 'name="smtp_alert_settings[channels][fake][token]"', $html );
 	}

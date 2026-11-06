@@ -111,12 +111,12 @@ Every email sent with `wp_mail()` is logged in the `{prefix}smtp_logs` table wit
 
 ## Alerts
 
-The _Alerts_ tab sends a notification outside of email when `wp_mail()` fails, because email can not report that email is broken. Slack (Incoming Webhook) is the first channel.
+The _Alerts_ tab sends a notification outside of email when `wp_mail()` fails, because a broken mailer cannot report itself. Slack (Incoming Webhook) is the first channel.
 
-- Alerts are off until the global switch and a channel are enabled and the channel is configured.
+- Pick the channel in _Send failure alerts via_ (`None` by default). Only the fields of the selected channel are shown, and alerts are sent once it is configured. The fields of the other channels are kept.
 - The Slack webhook URL is stored as a secret through `Credentials` and never printed back.
 - To avoid flooding a channel, at most one alert is sent every 15 minutes per channel. Failures in between are counted and reported with the next alert.
-- When an alert can not be delivered, the error is shown in the tab. It never triggers another alert.
+- When an alert cannot be delivered, the error is shown in the tab. It never triggers another alert.
 - The message contains the error, the recipients and the subject (the same metadata as the email log), and a link to the failed entries of the log.
 
 Add a channel by implementing `WordPress\SMTP\Alerts\Alert_Channel` and registering it:

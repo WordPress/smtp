@@ -66,30 +66,28 @@ class Alert_Settings {
 	}
 
 	/**
-	 * Whether alerts are turned on.
+	 * Returns the ID of the channel that receives alerts.
 	 *
 	 * @since 1.2.0
 	 *
-	 * @return bool True when alerts are enabled.
+	 * @return string Channel ID, or an empty string when alerts are off or the channel no longer exists.
 	 */
-	public function is_enabled(): bool {
+	public function get_selected_channel_id(): string {
 		$options = $this->get_saved_options();
+		$id      = isset( $options['channel'] ) && is_string( $options['channel'] ) ? $options['channel'] : '';
 
-		return ! empty( $options['enabled'] );
+		return '' !== $id && null !== $this->registry->get( $id ) ? $id : '';
 	}
 
 	/**
-	 * Whether a channel is turned on.
+	 * Whether alerts are turned on, meaning a channel is selected.
 	 *
 	 * @since 1.2.0
 	 *
-	 * @param string $id Channel ID.
-	 * @return bool True when the channel is enabled.
+	 * @return bool True when a channel is selected.
 	 */
-	public function is_channel_enabled( string $id ): bool {
-		$options = $this->get_saved_options();
-
-		return ! empty( $options['channels'][ $id ]['enabled'] );
+	public function is_enabled(): bool {
+		return '' !== $this->get_selected_channel_id();
 	}
 
 	/**
@@ -117,29 +115,28 @@ class Alert_Settings {
 	}
 
 	/**
-	 * Returns the channels that will receive alerts: enabled and configured.
-	 *
-	 * Ignores the global switch, see `is_enabled()`.
+	 * Returns the channels that will receive alerts: the selected one, when it is configured.
 	 *
 	 * @since 1.2.0
 	 *
 	 * @return Alert_Channel[] Channels keyed by channel ID.
 	 */
 	public function get_active_channels(): array {
-		$active = array();
+		$id = $this->get_selected_channel_id();
 
-		foreach ( $this->registry->get_all() as $id => $channel ) {
-			if ( $this->is_channel_enabled( $id ) && $channel->is_configured( $this->get_channel_values( $channel ) ) ) {
-				$active[ $id ] = $channel;
-			}
+		if ( '' === $id ) {
+			return array();
 		}
 
-		return $active;
+		$channel = $this->registry->get( $id );
+
+		return $channel && $channel->is_configured( $this->get_channel_values( $channel ) ) ? array( $id => $channel ) : array();
 	}
 
 	/**
 	 * Sanitizes the submitted alert settings.
 	 *
+	 * The fields of every channel are kept, so switching channels does not lose them.
 	 * An empty secret keeps the saved one.
 	 *
 	 * @since 1.2.0
@@ -148,13 +145,15 @@ class Alert_Settings {
 	 * @return array Sanitized settings.
 	 */
 	public function sanitize( $input ): array {
-		$input = is_array( $input ) ? $input : array();
-		$clean = array(
-			'enabled'  => ! empty( $input['enabled'] ),
+		$input    = is_array( $input ) ? $input : array();
+		$channels = $this->registry->get_all();
+		$selected = isset( $input['channel'] ) && is_string( $input['channel'] ) ? $input['channel'] : '';
+		$clean    = array(
+			'channel'  => isset( $channels[ $selected ] ) ? $selected : '',
 			'channels' => array(),
 		);
 
-		foreach ( $this->registry->get_all() as $id => $channel ) {
+		foreach ( $channels as $id => $channel ) {
 			$raw = isset( $input['channels'][ $id ] ) && is_array( $input['channels'][ $id ] ) ? $input['channels'][ $id ] : array();
 
 			$submitted = array();
@@ -164,7 +163,7 @@ class Alert_Settings {
 
 			$values = $channel->sanitize_settings( $submitted );
 
-			$clean['channels'][ $id ] = array( 'enabled' => ! empty( $raw['enabled'] ) );
+			$clean['channels'][ $id ] = array();
 
 			foreach ( $channel->get_fields() as $key => $field ) {
 				$value = isset( $values[ $key ] ) && is_string( $values[ $key ] ) ? $values[ $key ] : '';

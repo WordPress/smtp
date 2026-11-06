@@ -57,7 +57,7 @@ class Slack_Channel implements Alert_Channel {
 			'webhook_url' => array(
 				'label'       => __( 'Webhook URL', 'smtp' ),
 				'type'        => 'password',
-				'description' => __( 'Incoming Webhook URL of the Slack channel, starting with https://hooks.slack.com/. It is stored as a secret.', 'smtp' ),
+				'description' => __( 'The Incoming Webhook URL of your Slack channel. It starts with https://hooks.slack.com/ and is stored as a secret.', 'smtp' ),
 			),
 		);
 	}
@@ -77,7 +77,7 @@ class Slack_Channel implements Alert_Channel {
 			add_settings_error(
 				Alert_Settings::OPTION,
 				'smtp_slack_webhook_url',
-				__( 'The Slack webhook URL must start with https://hooks.slack.com/. The previous value was kept.', 'smtp' )
+				__( 'The Slack webhook URL must start with https://hooks.slack.com/. The previously saved URL was kept.', 'smtp' )
 			);
 			$url = '';
 		}
@@ -155,7 +155,7 @@ class Slack_Channel implements Alert_Channel {
 		if ( Alert::TYPE_TEST === $alert->get_type() ) {
 			return sprintf(
 				/* translators: %s: link to the site */
-				__( ':white_check_mark: Test alert from %s. Email failure alerts will be posted here.', 'smtp' ),
+				__( ':white_check_mark: Test alert from %s. Alerts about failed emails will be posted here.', 'smtp' ),
 				$link
 			);
 		}
@@ -163,7 +163,7 @@ class Slack_Channel implements Alert_Channel {
 		$lines = array(
 			sprintf(
 				/* translators: %s: link to the site */
-				__( ':warning: *An email could not be sent on %s*', 'smtp' ),
+				__( ':warning: *An email failed to send on %s*', 'smtp' ),
 				$link
 			),
 		);

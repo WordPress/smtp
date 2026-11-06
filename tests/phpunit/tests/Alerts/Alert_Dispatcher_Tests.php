@@ -41,17 +41,12 @@ class Alert_Dispatcher_Tests extends WP_UnitTestCase {
 		remove_all_actions( 'wp_mail_failed', 20 );
 	}
 
-	private function enable( bool $globally = true, bool $channel = true, bool $configured = true ) {
+	private function enable( bool $selected = true, bool $configured = true ) {
 		update_option(
 			Alert_Settings::OPTION,
 			array(
-				'enabled'  => $globally,
-				'channels' => array(
-					'fake' => array(
-						'enabled' => $channel,
-						'room'    => '#alerts',
-					),
-				),
+				'channel'  => $selected ? 'fake' : '',
+				'channels' => array( 'fake' => array( 'room' => '#alerts' ) ),
 			)
 		);
 
@@ -115,16 +110,8 @@ class Alert_Dispatcher_Tests extends WP_UnitTestCase {
 		$this->assertSame( array(), $this->fake->sent );
 	}
 
-	public function test_nothing_is_sent_to_a_disabled_channel() {
-		$this->enable( true, false );
-
-		$this->dispatcher->handle_failure( $this->mail_error() );
-
-		$this->assertSame( array(), $this->fake->sent );
-	}
-
 	public function test_nothing_is_sent_to_an_unconfigured_channel() {
-		$this->enable( true, true, false );
+		$this->enable( true, false );
 
 		$this->dispatcher->handle_failure( $this->mail_error() );
 
@@ -227,7 +214,7 @@ class Alert_Dispatcher_Tests extends WP_UnitTestCase {
 	}
 
 	public function test_send_test_sends_a_test_alert_even_when_disabled() {
-		$this->enable( false, false );
+		$this->enable( false );
 
 		$this->assertTrue( $this->dispatcher->send_test( $this->fake ) );
 		$this->assertCount( 1, $this->fake->sent );
@@ -235,7 +222,7 @@ class Alert_Dispatcher_Tests extends WP_UnitTestCase {
 	}
 
 	public function test_send_test_requires_a_configured_channel() {
-		$this->enable( true, true, false );
+		$this->enable( true, false );
 
 		$this->assertWPError( $this->dispatcher->send_test( $this->fake ) );
 		$this->assertSame( array(), $this->fake->sent );

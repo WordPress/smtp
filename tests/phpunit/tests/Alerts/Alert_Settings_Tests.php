@@ -44,19 +44,32 @@ class Alert_Settings_Tests extends WP_UnitTestCase {
 
 	public function test_alerts_are_disabled_by_default() {
 		$this->assertFalse( $this->settings->is_enabled() );
-		$this->assertFalse( $this->settings->is_channel_enabled( 'fake' ) );
+		$this->assertSame( '', $this->settings->get_selected_channel_id() );
 		$this->assertSame( array(), $this->settings->get_active_channels() );
+	}
+
+	public function test_selecting_a_channel_enables_alerts() {
+		update_option( Alert_Settings::OPTION, array( 'channel' => 'fake' ) );
+
+		$this->assertTrue( $this->settings->is_enabled() );
+		$this->assertSame( 'fake', $this->settings->get_selected_channel_id() );
+	}
+
+	public function test_a_channel_that_no_longer_exists_disables_alerts() {
+		update_option( Alert_Settings::OPTION, array( 'channel' => 'removed' ) );
+
+		$this->assertFalse( $this->settings->is_enabled() );
+		$this->assertSame( '', $this->settings->get_selected_channel_id() );
 	}
 
 	public function test_sanitize_stores_secrets_in_the_credentials() {
 		$clean = $this->settings->sanitize(
 			array(
-				'enabled'  => '1',
+				'channel'  => 'fake',
 				'channels' => array(
 					'fake' => array(
-						'enabled' => '1',
-						'room'    => ' #alerts ',
-						'token'   => 'secret-token',
+						'room'  => ' #alerts ',
+						'token' => 'secret-token',
 					),
 				),
 			)
@@ -64,11 +77,10 @@ class Alert_Settings_Tests extends WP_UnitTestCase {
 
 		$this->assertSame(
 			array(
-				'enabled'  => true,
+				'channel'  => 'fake',
 				'channels' => array(
 					'fake' => array(
-						'enabled' => true,
-						'room'    => '#alerts',
+						'room' => '#alerts',
 					),
 				),
 			),
@@ -88,16 +100,16 @@ class Alert_Settings_Tests extends WP_UnitTestCase {
 	public function test_sanitize_ignores_unknown_channels_and_malformed_input() {
 		$this->assertSame(
 			array(
-				'enabled'  => false,
+				'channel'  => '',
 				'channels' => array(
 					'fake' => array(
-						'enabled' => false,
-						'room'    => '',
+						'room' => '',
 					),
 				),
 			),
 			$this->settings->sanitize(
 				array(
+					'channel'  => 'unknown',
 					'channels' => array(
 						'unknown' => array( 'enabled' => '1' ),
 						'fake'    => array( 'room' => array( 'not', 'a', 'string' ) ),
@@ -106,7 +118,7 @@ class Alert_Settings_Tests extends WP_UnitTestCase {
 			)
 		);
 
-		$this->assertSame( array( 'enabled', 'channels' ), array_keys( $this->settings->sanitize( 'not an array' ) ) );
+		$this->assertSame( array( 'channel', 'channels' ), array_keys( $this->settings->sanitize( 'not an array' ) ) );
 	}
 
 	public function test_get_channel_values_resolves_secrets() {
@@ -131,14 +143,25 @@ class Alert_Settings_Tests extends WP_UnitTestCase {
 		$this->assertStringNotContainsString( 'secret-token', maybe_serialize( get_option( Alert_Settings::OPTION ) ) );
 	}
 
-	public function test_active_channels_must_be_enabled_and_configured() {
-		update_option( Alert_Settings::OPTION, array( 'channels' => array( 'fake' => array( 'enabled' => true ) ) ) );
+	public function test_the_active_channel_must_be_selected_and_configured() {
+		update_option( Alert_Settings::OPTION, array( 'channel' => 'fake' ) );
 		$this->assertSame( array(), $this->settings->get_active_channels() );
 
 		$this->credentials->set( 'alert_fake_token', 'secret-token' );
 		$this->assertSame( array( 'fake' => $this->fake ), $this->settings->get_active_channels() );
 
-		update_option( Alert_Settings::OPTION, array( 'channels' => array( 'fake' => array( 'enabled' => false ) ) ) );
+		update_option( Alert_Settings::OPTION, array( 'channel' => '' ) );
 		$this->assertSame( array(), $this->settings->get_active_channels() );
+	}
+
+	public function test_switching_to_none_keeps_the_channel_fields() {
+		$clean = $this->settings->sanitize(
+			array(
+				'channel'  => '',
+				'channels' => array( 'fake' => array( 'room' => '#alerts' ) ),
+			)
+		);
+
+		$this->assertSame( '#alerts', $clean['channels']['fake']['room'] );
 	}
 }

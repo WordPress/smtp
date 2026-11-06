@@ -42,7 +42,7 @@ smtp/
 │   │   └── Slack_Channel.php          # Slack Incoming Webhook channel
 │   └── Admin/                # Tools > SMTP screen
 │       ├── Admin_Page.php    # Tabs (the Email log tab comes first once configured), Settings API registration, field rendering
-│       ├── Alerts_Tab.php    # Alerts tab settings and admin-post handler for the test alert
+│       ├── Alerts_Tab.php    # Alerts tab (channel select, fields shown per channel), admin-post handler for the test alert
 │       ├── Log_List_Table.php
 │       └── Test_Email.php    # admin-post handler for the test email
 ├── tests/
@@ -96,7 +96,7 @@ This plugin replaces the SMTP plugin 1.x published under the same slug, so sites
 
 - A channel implements `Alerts\Alert_Channel` and is registered through the `smtp_alert_channels` filter. Channels only format and deliver an `Alert`; the dispatcher decides when.
 - **A channel must never use `wp_mail()`**: alerts exist because email may be broken. A static guard in `Alert_Dispatcher` stops a failure raised while dispatching from triggering another alert.
-- Options: `smtp_alert_settings` (switches and non-secret fields) and `smtp_alert_state` (per channel: last sent, throttled count, last delivery error), both removed on uninstall. Values of `password` channel fields go to `Credentials` under `alert_{channel}_{field}`.
+- Options: `smtp_alert_settings` (`channel`: the selected channel ID or `''` for none, and `channels`: the non-secret fields of every channel) and `smtp_alert_state` (per channel: last sent, throttled count, last delivery error), both removed on uninstall. Values of `password` channel fields go to `Credentials` under `alert_{channel}_{field}`.
 - Alerts are throttled per channel (15 minutes by default); failures in between are reported in the next alert.
 - Alert messages contain the same metadata as the log (error, recipients, subject), never the body.
 

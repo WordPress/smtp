@@ -320,7 +320,7 @@ class Admin_Page_Tests extends WP_UnitTestCase {
 		$html = $this->render( 'alerts' );
 
 		$this->assertMatchesRegularExpression( '/tab=alerts"\s+class="nav-tab nav-tab-active"/', $html );
-		$this->assertStringContainsString( 'name="smtp_alert_settings[enabled]"', $html );
+		$this->assertStringContainsString( 'name="smtp_alert_settings[channel]"', $html );
 	}
 
 	public function test_the_alerts_tab_is_the_last_tab() {
