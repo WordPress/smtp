@@ -19,3 +19,5 @@ phpcs.xml.dist
 phpunit.xml.dist
 readme.md
 tests
+.worktrees
+.DS_Store
