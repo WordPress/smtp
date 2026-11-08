@@ -58,6 +58,14 @@ class Admin_Page {
 	private $main_file;
 
 	/**
+	 * Alerts tab, or null when alerts are not available.
+	 *
+	 * @since 1.2.0
+	 * @var Alerts_Tab|null
+	 */
+	private $alerts_tab;
+
+	/**
 	 * Constructor.
 	 *
 	 * @since 1.2.0
@@ -66,12 +74,14 @@ class Admin_Page {
 	 * @param Provider_Registry $registry   Provider registry.
 	 * @param Log_Repository    $repository Log repository.
 	 * @param string            $main_file  Absolute path to the main plugin file.
+	 * @param Alerts_Tab|null   $alerts_tab Optional. Alerts tab. Default null, which hides the tab.
 	 */
-	public function __construct( Settings $settings, Provider_Registry $registry, Log_Repository $repository, string $main_file ) {
+	public function __construct( Settings $settings, Provider_Registry $registry, Log_Repository $repository, string $main_file, ?Alerts_Tab $alerts_tab = null ) {
 		$this->settings   = $settings;
 		$this->registry   = $registry;
 		$this->repository = $repository;
 		$this->main_file  = $main_file;
+		$this->alerts_tab = $alerts_tab;
 	}
 
 	/**
@@ -211,6 +221,8 @@ class Admin_Page {
 				$this->render_log_tab();
 			} elseif ( 'test' === $current ) {
 				$this->render_test_tab();
+			} elseif ( 'alerts' === $current && $this->alerts_tab ) {
+				$this->alerts_tab->render();
 			} else {
 				$this->render_settings_tab();
 			}
@@ -234,6 +246,10 @@ class Admin_Page {
 			'log'      => __( 'Email log', 'smtp' ),
 			'test'     => __( 'Test', 'smtp' ),
 		);
+
+		if ( $this->alerts_tab ) {
+			$tabs['alerts'] = __( 'Alerts', 'smtp' );
+		}
 
 		if ( $this->settings->is_configured() ) {
 			$tabs = array( 'log' => $tabs['log'] ) + $tabs;

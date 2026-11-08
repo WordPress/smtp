@@ -14,6 +14,8 @@ global $wpdb;
 delete_option( 'smtp_settings' );
 delete_option( 'smtp_credentials' );
 delete_option( 'smtp_db_version' );
+delete_option( 'smtp_alert_settings' );
+delete_option( 'smtp_alert_state' );
 
 // Data of the legacy plugin that this one replaces, and the import bookkeeping.
 delete_option( 'smtp_options' );
