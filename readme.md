@@ -84,6 +84,9 @@ Providers with an invalid definition (no label, or a `configure` that is not cal
 |---|---|
 | `smtp_log_enabled` | Return `false` to skip logging an email. Receives `$enabled`, `$mail_data` and `$status` (`sent` or `failed`). |
 | `smtp_log_retention_days` | Number of days log entries are kept. Default `30`. A value of `0` or less disables the purge. |
+| `smtp_alert_channels` | Add alert channels. Receives an array of `WordPress\SMTP\Alerts\Alert_Channel` instances. |
+| `smtp_alert_enabled` | Return `false` to skip the alert for a failed email. Receives `$enabled` and the `Alert`. |
+| `smtp_alert_throttle` | Minimum number of seconds between two alerts on the same channel. Default `900`. Receives `$seconds` and the channel ID. `0` sends an alert for every failure. |
 
 ## Migration from the legacy plugin
 
@@ -105,6 +108,28 @@ This plugin replaces the SMTP plugin by Sorin Iclanzan (1.x) that was published 
 ## Email log
 
 Every email sent with `wp_mail()` is logged in the `{prefix}smtp_logs` table with its recipient, subject, status, error and provider. The message body, headers and attachments are never stored. A daily cron event (`smtp_purge_logs`) deletes old entries.
+
+## Alerts
+
+The _Alerts_ tab sends a notification outside of email when `wp_mail()` fails, because a broken mailer cannot report itself. Slack (Incoming Webhook) is the first channel.
+
+- Pick the channel in _Send failure alerts via_ (`None` by default). Only the fields of the selected channel are shown, and alerts are sent once it is configured. The fields of the other channels are kept.
+- The Slack webhook URL is stored as a secret through `Credentials` and never printed back.
+- To avoid flooding a channel, at most one alert is sent every 15 minutes per channel. Failures in between are counted and reported with the next alert.
+- When an alert cannot be delivered, the error is shown in the tab. It never triggers another alert.
+- The message contains the error, the recipients and the subject (the same metadata as the email log), and a link to the failed entries of the log.
+
+Add a channel by implementing `WordPress\SMTP\Alerts\Alert_Channel` and registering it:
+
+```php
+add_filter( 'smtp_alert_channels', function ( $channels ) {
+	$channels[] = new My_Teams_Channel();
+
+	return $channels;
+} );
+```
+
+A channel declares its fields (`text`, `url` or `password`), sanitizes them, says whether it is configured and delivers an `Alert`. It must never use `wp_mail()`.
 
 ## Development
 

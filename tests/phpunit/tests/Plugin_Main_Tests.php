@@ -5,6 +5,7 @@
  * @package smtp
  */
 
+use WordPress\SMTP\Alerts\Alert_Dispatcher;
 use WordPress\SMTP\Plugin_Main;
 use WordPress\SMTP\Test_Utils\Traits\With_Log_Table;
 
@@ -27,6 +28,21 @@ class Plugin_Main_Tests extends WP_UnitTestCase {
 		$this->assertNotFalse( has_action( 'wp_mail_succeeded' ) );
 		$this->assertNotFalse( has_action( 'wp_mail_failed' ) );
 		$this->assertNotFalse( has_action( Plugin_Main::PURGE_HOOK ) );
+	}
+
+	public function test_plugin_registers_the_alert_dispatcher_after_the_logger() {
+		global $wp_filter;
+
+		$callbacks = isset( $wp_filter['wp_mail_failed'][20] ) ? $wp_filter['wp_mail_failed'][20] : array();
+		$found     = false;
+
+		foreach ( $callbacks as $callback ) {
+			if ( is_array( $callback['function'] ) && $callback['function'][0] instanceof Alert_Dispatcher ) {
+				$found = true;
+			}
+		}
+
+		$this->assertTrue( $found );
 	}
 
 	public function test_schedule_purge_schedules_a_daily_event() {

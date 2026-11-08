@@ -8,7 +8,11 @@
 namespace WordPress\SMTP;
 
 use WordPress\SMTP\Admin\Admin_Page;
+use WordPress\SMTP\Admin\Alerts_Tab;
 use WordPress\SMTP\Admin\Test_Email;
+use WordPress\SMTP\Alerts\Alert_Channel_Registry;
+use WordPress\SMTP\Alerts\Alert_Dispatcher;
+use WordPress\SMTP\Alerts\Alert_Settings;
 
 /**
  * Main class for the plugin.
@@ -66,11 +70,18 @@ class Plugin_Main {
 		$privacy = new Privacy( $repository );
 		$privacy->add_hooks();
 
+		$alert_settings   = new Alert_Settings( new Alert_Channel_Registry(), $credentials );
+		$alert_dispatcher = new Alert_Dispatcher( $alert_settings );
+		$alert_dispatcher->add_hooks();
+
 		add_action( 'admin_init', array( $repository, 'maybe_upgrade' ) );
 		add_action( 'init', array( $this, 'schedule_purge' ) );
 
 		if ( is_admin() ) {
-			$admin = new Admin_Page( $settings, $registry, $repository, $this->main_file );
+			$alerts_tab = new Alerts_Tab( $alert_settings, $alert_dispatcher );
+			$alerts_tab->add_hooks();
+
+			$admin = new Admin_Page( $settings, $registry, $repository, $this->main_file, $alerts_tab );
 			$admin->add_hooks();
 
 			$test_email = new Test_Email( $settings );
