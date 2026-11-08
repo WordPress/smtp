@@ -11,6 +11,7 @@ This file provides context for AI coding agents (Claude Code, OpenAI Codex, Gemi
 - Extensible through the `smtp_providers` filter. Generic SMTP is registered through the same filter.
 - Metadata-only email log (no message body, no attachments) with automatic retention.
 - A test email tab that shows the connection log with credentials redacted.
+- An Alerts tab that notifies external channels (Slack first) when an email fails, extensible through the `smtp_alert_channels` filter.
 
 Existing users of the legacy SMTP plugin keep their settings through an automatic import (see "Legacy plugin migration").
 
@@ -32,8 +33,16 @@ smtp/
 │   ├── Mailer.php            # phpmailer_init and wp_mail_from(_name) integration
 │   ├── Log_Repository.php    # Log table schema (dbDelta) and queries
 │   ├── Logger.php            # wp_mail_succeeded / wp_mail_failed listeners and retention purge
+│   ├── Alerts/               # Failure alerts sent outside of email
+│   │   ├── Alert.php                  # Value object describing the event
+│   │   ├── Alert_Channel.php          # Channel contract
+│   │   ├── Alert_Channel_Registry.php # smtp_alert_channels filter
+│   │   ├── Alert_Settings.php         # smtp_alert_settings option, channel secrets through Credentials
+│   │   ├── Alert_Dispatcher.php       # wp_mail_failed listener, throttling, delivery state
+│   │   └── Slack_Channel.php          # Slack Incoming Webhook channel
 │   └── Admin/                # Tools > SMTP screen
 │       ├── Admin_Page.php    # Tabs (the Email log tab comes first once configured), Settings API registration, field rendering
+│       ├── Alerts_Tab.php    # Alerts tab (channel select, fields shown per channel), admin-post handler for the test alert
 │       ├── Log_List_Table.php
 │       └── Test_Email.php    # admin-post handler for the test email
 ├── tests/
@@ -83,12 +92,23 @@ This plugin replaces the SMTP plugin 1.x published under the same slug, so sites
 - Only metadata is stored: recipient, subject, status, error and provider. **Never store the message body, headers or attachments.**
 - Entries older than 30 days are deleted daily by the `smtp_purge_logs` cron event.
 
+### Alerts
+
+- A channel implements `Alerts\Alert_Channel` and is registered through the `smtp_alert_channels` filter. Channels only format and deliver an `Alert`; the dispatcher decides when.
+- **A channel must never use `wp_mail()`**: alerts exist because email may be broken. A static guard in `Alert_Dispatcher` stops a failure raised while dispatching from triggering another alert.
+- Options: `smtp_alert_settings` (`channel`: the selected channel ID or `''` for none, and `channels`: the non-secret fields of every channel) and `smtp_alert_state` (per channel: last sent, throttled count, last delivery error), both removed on uninstall. Values of `password` channel fields go to `Credentials` under `alert_{channel}_{field}`.
+- Alerts are throttled per channel (15 minutes by default); failures in between are reported in the next alert.
+- Alert messages contain the same metadata as the log (error, recipients, subject), never the body.
+
 ### Hooks provided
 
 - `smtp_providers` (filter): add or modify providers.
 - `smtp_log_enabled` (filter): return `false` to skip logging an email. Receives the mail data and the status.
 - `smtp_log_retention_days` (filter): days to keep log entries. Default `30`; `0` or less disables the purge.
 - `smtp_timeout` (filter): seconds PHPMailer waits for the SMTP server to connect and to answer each command. Default `15`; `0` or less keeps the PHPMailer default (300). Receives the provider slug.
+- `smtp_alert_channels` (filter): add alert channels (`Alert_Channel` instances).
+- `smtp_alert_enabled` (filter): return `false` to skip the alert for a failed email. Receives the `Alert`.
+- `smtp_alert_throttle` (filter): seconds between two alerts on the same channel. Default `900`; `0` disables throttling.
 
 ## Coding Standards
 
@@ -132,7 +152,7 @@ npm run test-php -- --filter Settings_Tests::test_sanitize_is_idempotent
 ## Tests
 
 - `tests/phpunit/tests/` — all PHPUnit test classes, one per class in `includes/` and named `<Class>_Tests` (for example `Settings_Tests`, `Admin/Admin_Page_Tests`). Files end in `_Tests.php`, which is what `phpunit.xml.dist` picks up.
-- `tests/phpunit/utils/` — shared helpers, as traits (`With_Log_Table`, `With_PHPMailer`).
+- `tests/phpunit/utils/` — shared helpers, as traits (`With_Log_Table`, `With_PHPMailer`), and `Alerts\Fake_Channel`, an alert channel that records what it receives.
 - `tests/phpunit/bootstrap.php` — loads the Composer autoloader and the WordPress test suite, and forces the plugin to be active.
 - Test classes extend `WP_UnitTestCase` and use `set_up()` / `tear_down()`.
 - The log table is created with `dbDelta()`, which the WordPress test suite turns into a temporary table. Call `create_log_table()` (from `With_Log_Table`) in `set_up()` for any test that sends mail or touches the log.
