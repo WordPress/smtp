@@ -6,6 +6,10 @@
  */
 
 use WordPress\SMTP\Admin\Admin_Page;
+use WordPress\SMTP\Admin\Alerts_Tab;
+use WordPress\SMTP\Alerts\Alert_Channel_Registry;
+use WordPress\SMTP\Alerts\Alert_Dispatcher;
+use WordPress\SMTP\Alerts\Alert_Settings;
 use WordPress\SMTP\Credentials;
 use WordPress\SMTP\Delivery_Tracker;
 use WordPress\SMTP\Log_Repository;
@@ -353,5 +357,42 @@ class Admin_Page_Tests extends WP_UnitTestCase {
 		);
 
 		$this->assertStringContainsString( 'The test email was delivered by another plugin', $this->render( 'test' ) );
+	}
+
+	private function create_page_with_alerts(): Admin_Page {
+		$registry       = new Provider_Registry();
+		$credentials    = new Credentials();
+		$alert_settings = new Alert_Settings( new Alert_Channel_Registry(), $credentials );
+		$settings       = new Settings( $registry, $credentials );
+
+		return new Admin_Page(
+			$settings,
+			$registry,
+			new Log_Repository(),
+			WP_SMTP_MAIN_FILE,
+			new Delivery_Tracker( $settings ),
+			new Alerts_Tab( $alert_settings, new Alert_Dispatcher( $alert_settings ) )
+		);
+	}
+
+	public function test_the_alerts_tab_is_hidden_without_an_alerts_tab() {
+		$this->assertStringNotContainsString( 'tab=alerts', $this->render() );
+	}
+
+	public function test_render_page_shows_the_alerts_tab() {
+		$this->admin_page = $this->create_page_with_alerts();
+
+		$html = $this->render( 'alerts' );
+
+		$this->assertMatchesRegularExpression( '/tab=alerts"\s+class="nav-tab nav-tab-active"/', $html );
+		$this->assertStringContainsString( 'name="smtp_alert_settings[channel]"', $html );
+	}
+
+	public function test_the_alerts_tab_is_the_last_tab() {
+		$this->admin_page = $this->create_page_with_alerts();
+
+		preg_match_all( '/tab=([a-z]+)"\s+class="nav-tab/', $this->render(), $matches );
+
+		$this->assertSame( array( 'settings', 'log', 'test', 'alerts' ), $matches[1] );
 	}
 }
