@@ -76,7 +76,7 @@ Each field accepts:
 
 Fields of type `password` are stored apart from the other settings, are never printed back into the page, and are redacted from the connection log of the test email.
 
-Providers with an invalid definition (no label, or a `configure` that is not callable) are ignored. Providers that talk to an HTTP API instead of SMTP are not supported yet, see [#1](https://github.com/davidperezgar/smtp/issues/1).
+Providers with an invalid definition (no label, or a `configure` that is not callable) are ignored. Providers that talk to an HTTP API instead of SMTP are not supported yet, see [#1](https://github.com/WordPress/smtp/issues/1).
 
 ## Other filters
 
