@@ -1,7 +1,7 @@
 <?php
 /**
  * Plugin Name: SMTP
- * Plugin URI: https://github.com/davidperezgar/smtp
+ * Plugin URI: https://github.com/WordPress/smtp
  * Description: Send WordPress emails through an SMTP server, with an extensible provider API and a simple email log.
  * Requires at least: 6.3
  * Requires PHP: 7.4

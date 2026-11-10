@@ -4,7 +4,7 @@
   "private": true,
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/davidperezgar/smtp.git"
+    "url": "git+https://github.com/WordPress/smtp.git"
   },
   "engines": {
     "node": ">=20.10.0",

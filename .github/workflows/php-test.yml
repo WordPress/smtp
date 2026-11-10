@@ -3,7 +3,7 @@ name: PHP Unit Testing
 on:
   push:
     branches:
-      - main
+      - trunk
     paths:
       - '.github/workflows/php-test.yml'
       - '**.php'
@@ -16,7 +16,7 @@ on:
       - 'composer.lock'
   pull_request:
     branches:
-      - main
+      - trunk
       - 'feature/**'
     paths:
       - '.github/workflows/php-test.yml'
@@ -35,7 +35,7 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/trunk' }}
 
 jobs:
   php-test:
