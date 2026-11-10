@@ -95,7 +95,7 @@ This plugin replaces the SMTP plugin 1.x published under the same slug, so sites
 - `Settings::sanitize()` expects a complete form and resets whatever is missing. To change some values, use `Settings::update()`.
 - Commands validate their input and fail, since `Settings::sanitize()` silently replaces invalid values.
 - **Never accept a secret as an argument, and never print one.**
-- `--debug` is a global WP-CLI flag, so commands can not use it as their own.
+- `--debug` is a global WP-CLI flag, so commands cannot use it as their own.
 
 ### Email log
 

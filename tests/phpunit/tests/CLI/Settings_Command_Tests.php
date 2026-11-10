@@ -166,7 +166,7 @@ class Settings_Command_Tests extends WP_UnitTestCase {
 	}
 
 	public function test_set_rejects_a_password_as_an_argument() {
-		$this->assert_set_fails( array( 'host=smtp.example.com', 'password=s3cret-value' ), 'can not be passed as arguments' );
+		$this->assert_set_fails( array( 'host=smtp.example.com', 'password=s3cret-value' ), 'cannot be passed as arguments' );
 		$this->assertSame( '', $this->credentials->get( 'password' ) );
 	}
 
@@ -212,10 +212,17 @@ class Settings_Command_Tests extends WP_UnitTestCase {
 			'text as number' => array( 'port=abc', 'port' ),
 			'negative'       => array( 'port=-1', 'port' ),
 			'zero'           => array( 'port=0', 'port' ),
+			'port too high'  => array( 'port=65536', 'port' ),
 			'email'          => array( 'from_email=nope', 'from_email' ),
 			'checkbox'       => array( 'auth=maybe', 'auth' ),
 			'empty checkbox' => array( 'auth=', 'auth' ),
 		);
+	}
+
+	public function test_set_accepts_the_highest_port() {
+		$this->run_set( array( 'host=smtp.example.com', 'port=65535' ) );
+
+		$this->assertSame( 65535, $this->settings->get( 'port' ) );
 	}
 
 	public function test_set_can_clear_the_from_email() {

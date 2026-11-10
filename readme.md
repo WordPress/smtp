@@ -95,7 +95,9 @@ wp smtp status --format=json
 | `wp smtp test [<to>] [--connection-log]` | Sends a test email, to the admin email by default. Exits with a non-zero code on failure. |
 | `wp smtp status [--format=<format>]` | Shows the active provider, each setting and whether it comes from a constant, the database or the default. |
 
-Passwords can not be passed as arguments, since those end up in the shell history. Use `password=-` to read the value from STDIN, or to get a hidden prompt in a terminal. Passwords are never printed, and they are removed from the output of `--connection-log`.
+Like saving the admin form, `settings set` saves every field, so afterwards `status` reports `database` for all of them. The exceptions are fields set by a constant, which show `constant`, and passwords that were never set, which show `default`.
+
+Passwords cannot be passed as arguments, since those end up in the shell history. Use `password=-` to read the value from STDIN, or to get a hidden prompt in a terminal. Passwords are never printed, and they are removed from the output of `--connection-log`.
 
 ## Other filters
 

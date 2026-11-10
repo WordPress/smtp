@@ -102,7 +102,7 @@ class Command {
 	/**
 	 * Sends a test email.
 	 *
-	 * Exits with a non-zero code when the email can not be sent.
+	 * Exits with a non-zero code when the email cannot be sent.
 	 *
 	 * ## OPTIONS
 	 *

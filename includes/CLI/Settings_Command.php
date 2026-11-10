@@ -68,7 +68,7 @@ class Settings_Command {
 	 *
 	 * Nothing is saved when any of the values is not valid.
 	 *
-	 * Passwords can not be passed as arguments, since those end up in the shell history.
+	 * Passwords cannot be passed as arguments, since those end up in the shell history.
 	 * Use `-` as the value to read the password from STDIN, or to get a hidden prompt in a terminal.
 	 *
 	 * ## OPTIONS
@@ -183,7 +183,7 @@ class Settings_Command {
 			case 'password':
 				if ( self::READ_FROM_STDIN !== $value ) {
 					/* translators: %s: setting key */
-					\WP_CLI::error( sprintf( __( 'Passwords can not be passed as arguments. Use exactly %s=- to enter it at a hidden prompt, or pipe it through STDIN.', 'smtp' ), $key ) );
+					\WP_CLI::error( sprintf( __( 'Passwords cannot be passed as arguments. Use exactly %s=- to enter it at a hidden prompt, or pipe it through STDIN.', 'smtp' ), $key ) );
 				}
 				break;
 
@@ -197,7 +197,7 @@ class Settings_Command {
 				break;
 
 			case 'number':
-				$valid = ctype_digit( $value ) && (int) $value > 0;
+				$valid = ctype_digit( $value ) && (int) $value > 0 && ( 'port' !== $key || (int) $value <= 65535 );
 				break;
 
 			case 'email':
