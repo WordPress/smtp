@@ -50,7 +50,7 @@ smtp/
 │       ├── bootstrap.php
 │       ├── tests/            # PHPUnit test classes (mirror includes/)
 │       └── utils/            # Shared test helpers (traits)
-├── .github/workflows/        # php-lint.yml, php-test.yml
+├── .github/workflows/        # php-lint.yml, php-test.yml, props-bot.yml
 ├── phpcs.xml.dist            # WordPress Coding Standards ruleset
 ├── phpunit.xml.dist
 ├── .wp-env.json              # Development site
@@ -192,6 +192,7 @@ There is no deploy workflow in this repository yet: publishing to WordPress.org 
 
 - `.github/workflows/php-lint.yml` — runs `composer lint` on pushes to `trunk` and on pull requests when PHP or PHPCS files change.
 - `.github/workflows/php-test.yml` — starts the `wp-env` test stack and runs `npm run test-php` across the PHP and WordPress matrix, when PHP, test or tooling files change.
+- `.github/workflows/props-bot.yml` — runs [Props Bot](https://github.com/WordPress/props-bot-action) on pull requests to comment the list of contributors to credit. Add the `props-bot` label to refresh it.
 - Documentation goes in `/docs/` (if added) and must be listed in `.distignore`.
 
 ## Contribution Guidelines
