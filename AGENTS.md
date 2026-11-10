@@ -11,10 +11,11 @@ This file provides context for AI coding agents (Claude Code, OpenAI Codex, Gemi
 - Extensible through the `smtp_providers` filter. Generic SMTP is registered through the same filter.
 - Metadata-only email log (no message body, no attachments) with automatic retention.
 - A test email tab that shows the connection log with credentials redacted.
+- An Alerts tab that notifies external channels (Slack first) when an email fails, extensible through the `smtp_alert_channels` filter.
 
 Existing users of the legacy SMTP plugin keep their settings through an automatic import (see "Legacy plugin migration").
 
-Out of scope for the first release: HTTP-API providers (tracked in [#1](https://github.com/davidperezgar/smtp/issues/1)), multisite network settings, encryption of stored credentials.
+Out of scope for the first release: HTTP-API providers (tracked in [#1](https://github.com/WordPress/smtp/issues/1)), multisite network settings, encryption of stored credentials.
 
 ## Repository Structure
 
@@ -32,8 +33,16 @@ smtp/
 │   ├── Mailer.php            # phpmailer_init and wp_mail_from(_name) integration
 │   ├── Log_Repository.php    # Log table schema (dbDelta) and queries
 │   ├── Logger.php            # wp_mail_succeeded / wp_mail_failed listeners and retention purge
+│   ├── Alerts/               # Failure alerts sent outside of email
+│   │   ├── Alert.php                  # Value object describing the event
+│   │   ├── Alert_Channel.php          # Channel contract
+│   │   ├── Alert_Channel_Registry.php # smtp_alert_channels filter
+│   │   ├── Alert_Settings.php         # smtp_alert_settings option, channel secrets through Credentials
+│   │   ├── Alert_Dispatcher.php       # wp_mail_failed listener, throttling, delivery state
+│   │   └── Slack_Channel.php          # Slack Incoming Webhook channel
 │   └── Admin/                # Tools > SMTP screen
 │       ├── Admin_Page.php    # Tabs (the Email log tab comes first once configured), Settings API registration, field rendering
+│       ├── Alerts_Tab.php    # Alerts tab (channel select, fields shown per channel), admin-post handler for the test alert
 │       ├── Log_List_Table.php
 │       └── Test_Email.php    # admin-post handler for the test email
 ├── tests/
@@ -41,7 +50,7 @@ smtp/
 │       ├── bootstrap.php
 │       ├── tests/            # PHPUnit test classes (mirror includes/)
 │       └── utils/            # Shared test helpers (traits)
-├── .github/workflows/        # php-lint.yml, php-test.yml
+├── .github/workflows/        # php-lint.yml, php-test.yml, props-bot.yml
 ├── phpcs.xml.dist            # WordPress Coding Standards ruleset
 ├── phpunit.xml.dist
 ├── .wp-env.json              # Development site
@@ -83,11 +92,22 @@ This plugin replaces the SMTP plugin 1.x published under the same slug, so sites
 - Only metadata is stored: recipient, subject, status, error and provider. **Never store the message body, headers or attachments.**
 - Entries older than 30 days are deleted daily by the `smtp_purge_logs` cron event.
 
+### Alerts
+
+- A channel implements `Alerts\Alert_Channel` and is registered through the `smtp_alert_channels` filter. Channels only format and deliver an `Alert`; the dispatcher decides when.
+- **A channel must never use `wp_mail()`**: alerts exist because email may be broken. A static guard in `Alert_Dispatcher` stops a failure raised while dispatching from triggering another alert.
+- Options: `smtp_alert_settings` (`channel`: the selected channel ID or `''` for none, and `channels`: the non-secret fields of every channel) and `smtp_alert_state` (per channel: last sent, throttled count, last delivery error), both removed on uninstall. Values of `password` channel fields go to `Credentials` under `alert_{channel}_{field}`.
+- Alerts are throttled per channel (15 minutes by default); failures in between are reported in the next alert.
+- Alert messages contain the same metadata as the log (error, recipients, subject), never the body.
+
 ### Hooks provided
 
 - `smtp_providers` (filter): add or modify providers.
 - `smtp_log_enabled` (filter): return `false` to skip logging an email. Receives the mail data and the status.
 - `smtp_log_retention_days` (filter): days to keep log entries. Default `30`; `0` or less disables the purge.
+- `smtp_alert_channels` (filter): add alert channels (`Alert_Channel` instances).
+- `smtp_alert_enabled` (filter): return `false` to skip the alert for a failed email. Receives the `Alert`.
+- `smtp_alert_throttle` (filter): seconds between two alerts on the same channel. Default `900`; `0` disables throttling.
 
 ## Coding Standards
 
@@ -131,7 +151,7 @@ npm run test-php -- --filter Settings_Tests::test_sanitize_is_idempotent
 ## Tests
 
 - `tests/phpunit/tests/` — all PHPUnit test classes, one per class in `includes/` and named `<Class>_Tests` (for example `Settings_Tests`, `Admin/Admin_Page_Tests`). Files end in `_Tests.php`, which is what `phpunit.xml.dist` picks up.
-- `tests/phpunit/utils/` — shared helpers, as traits (`With_Log_Table`, `With_PHPMailer`).
+- `tests/phpunit/utils/` — shared helpers, as traits (`With_Log_Table`, `With_PHPMailer`), and `Alerts\Fake_Channel`, an alert channel that records what it receives.
 - `tests/phpunit/bootstrap.php` — loads the Composer autoloader and the WordPress test suite, and forces the plugin to be active.
 - Test classes extend `WP_UnitTestCase` and use `set_up()` / `tear_down()`.
 - The log table is created with `dbDelta()`, which the WordPress test suite turns into a temporary table. Call `create_log_table()` (from `With_Log_Table`) in `set_up()` for any test that sends mail or touches the log.
@@ -142,10 +162,10 @@ npm run test-php -- --filter Settings_Tests::test_sanitize_is_idempotent
 - Every new class, method or behavior change in `includes/` **must** come with tests in the matching file under `tests/phpunit/tests/`. A bug fix needs a test that fails without the fix.
 - Run `npm run test-php` and `composer lint` locally before pushing. Do not mark a task as done while either fails.
 - Security-sensitive behavior must always be covered: secrets are never printed or logged, output is escaped, capability and nonce checks reject unauthorized requests, and credentials are redacted from the test email connection log.
-- CI runs on every pull request to `main` and `feature/**`:
+- CI runs on every pull request to `trunk` and `feature/**`:
   - `php-test.yml` runs the PHPUnit suite on PHP 7.4, 8.0, 8.1, 8.2 and 8.3 with the latest WordPress, on PHP 7.4 with WordPress 6.3, and on PHP 8.4 with WordPress trunk (experimental, allowed to fail).
   - `php-lint.yml` runs `composer lint`.
-- Both workflows must be green before merging. Configure them as required status checks in the branch protection rules of `main`.
+- Both workflows must be green before merging. Configure them as required status checks in the branch protection rules of `trunk`.
 - Never skip, delete or weaken a test to make a change pass. Fix the code or discuss the test change in the pull request.
 
 ## Key Files
@@ -164,18 +184,19 @@ Current version: `1.2.0` (declared in the `smtp.php` header and the `WP_SMTP_VER
 2. Update the `readme.txt` **Changelog** section with a summary of notable changes.
 3. Update the `readme.txt` **Stable tag** to match the new version, and **Tested up to** when needed.
 4. Build the distribution with production dependencies only: `composer install --no-dev -o`. Files excluded from the release are listed in `.distignore`.
-5. Open a pull request, get it merged into `main` and tag the release.
+5. Open a pull request, get it merged into `trunk` and tag the release.
 
 There is no deploy workflow in this repository yet: publishing to WordPress.org is done by the Plugins Team, not from CI. Do not add or describe an automated deploy until a workflow exists.
 
 ## CI/CD
 
-- `.github/workflows/php-lint.yml` — runs `composer lint` on pushes to `main` and on pull requests when PHP or PHPCS files change.
+- `.github/workflows/php-lint.yml` — runs `composer lint` on pushes to `trunk` and on pull requests when PHP or PHPCS files change.
 - `.github/workflows/php-test.yml` — starts the `wp-env` test stack and runs `npm run test-php` across the PHP and WordPress matrix, when PHP, test or tooling files change.
+- `.github/workflows/props-bot.yml` — runs [Props Bot](https://github.com/WordPress/props-bot-action) on pull requests to comment the list of contributors to credit. Add the `props-bot` label to refresh it.
 - Documentation goes in `/docs/` (if added) and must be listed in `.distignore`.
 
 ## Contribution Guidelines
 
 - All code is licensed under **GPL-2.0-or-later**.
-- Open issues and pull requests on [GitHub](https://github.com/davidperezgar/smtp).
+- Open issues and pull requests on [GitHub](https://github.com/WordPress/smtp).
 - Keep the plugin minimal: prefer extension points (filters) over built-in features.

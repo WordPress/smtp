@@ -18,6 +18,7 @@ SMTP is a minimal, community-maintained plugin that sends the emails of your sit
 * **Simple settings:** host, port, encryption, authentication, From email and From name under _Tools > SMTP_.
 * **Constants support:** define `SMTP_HOST`, `SMTP_PORT`, `SMTP_ENCRYPTION`, `SMTP_USER`, `SMTP_PASSWORD` and `SMTP_FROM_EMAIL` in `wp-config.php` to override the saved values. Recommended for production, so credentials stay out of the database.
 * **Email log:** every email sent with `wp_mail()` is logged with its recipient, subject, status and error. The message body and attachments are never stored. Entries are deleted after 30 days.
+* **Alerts:** get a Slack message when an email fails to send, so a broken mailer does not go unnoticed. Developers can add more channels.
 * **Test email:** send a test message to yourself and see the connection log if something goes wrong. Credentials are redacted.
 * **Extensible:** developers can add more providers. See the technical documentation on [GitHub](https://github.com/wordpress/smtp).
 
@@ -54,3 +55,4 @@ SMTP is developed in the open. Bug reports, ideas and pull requests are welcome 
 
 * Initial release, maintained by the WordPress Plugins Team and the community.
 * Settings of the previous SMTP plugin are imported automatically.
+* Alerts tab: get notified on Slack when an email fails to send.
