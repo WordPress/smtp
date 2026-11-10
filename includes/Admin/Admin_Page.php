@@ -444,8 +444,9 @@ class Admin_Page {
 					}
 					?>
 				</p>
-				<?php if ( ! $result['success'] && '' !== Error_Hints::get( $result['debug'] ) ) : ?>
-					<p><?php echo esc_html( Error_Hints::get( $result['debug'] ) ); ?></p>
+				<?php $hint = $result['success'] ? '' : Error_Hints::get( $result['debug'] ); ?>
+				<?php if ( '' !== $hint ) : ?>
+					<p><?php echo esc_html( $hint ); ?></p>
 				<?php endif; ?>
 			</div>
 			<?php if ( '' !== $result['debug'] ) : ?>

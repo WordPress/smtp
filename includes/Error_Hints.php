@@ -26,6 +26,11 @@ class Error_Hints {
 	 * @return string Translated hint, or an empty string when the problem is not recognized.
 	 */
 	public static function get( string $log ): string {
+		// Servers answer AUTH with 530 or 538 when encryption is off, so check this before the login replies.
+		if ( preg_match( '/command failed: (?:538\b|[^\n]*(?:STARTTLS|Encryption required))/i', $log ) ) {
+			return __( 'The server only accepts a login over an encrypted connection. Set Encryption to TLS for port 587, or to SSL for port 465.', 'smtp' );
+		}
+
 		if ( preg_match( '/command failed: 530\b/', $log ) ) {
 			return __( 'The server requires a login. Turn on Authentication and enter your username and password.', 'smtp' );
 		}
@@ -59,7 +64,7 @@ class Error_Hints {
 		}
 
 		if ( false !== strpos( $log, 'Sending with mail()' ) && false !== strpos( $log, 'Result: false' ) ) {
-			return __( 'This server can not send email with the default WordPress mailer. Configure an SMTP server in the Settings tab.', 'smtp' );
+			return __( 'This server cannot send email with the default WordPress mailer. Configure an SMTP server in the Settings tab.', 'smtp' );
 		}
 
 		return '';
