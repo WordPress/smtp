@@ -20,6 +20,7 @@ SMTP is a minimal, community-maintained plugin that sends the emails of your sit
 * **Email log:** every email sent with `wp_mail()` is logged with its recipient, subject, status and error. The message body and attachments are never stored. Entries are deleted after 30 days.
 * **Alerts:** get a Slack message when an email fails to send, so a broken mailer does not go unnoticed. Developers can add more channels.
 * **Test email:** send a test message to yourself and see the connection log if something goes wrong. Credentials are redacted.
+* **WP-CLI:** configure the plugin, send a test email and check the status from the command line.
 * **Extensible:** developers can add more providers. See the technical documentation on [GitHub](https://github.com/wordpress/smtp).
 
 The plugin does nothing until a host is configured, so activating it never breaks your site's email.
