@@ -8,6 +8,7 @@
 use WordPress\SMTP\Admin\Test_Email;
 use WordPress\SMTP\CLI\Command;
 use WordPress\SMTP\Credentials;
+use WordPress\SMTP\Delivery_Tracker;
 use WordPress\SMTP\Provider_Registry;
 use WordPress\SMTP\Settings;
 use WordPress\SMTP\Test_Utils\Traits\With_Log_Table;
@@ -39,7 +40,7 @@ class Command_Tests extends WP_UnitTestCase {
 
 		$this->credentials = new Credentials();
 		$settings          = new Settings( new Provider_Registry(), $this->credentials );
-		$this->command     = new Command( $settings, new Test_Email( $settings ) );
+		$this->command     = new Command( $settings, new Test_Email( $settings, new Delivery_Tracker( $settings ) ) );
 	}
 
 	public function get_valid_from_email() {
