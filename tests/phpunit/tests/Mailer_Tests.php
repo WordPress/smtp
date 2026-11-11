@@ -94,6 +94,7 @@ class Mailer_Tests extends WP_UnitTestCase {
 		$this->mailer->configure( $phpmailer );
 
 		$this->assertSame( 15, $phpmailer->Timeout );
+		$this->assertSame( 15, $phpmailer->getSMTPInstance()->Timelimit, 'The wait for each reply must be limited too.' );
 	}
 
 	public function test_timeout_is_untouched_until_a_host_is_set() {
@@ -124,6 +125,7 @@ class Mailer_Tests extends WP_UnitTestCase {
 		$this->mailer->configure( $phpmailer );
 
 		$this->assertSame( 30, $phpmailer->Timeout );
+		$this->assertSame( 30, $phpmailer->getSMTPInstance()->Timelimit );
 		$this->assertSame( array( 15, 'smtp' ), $received );
 	}
 
@@ -133,9 +135,11 @@ class Mailer_Tests extends WP_UnitTestCase {
 
 		$phpmailer = $this->get_phpmailer();
 		$default   = $phpmailer->Timeout;
+		$limit     = $phpmailer->getSMTPInstance()->Timelimit;
 		$this->mailer->configure( $phpmailer );
 
 		$this->assertSame( $default, $phpmailer->Timeout );
+		$this->assertSame( $limit, $phpmailer->getSMTPInstance()->Timelimit );
 	}
 
 	public function test_configure_calls_the_provider_with_the_resolved_values() {

@@ -97,8 +97,16 @@ class Mailer {
 
 		if ( $timeout > 0 ) {
 			// PHPMailer property names are not snake_case.
-			// phpcs:ignore WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase
-			$phpmailer->Timeout = $timeout;
+			// phpcs:disable WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase
+			// Timeout only covers opening the connection. Each reply, starting with the greeting,
+			// is awaited for up to Timelimit seconds, 300 by default.
+			if ( ! class_exists( '\\PHPMailer\\PHPMailer\\SMTP', false ) ) {
+				require_once ABSPATH . WPINC . '/PHPMailer/SMTP.php';
+			}
+
+			$phpmailer->Timeout                      = $timeout;
+			$phpmailer->getSMTPInstance()->Timelimit = $timeout;
+			// phpcs:enable WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase
 		}
 
 		call_user_func( $provider['configure'], $phpmailer, $this->settings->get_provider_values() );
