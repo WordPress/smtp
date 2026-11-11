@@ -6,6 +6,7 @@
  */
 
 use WordPress\SMTP\Credentials;
+use WordPress\SMTP\Delivery_Tracker;
 use WordPress\SMTP\Mailer;
 use WordPress\SMTP\Migration;
 use WordPress\SMTP\Plugin_Main;
@@ -287,7 +288,7 @@ class Migration_Tests extends WP_UnitTestCase {
 		$settings  = new Settings( $registry, $this->credentials );
 		$phpmailer = $this->get_phpmailer();
 
-		( new Mailer( $settings, $registry ) )->configure( $phpmailer );
+		( new Mailer( $settings, $registry, new Delivery_Tracker( $settings ) ) )->configure( $phpmailer );
 
 		$this->assertTrue( get_option( Settings::OPTION )['auth'] );
 		$this->assertFalse( $settings->is_configured() );

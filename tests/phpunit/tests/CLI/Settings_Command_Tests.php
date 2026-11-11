@@ -137,7 +137,7 @@ class Settings_Command_Tests extends WP_UnitTestCase {
 	}
 
 	public function test_set_does_not_warn_once_configured() {
-		$this->run_set( array( 'host=smtp.example.com' ) );
+		$this->run_set( array( 'host=smtp.example.com', 'auth=0' ) );
 
 		$this->assertSame( array(), WP_CLI::$warnings );
 	}

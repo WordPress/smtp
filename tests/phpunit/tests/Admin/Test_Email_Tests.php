@@ -236,7 +236,13 @@ class Test_Email_Tests extends WP_UnitTestCase {
 
 	public function test_handle_reports_when_another_plugin_delivered_the_email() {
 		$user_id = $this->request_as( 'administrator' );
-		update_option( Settings::OPTION, array( 'host' => 'smtp.example.com' ) );
+		update_option(
+			Settings::OPTION,
+			array(
+				'host' => 'smtp.example.com',
+				'auth' => false,
+			)
+		);
 		$this->tracker->add_hooks();
 		$this->mailer->add_hooks();
 
@@ -255,7 +261,13 @@ class Test_Email_Tests extends WP_UnitTestCase {
 
 	public function test_handle_reports_the_provider_that_delivered_the_email() {
 		$user_id = $this->request_as( 'administrator' );
-		update_option( Settings::OPTION, array( 'host' => 'smtp.example.com' ) );
+		update_option(
+			Settings::OPTION,
+			array(
+				'host' => 'smtp.example.com',
+				'auth' => false,
+			)
+		);
 		$this->tracker->add_hooks();
 		$this->mailer->add_hooks();
 
