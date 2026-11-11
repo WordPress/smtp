@@ -40,6 +40,9 @@ smtp/
 │   │   ├── Alert_Settings.php         # smtp_alert_settings option, channel secrets through Credentials
 │   │   ├── Alert_Dispatcher.php       # wp_mail_failed listener, throttling, delivery state
 │   │   └── Slack_Channel.php          # Slack Incoming Webhook channel
+│   ├── CLI/                  # WP-CLI commands, registered only when WP_CLI is defined
+│   │   ├── Command.php       # wp smtp status, wp smtp test
+│   │   └── Settings_Command.php # wp smtp settings set
 │   └── Admin/                # Tools > SMTP screen
 │       ├── Admin_Page.php    # Tabs (the Email log tab comes first once configured), Settings API registration, field rendering
 │       ├── Alerts_Tab.php    # Alerts tab (channel select, fields shown per channel), admin-post handler for the test alert
@@ -87,6 +90,14 @@ This plugin replaces the SMTP plugin 1.x published under the same slug, so sites
 - The legacy password is decrypted with mcrypt when available. When it can not be, the user is asked to enter it again through an admin notice. Never block or fail the import because of the password.
 - Any change to the mapping needs a matching test in `Migration_Tests`.
 
+### WP-CLI
+
+- Commands live in `includes/CLI/` and stay thin: the logic belongs in `Settings` and `Test_Email`, so the admin screen and the commands share it.
+- `Settings::sanitize()` expects a complete form and resets whatever is missing. To change some values, use `Settings::update()`.
+- Commands validate their input and fail, since `Settings::sanitize()` silently replaces invalid values.
+- **Never accept a secret as an argument, and never print one.**
+- `--debug` is a global WP-CLI flag, so commands cannot use it as their own.
+
 ### Email log
 
 - Table `{prefix}smtp_logs`, created with `dbDelta()` by `Log_Repository::maybe_upgrade()` (schema version in the `smtp_db_version` option).
@@ -108,6 +119,7 @@ This plugin replaces the SMTP plugin 1.x published under the same slug, so sites
 - `smtp_log_enabled` (filter): return `false` to skip logging an email. Receives the mail data and the status.
 - `smtp_log_retention_days` (filter): days to keep log entries. Default `30`; `0` or less disables the purge.
 - `smtp_failure_notice_period` (filter): seconds the recent failures admin notice looks back. Default one day.
+- `smtp_timeout` (filter): seconds PHPMailer waits for the SMTP server to connect and to answer each command. Default `15`; `0` or less keeps the PHPMailer default (300). Receives the provider slug.
 - `smtp_alert_channels` (filter): add alert channels (`Alert_Channel` instances).
 - `smtp_alert_enabled` (filter): return `false` to skip the alert for a failed email. Receives the `Alert`.
 - `smtp_alert_throttle` (filter): seconds between two alerts on the same channel. Default `900`; `0` disables throttling.
@@ -155,6 +167,7 @@ npm run test-php -- --filter Settings_Tests::test_sanitize_is_idempotent
 
 - `tests/phpunit/tests/` — all PHPUnit test classes, one per class in `includes/` and named `<Class>_Tests` (for example `Settings_Tests`, `Admin/Admin_Page_Tests`). Files end in `_Tests.php`, which is what `phpunit.xml.dist` picks up.
 - `tests/phpunit/utils/` — shared helpers, as traits (`With_Log_Table`, `With_PHPMailer`), and `Alerts\Fake_Channel`, an alert channel that records what it receives.
+- `tests/phpunit/utils/` — shared helpers, as traits (`With_Log_Table`, `With_PHPMailer`), and `wp-cli-stub.php`, a stand-in for WP-CLI, which is not loaded in the test stack.
 - `tests/phpunit/bootstrap.php` — loads the Composer autoloader and the WordPress test suite, and forces the plugin to be active.
 - Test classes extend `WP_UnitTestCase` and use `set_up()` / `tear_down()`.
 - The log table is created with `dbDelta()`, which the WordPress test suite turns into a temporary table. Call `create_log_table()` (from `With_Log_Table`) in `set_up()` for any test that sends mail or touches the log.

@@ -17,6 +17,16 @@ namespace WordPress\SMTP;
 class Mailer {
 
 	/**
+	 * Default number of seconds to wait for the SMTP server.
+	 *
+	 * PHPMailer waits 300 seconds by default, long enough for a request to hit a gateway timeout
+	 * when a firewall silently drops the connection.
+	 *
+	 * @since 1.2.0
+	 */
+	const DEFAULT_TIMEOUT = 15;
+
+	/**
 	 * Settings.
 	 *
 	 * @since 1.2.0
@@ -71,6 +81,32 @@ class Mailer {
 		$provider = $this->registry->get( $this->settings->get_provider_slug() );
 		if ( ! $provider ) {
 			return;
+		}
+
+		/**
+		 * Filters the number of seconds to wait for the SMTP server to connect and to answer each command.
+		 *
+		 * The provider can still set its own value when it configures PHPMailer.
+		 *
+		 * @since 1.2.0
+		 *
+		 * @param int    $timeout  Timeout in seconds. Default 15.
+		 * @param string $provider Slug of the active provider.
+		 */
+		$timeout = (int) apply_filters( 'smtp_timeout', self::DEFAULT_TIMEOUT, $this->settings->get_provider_slug() );
+
+		if ( $timeout > 0 ) {
+			// PHPMailer property names are not snake_case.
+			// phpcs:disable WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase
+			// Timeout only covers opening the connection. Each reply, starting with the greeting,
+			// is awaited for up to Timelimit seconds, 300 by default.
+			if ( ! class_exists( '\\PHPMailer\\PHPMailer\\SMTP', false ) ) {
+				require_once ABSPATH . WPINC . '/PHPMailer/SMTP.php';
+			}
+
+			$phpmailer->Timeout                      = $timeout;
+			$phpmailer->getSMTPInstance()->Timelimit = $timeout;
+			// phpcs:enable WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase
 		}
 
 		call_user_func( $provider['configure'], $phpmailer, $this->settings->get_provider_values() );
