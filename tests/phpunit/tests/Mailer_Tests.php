@@ -6,6 +6,7 @@
  */
 
 use WordPress\SMTP\Credentials;
+use WordPress\SMTP\Delivery_Tracker;
 use WordPress\SMTP\Mailer;
 use WordPress\SMTP\Provider_Registry;
 use WordPress\SMTP\Settings;
@@ -21,13 +22,20 @@ class Mailer_Tests extends WP_UnitTestCase {
 	 */
 	private $mailer;
 
+	/**
+	 * @var Delivery_Tracker
+	 */
+	private $tracker;
+
 	public function set_up() {
 		parent::set_up();
 
 		$this->create_log_table();
 
-		$registry     = new Provider_Registry();
-		$this->mailer = new Mailer( new Settings( $registry, new Credentials() ), $registry );
+		$registry      = new Provider_Registry();
+		$settings      = new Settings( $registry, new Credentials() );
+		$this->tracker = new Delivery_Tracker( $settings );
+		$this->mailer  = new Mailer( $settings, $registry, $this->tracker );
 	}
 
 	private function configure( array $extra = array() ) {
@@ -48,7 +56,7 @@ class Mailer_Tests extends WP_UnitTestCase {
 	}
 
 	public function test_add_hooks_registers_the_mail_hooks() {
-		$mailer = new Mailer( new Settings( new Provider_Registry(), new Credentials() ), new Provider_Registry() );
+		$mailer = $this->mailer;
 		$mailer->add_hooks();
 
 		$this->assertSame( 10, has_action( 'phpmailer_init', array( $mailer, 'configure' ) ) );
@@ -85,6 +93,71 @@ class Mailer_Tests extends WP_UnitTestCase {
 		$this->assertSame( 'ssl', $phpmailer->SMTPSecure );
 		$this->assertSame( 'user', $phpmailer->Username );
 		$this->assertSame( 'secret', $phpmailer->Password );
+	}
+
+	public function test_configure_tells_the_tracker_the_email_is_handled() {
+		$this->configure();
+
+		$phpmailer = $this->get_phpmailer();
+		$this->mailer->configure( $phpmailer );
+		$this->tracker->inspect( $phpmailer );
+
+		$this->assertSame( 'smtp', $this->tracker->get_provider() );
+	}
+
+	public function test_configure_sets_a_short_timeout() {
+		$this->configure();
+
+		$phpmailer = $this->get_phpmailer();
+		$this->mailer->configure( $phpmailer );
+
+		$this->assertSame( 15, $phpmailer->Timeout );
+		$this->assertSame( 15, $phpmailer->getSMTPInstance()->Timelimit, 'The wait for each reply must be limited too.' );
+	}
+
+	public function test_timeout_is_untouched_until_a_host_is_set() {
+		$phpmailer = $this->get_phpmailer();
+		$default   = $phpmailer->Timeout;
+
+		$this->mailer->configure( $phpmailer );
+
+		$this->assertSame( $default, $phpmailer->Timeout );
+	}
+
+	public function test_timeout_can_be_changed_with_a_filter() {
+		$this->configure();
+
+		$received = null;
+		add_filter(
+			'smtp_timeout',
+			static function ( $timeout, $provider ) use ( &$received ) {
+				$received = array( $timeout, $provider );
+
+				return 30;
+			},
+			10,
+			2
+		);
+
+		$phpmailer = $this->get_phpmailer();
+		$this->mailer->configure( $phpmailer );
+
+		$this->assertSame( 30, $phpmailer->Timeout );
+		$this->assertSame( 30, $phpmailer->getSMTPInstance()->Timelimit );
+		$this->assertSame( array( 15, 'smtp' ), $received );
+	}
+
+	public function test_a_timeout_of_zero_keeps_the_phpmailer_default() {
+		$this->configure();
+		add_filter( 'smtp_timeout', '__return_zero' );
+
+		$phpmailer = $this->get_phpmailer();
+		$default   = $phpmailer->Timeout;
+		$limit     = $phpmailer->getSMTPInstance()->Timelimit;
+		$this->mailer->configure( $phpmailer );
+
+		$this->assertSame( $default, $phpmailer->Timeout );
+		$this->assertSame( $limit, $phpmailer->getSMTPInstance()->Timelimit );
 	}
 
 	public function test_configure_calls_the_provider_with_the_resolved_values() {
