@@ -73,6 +73,9 @@ class Plugin_Main {
 		$logger = new Logger( $repository, $tracker );
 		$logger->add_hooks();
 
+		$privacy = new Privacy( $repository );
+		$privacy->add_hooks();
+
 		$alert_settings   = new Alert_Settings( new Alert_Channel_Registry(), $credentials );
 		$alert_dispatcher = new Alert_Dispatcher( $alert_settings );
 		$alert_dispatcher->add_hooks();
