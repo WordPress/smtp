@@ -102,16 +102,25 @@ class Test_Email {
 		$requested = isset( $_POST['to'] ) ? sanitize_text_field( wp_unslash( $_POST['to'] ) ) : '';
 		$to        = '' === $requested ? $user->user_email : $requested;
 
+		$this->finish( $user->ID, $this->send( $to ) );
+	}
+
+	/**
+	 * Sends a test email and captures the connection log.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @param string $to Recipient address.
+	 * @return array Result with `success`, `to`, `error`, `debug` and `provider`. The credentials are removed from `debug`.
+	 */
+	public function send( string $to ): array {
 		if ( ! is_email( $to ) ) {
-			$this->finish(
-				$user->ID,
-				array(
-					'success'  => false,
-					'to'       => $requested,
-					'error'    => __( 'Please enter a valid email address.', 'smtp' ),
-					'debug'    => '',
-					'provider' => '',
-				)
+			return array(
+				'success'  => false,
+				'to'       => $to,
+				'error'    => __( 'Please enter a valid email address.', 'smtp' ),
+				'debug'    => '',
+				'provider' => '',
 			);
 		}
 
@@ -154,15 +163,12 @@ class Test_Email {
 		remove_action( 'wp_mail_succeeded', $capture_provider );
 		remove_action( 'wp_mail_failed', $capture_provider );
 
-		$this->finish(
-			$user->ID,
-			array(
-				'success'  => $sent,
-				'to'       => $to,
-				'error'    => $error,
-				'debug'    => $this->redact( implode( "\n", $debug ) ),
-				'provider' => $provider,
-			)
+		return array(
+			'success'  => $sent,
+			'to'       => $to,
+			'error'    => $error,
+			'debug'    => $this->redact( implode( "\n", $debug ) ),
+			'provider' => $provider,
 		);
 	}
 
