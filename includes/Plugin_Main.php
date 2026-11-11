@@ -9,6 +9,7 @@ namespace WordPress\SMTP;
 
 use WordPress\SMTP\Admin\Admin_Page;
 use WordPress\SMTP\Admin\Alerts_Tab;
+use WordPress\SMTP\Admin\Failure_Notice;
 use WordPress\SMTP\Admin\Test_Email;
 use WordPress\SMTP\Alerts\Alert_Channel_Registry;
 use WordPress\SMTP\Alerts\Alert_Dispatcher;
@@ -91,6 +92,9 @@ class Plugin_Main {
 
 			$test_email = new Test_Email( $settings, $tracker );
 			$test_email->add_hooks();
+
+			$failure_notice = new Failure_Notice( $repository );
+			$failure_notice->add_hooks();
 		}
 
 		if ( defined( 'WP_CLI' ) && WP_CLI ) {

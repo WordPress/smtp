@@ -49,6 +49,7 @@ smtp/
 │       ├── Admin_Page.php    # Tabs (the Email log tab comes first once configured), Settings API registration, field rendering
 │       ├── Alerts_Tab.php    # Alerts tab (channel select, fields shown per channel), admin-post handler for the test alert
 │       ├── Log_List_Table.php
+│       ├── Failure_Notice.php # Admin notice about recently failed emails, dismissible per user
 │       └── Test_Email.php    # admin-post handler for the test email
 ├── tests/
 │   └── phpunit/
@@ -105,6 +106,7 @@ This plugin replaces the SMTP plugin 1.x published under the same slug, so sites
 - Only metadata is stored: recipient, subject, status, error and provider. **Never store the message body, headers or attachments.**
 - The `provider` column holds the slug of the provider that delivered the email, `default` for the WordPress mailer, or `other` when another plugin delivered it (it replaced `wp_mail()`, short-circuited it with `pre_wp_mail`, or changed PHPMailer after the provider configured it). `Delivery_Tracker` decides which; the Settings and Test tabs warn when another plugin controls outgoing email.
 - Entries older than 30 days are deleted daily by the `smtp_purge_logs` cron event.
+- `Failure_Notice` shows users with `manage_options` how many emails failed in the last 24 hours, on every admin screen except Tools > SMTP. Dismissing it stores the time in the `smtp_failures_dismissed` user meta, and it comes back when a newer email fails.
 - `Privacy` registers a personal data exporter and eraser (key `smtp`) that find entries by recipient address, and adds suggested text to the privacy policy guide. Keep that text in sync with what the log stores.
 
 ### Alerts
@@ -120,6 +122,7 @@ This plugin replaces the SMTP plugin 1.x published under the same slug, so sites
 - `smtp_providers` (filter): add or modify providers.
 - `smtp_log_enabled` (filter): return `false` to skip logging an email. Receives the mail data and the status.
 - `smtp_log_retention_days` (filter): days to keep log entries. Default `30`; `0` or less disables the purge.
+- `smtp_failure_notice_period` (filter): seconds the recent failures admin notice looks back. Default one day.
 - `smtp_timeout` (filter): seconds PHPMailer waits for the SMTP server to connect and to answer each command. Default `15`; `0` or less keeps the PHPMailer default (300). Receives the provider slug.
 - `smtp_alert_channels` (filter): add alert channels (`Alert_Channel` instances).
 - `smtp_alert_enabled` (filter): return `false` to skip the alert for a failed email. Receives the `Alert`.

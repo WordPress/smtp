@@ -105,6 +105,7 @@ Passwords cannot be passed as arguments, since those end up in the shell history
 |---|---|
 | `smtp_log_enabled` | Return `false` to skip logging an email. Receives `$enabled`, `$mail_data` and `$status` (`sent` or `failed`). |
 | `smtp_log_retention_days` | Number of days log entries are kept. Default `30`. A value of `0` or less disables the purge. |
+| `smtp_failure_notice_period` | Seconds the admin notice about failed emails looks back. Default one day. |
 | `smtp_timeout` | Seconds to wait for the SMTP server to connect and to answer each command. Default `15`. A value of `0` or less keeps the PHPMailer default of 300 seconds. |
 | `smtp_alert_channels` | Add alert channels. Receives an array of `WordPress\SMTP\Alerts\Alert_Channel` instances. |
 | `smtp_alert_enabled` | Return `false` to skip the alert for a failed email. Receives `$enabled` and the `Alert`. |
