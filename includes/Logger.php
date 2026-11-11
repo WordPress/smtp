@@ -32,24 +32,24 @@ class Logger {
 	private $repository;
 
 	/**
-	 * Settings.
+	 * Delivery tracker.
 	 *
 	 * @since 1.2.0
-	 * @var Settings
+	 * @var Delivery_Tracker
 	 */
-	private $settings;
+	private $tracker;
 
 	/**
 	 * Constructor.
 	 *
 	 * @since 1.2.0
 	 *
-	 * @param Log_Repository $repository Log repository.
-	 * @param Settings       $settings   Settings.
+	 * @param Log_Repository   $repository Log repository.
+	 * @param Delivery_Tracker $tracker    Delivery tracker.
 	 */
-	public function __construct( Log_Repository $repository, Settings $settings ) {
+	public function __construct( Log_Repository $repository, Delivery_Tracker $tracker ) {
 		$this->repository = $repository;
-		$this->settings   = $settings;
+		$this->tracker    = $tracker;
 	}
 
 	/**
@@ -138,16 +138,61 @@ class Logger {
 		}
 
 		$recipients = isset( $mail_data['to'] ) ? (array) $mail_data['to'] : array();
+		$recipients = array_filter( array_map( 'strval', array_filter( $recipients, 'is_scalar' ) ) );
 		$subject    = isset( $mail_data['subject'] ) && is_string( $mail_data['subject'] ) ? $mail_data['subject'] : '';
 
 		$this->repository->insert(
 			array(
-				'recipient' => sanitize_text_field( implode( ', ', array_filter( array_map( 'strval', $recipients ) ) ) ),
-				'subject'   => sanitize_text_field( $subject ),
+				'recipient' => $this->clean_text( implode( ', ', $recipients ) ),
+				'subject'   => $this->clean_text( $subject ),
 				'status'    => $status,
-				'error'     => sanitize_text_field( $error ),
-				'provider'  => $this->settings->is_configured() ? $this->settings->get_provider_slug() : 'default',
+				'error'     => $this->clean_text( $error ),
+				'provider'  => $this->tracker->get_provider(),
 			)
 		);
+	}
+
+	/**
+	 * Prepares a text value for storage.
+	 *
+	 * Values are stored as sent and escaped on output. Stripping tags here would remove
+	 * addresses written as `Name <email>` and the addresses PHPMailer quotes in its errors.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @param string $text Raw text.
+	 * @return string Text with invalid UTF-8, control characters and line breaks removed.
+	 */
+	private function clean_text( string $text ): string {
+		$text = $this->scrub_utf8( $text );
+
+		return trim( (string) preg_replace( '/[\x00-\x1F\x7F]+/', ' ', $text ) );
+	}
+
+	/**
+	 * Replaces invalid UTF-8 sequences in a string.
+	 *
+	 * The strip mode of wp_check_invalid_utf8() relies on iconv() before WordPress 6.9,
+	 * which raises a notice on invalid input with some iconv implementations.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @param string $text Raw text.
+	 * @return string Valid UTF-8 text.
+	 */
+	private function scrub_utf8( string $text ): string {
+		if ( '' !== wp_check_invalid_utf8( $text ) ) {
+			return $text;
+		}
+
+		if ( function_exists( 'wp_scrub_utf8' ) ) {
+			return wp_scrub_utf8( $text );
+		}
+
+		if ( function_exists( 'mb_convert_encoding' ) ) {
+			return (string) mb_convert_encoding( $text, 'UTF-8', 'UTF-8' );
+		}
+
+		return '';
 	}
 }
