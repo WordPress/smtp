@@ -31,6 +31,7 @@ smtp/
 │   ├── Credentials.php       # The only place that reads/writes secrets
 │   ├── Migration.php         # One-time import of the legacy SMTP plugin (smtp_options) settings
 │   ├── Mailer.php            # phpmailer_init and wp_mail_from(_name) integration
+│   ├── Delivery_Tracker.php  # Detects when another plugin delivers the email instead of this one
 │   ├── Log_Repository.php    # Log table schema (dbDelta) and queries
 │   ├── Logger.php            # wp_mail_succeeded / wp_mail_failed listeners and retention purge
 │   ├── Alerts/               # Failure alerts sent outside of email
@@ -102,6 +103,7 @@ This plugin replaces the SMTP plugin 1.x published under the same slug, so sites
 
 - Table `{prefix}smtp_logs`, created with `dbDelta()` by `Log_Repository::maybe_upgrade()` (schema version in the `smtp_db_version` option).
 - Only metadata is stored: recipient, subject, status, error and provider. **Never store the message body, headers or attachments.**
+- The `provider` column holds the slug of the provider that delivered the email, `default` for the WordPress mailer, or `other` when another plugin delivered it (it replaced `wp_mail()`, short-circuited it with `pre_wp_mail`, or changed PHPMailer after the provider configured it). `Delivery_Tracker` decides which; the Settings and Test tabs warn when another plugin controls outgoing email.
 - Entries older than 30 days are deleted daily by the `smtp_purge_logs` cron event.
 - `Failure_Notice` shows users with `manage_options` how many emails failed in the last 24 hours, on every admin screen except Tools > SMTP. Dismissing it stores the time in the `smtp_failures_dismissed` user meta, and it comes back when a newer email fails.
 

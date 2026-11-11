@@ -64,10 +64,13 @@ class Plugin_Main {
 		$migration = new Migration( $credentials );
 		$migration->add_hooks();
 
-		$mailer = new Mailer( $settings, $registry );
+		$tracker = new Delivery_Tracker( $settings );
+		$tracker->add_hooks();
+
+		$mailer = new Mailer( $settings, $registry, $tracker );
 		$mailer->add_hooks();
 
-		$logger = new Logger( $repository, $settings );
+		$logger = new Logger( $repository, $tracker );
 		$logger->add_hooks();
 
 		$alert_settings   = new Alert_Settings( new Alert_Channel_Registry(), $credentials );
@@ -81,10 +84,10 @@ class Plugin_Main {
 			$alerts_tab = new Alerts_Tab( $alert_settings, $alert_dispatcher );
 			$alerts_tab->add_hooks();
 
-			$admin = new Admin_Page( $settings, $registry, $repository, $this->main_file, $alerts_tab );
+			$admin = new Admin_Page( $settings, $registry, $repository, $this->main_file, $tracker, $alerts_tab );
 			$admin->add_hooks();
 
-			$test_email = new Test_Email( $settings );
+			$test_email = new Test_Email( $settings, $tracker );
 			$test_email->add_hooks();
 
 			$failure_notice = new Failure_Notice( $repository );
@@ -92,7 +95,7 @@ class Plugin_Main {
 		}
 
 		if ( defined( 'WP_CLI' ) && WP_CLI ) {
-			$this->register_cli_commands( $settings, $registry );
+			$this->register_cli_commands( $settings, $registry, $tracker );
 		}
 	}
 
@@ -103,9 +106,10 @@ class Plugin_Main {
 	 *
 	 * @param Settings          $settings Settings.
 	 * @param Provider_Registry $registry Provider registry.
+	 * @param Delivery_Tracker  $tracker  Delivery tracker.
 	 */
-	public function register_cli_commands( Settings $settings, Provider_Registry $registry ) {
-		\WP_CLI::add_command( 'smtp', new Command( $settings, new Test_Email( $settings ) ) );
+	public function register_cli_commands( Settings $settings, Provider_Registry $registry, Delivery_Tracker $tracker ) {
+		\WP_CLI::add_command( 'smtp', new Command( $settings, new Test_Email( $settings, $tracker ) ) );
 		\WP_CLI::add_command( 'smtp settings', new Settings_Command( $settings, $registry ) );
 	}
 
