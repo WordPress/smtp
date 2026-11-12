@@ -42,6 +42,7 @@ smtp/
 │   │   ├── Alert_Settings.php         # smtp_alert_settings option, channel secrets through Credentials
 │   │   ├── Alert_Dispatcher.php       # wp_mail_failed listener, throttling, delivery state
 │   │   └── Slack_Channel.php          # Slack Incoming Webhook channel
+│   ├── Error_Hints.php       # Explains failed sends, based on the connection log
 │   ├── CLI/                  # WP-CLI commands, registered only when WP_CLI is defined
 │   │   ├── Command.php       # wp smtp status, wp smtp test
 │   │   └── Settings_Command.php # wp smtp settings set

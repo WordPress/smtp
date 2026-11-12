@@ -8,6 +8,7 @@
 namespace WordPress\SMTP\Admin;
 
 use WordPress\SMTP\Delivery_Tracker;
+use WordPress\SMTP\Error_Hints;
 use WordPress\SMTP\Log_Repository;
 use WordPress\SMTP\Provider_Registry;
 use WordPress\SMTP\Settings;
@@ -483,6 +484,10 @@ class Admin_Page {
 					}
 					?>
 				</p>
+				<?php $hint = $result['success'] ? '' : Error_Hints::get( $result['debug'] ); ?>
+				<?php if ( '' !== $hint ) : ?>
+					<p><?php echo esc_html( $hint ); ?></p>
+				<?php endif; ?>
 			</div>
 			<?php if ( isset( $result['provider'] ) && Delivery_Tracker::PROVIDER_OTHER === $result['provider'] ) : ?>
 				<div class="notice notice-warning inline">
