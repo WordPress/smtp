@@ -16,6 +16,10 @@
 
 use WordPress\SMTP\Plugin_Main;
 
+if ( ! defined( 'ABSPATH' ) ) {
+	exit; // Exit if accessed directly.
+}
+
 define( 'WP_SMTP_VERSION', '1.2.0' );
 define( 'WP_SMTP_MINIMUM_PHP', '7.4' );
 define( 'WP_SMTP_MAIN_FILE', __FILE__ );

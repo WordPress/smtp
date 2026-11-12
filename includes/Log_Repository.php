@@ -190,14 +190,19 @@ class Log_Repository {
 	public function get_items_by_recipient( string $email, int $limit, int $offset = 0 ): array {
 		global $wpdb;
 
-		list( $where, $args ) = $this->get_recipient_condition( $email );
-
 		$table  = $this->get_table_name();
+		$args   = $this->get_recipient_patterns( $email );
 		$args[] = $limit;
 		$args[] = $offset;
-		// The condition holds one placeholder per argument, see get_recipient_condition().
-		// phpcs:ignore WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber
-		$items = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$table} WHERE {$where} ORDER BY id ASC LIMIT %d OFFSET %d", $args ), ARRAY_A );
+
+		$items = $wpdb->get_results(
+			// phpcs:ignore WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber -- One placeholder per value of get_recipient_patterns(), plus limit and offset.
+			$wpdb->prepare(
+				"SELECT * FROM {$table} WHERE (recipient = %s OR recipient LIKE %s OR recipient LIKE %s OR recipient LIKE %s OR recipient LIKE %s OR recipient LIKE %s OR recipient LIKE %s) ORDER BY id ASC LIMIT %d OFFSET %d",
+				$args
+			),
+			ARRAY_A
+		);
 
 		return is_array( $items ) ? $items : array();
 	}
@@ -257,7 +262,7 @@ class Log_Repository {
 	}
 
 	/**
-	 * Returns the SQL condition that matches an address in the recipient column.
+	 * Returns the values that match an address in the recipient column.
 	 *
 	 * The column holds a comma separated list where each recipient is either `email` or
 	 * `Name <email>`. The address must match a whole entry, so `bob@example.com` does not
@@ -266,14 +271,15 @@ class Log_Repository {
 	 * @since 1.2.0
 	 *
 	 * @param string $email Email address.
-	 * @return array SQL condition with placeholders, and its arguments.
+	 * @return string[] The exact address, followed by six `LIKE` patterns.
 	 */
-	private function get_recipient_condition( string $email ): array {
+	private function get_recipient_patterns( string $email ): array {
 		global $wpdb;
 
 		$like = $wpdb->esc_like( $email );
 
-		$patterns = array(
+		return array(
+			$email,
 			'%<' . $like . '>%',
 			$like . ',%',
 			'%,' . $like,
@@ -281,9 +287,5 @@ class Log_Repository {
 			'%,' . $like . ',%',
 			'%, ' . $like . ',%',
 		);
-
-		$where = '(recipient = %s' . str_repeat( ' OR recipient LIKE %s', count( $patterns ) ) . ')';
-
-		return array( $where, array_merge( array( $email ), $patterns ) );
 	}
 }

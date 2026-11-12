@@ -202,7 +202,7 @@ class Delivery_Tracker {
 	 */
 	private function get_plugin_name( string $file ): string {
 		$fallback    = __( 'Another plugin', 'smtp' );
-		$plugins_dir = trailingslashit( wp_normalize_path( WP_PLUGIN_DIR ) );
+		$plugins_dir = trailingslashit( wp_normalize_path( dirname( plugin_dir_path( WP_SMTP_MAIN_FILE ) ) ) );
 
 		if ( 0 !== strpos( $file, $plugins_dir ) ) {
 			return $fallback;
