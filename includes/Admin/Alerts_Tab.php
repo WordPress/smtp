@@ -84,34 +84,7 @@ class Alerts_Tab {
 			return;
 		}
 
-		wp_register_script( 'smtp-alerts', false, array(), WP_SMTP_VERSION, true );
-		wp_enqueue_script( 'smtp-alerts' );
-		wp_add_inline_script( 'smtp-alerts', self::get_toggle_script() );
-	}
-
-	/**
-	 * Returns the script that shows the fields of the selected channel and hides the others.
-	 *
-	 * @since 1.2.0
-	 *
-	 * @return string JavaScript.
-	 */
-	public static function get_toggle_script(): string {
-		return <<<'JS'
-( function () {
-	var select = document.getElementById( 'smtp-alert-channel' );
-	if ( ! select ) {
-		return;
-	}
-	var toggle = function () {
-		document.querySelectorAll( '[data-smtp-alert-channel]' ).forEach( function ( group ) {
-			group.hidden = group.getAttribute( 'data-smtp-alert-channel' ) !== select.value;
-		} );
-	};
-	select.addEventListener( 'change', toggle );
-	toggle();
-} )();
-JS;
+		wp_enqueue_script( 'smtp-alerts', plugins_url( 'assets/js/alerts.js', WP_SMTP_MAIN_FILE ), array(), WP_SMTP_VERSION, true );
 	}
 
 	/**

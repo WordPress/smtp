@@ -117,7 +117,7 @@ class Alerts_Tab_Tests extends WP_UnitTestCase {
 
 		$this->tab->enqueue_script( 'tools_page_smtp' );
 		$this->assertTrue( wp_script_is( 'smtp-alerts', 'enqueued' ) );
-		$this->assertStringContainsString( 'data-smtp-alert-channel', implode( '', wp_scripts()->get_data( 'smtp-alerts', 'after' ) ) );
+		$this->assertStringContainsString( 'assets/js/alerts.js', wp_scripts()->registered['smtp-alerts']->src );
 	}
 
 	public function test_register_settings_registers_the_option_in_its_own_group() {

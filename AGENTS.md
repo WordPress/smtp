@@ -24,6 +24,7 @@ smtp/
 ├── smtp.php                  # Main plugin file: header, constants, requirements checks, bootstrap
 ├── uninstall.php             # Removes options, the log table and the cron event
 ├── readme.txt                # WordPress.org readme (Stable tag, changelog)
+├── assets/js/alerts.js       # Shows the fields of the selected alert channel, enqueued by Alerts_Tab
 ├── includes/                 # PSR-4 autoloaded under WordPress\SMTP\
 │   ├── Plugin_Main.php       # Wires every component, activation/deactivation, purge schedule
 │   ├── Provider_Registry.php # smtp_providers filter, provider validation, Generic SMTP provider

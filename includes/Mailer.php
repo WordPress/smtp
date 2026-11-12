@@ -110,12 +110,12 @@ class Mailer {
 			// phpcs:disable WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase
 			// Timeout only covers opening the connection. Each reply, starting with the greeting,
 			// is awaited for up to Timelimit seconds, 300 by default.
-			if ( ! class_exists( '\\PHPMailer\\PHPMailer\\SMTP', false ) ) {
-				require_once ABSPATH . WPINC . '/PHPMailer/SMTP.php';
-			}
+			$phpmailer->Timeout = $timeout;
 
-			$phpmailer->Timeout                      = $timeout;
-			$phpmailer->getSMTPInstance()->Timelimit = $timeout;
+			// wp_mail() loads the SMTP class together with PHPMailer.
+			if ( class_exists( '\\PHPMailer\\PHPMailer\\SMTP' ) ) {
+				$phpmailer->getSMTPInstance()->Timelimit = $timeout;
+			}
 			// phpcs:enable WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase
 		}
 

@@ -10,7 +10,6 @@ AGENTS.md
 CLAUDE.md
 bin
 build
-composer.json
 composer.lock
 node_modules
 package-lock.json
