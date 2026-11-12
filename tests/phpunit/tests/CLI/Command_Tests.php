@@ -132,7 +132,13 @@ class Command_Tests extends WP_UnitTestCase {
 	}
 
 	public function test_test_does_not_warn_when_smtp_is_configured() {
-		update_option( Settings::OPTION, array( 'host' => 'smtp.example.com' ) );
+		update_option(
+			Settings::OPTION,
+			array(
+				'host' => 'smtp.example.com',
+				'auth' => false,
+			)
+		);
 
 		$this->command->test( array( 'someone@example.com' ), array() );
 

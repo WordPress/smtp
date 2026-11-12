@@ -210,7 +210,13 @@ class Logger_Tests extends WP_UnitTestCase {
 	}
 
 	public function test_provider_is_recorded_once_configured() {
-		update_option( Settings::OPTION, array( 'host' => 'smtp.example.com' ) );
+		update_option(
+			Settings::OPTION,
+			array(
+				'host' => 'smtp.example.com',
+				'auth' => false,
+			)
+		);
 
 		$this->logger->log_success( array( 'subject' => 'Hello' ) );
 
@@ -218,7 +224,13 @@ class Logger_Tests extends WP_UnitTestCase {
 	}
 
 	public function test_wp_mail_sent_with_the_settings_logs_the_provider() {
-		update_option( Settings::OPTION, array( 'host' => 'smtp.example.com' ) );
+		update_option(
+			Settings::OPTION,
+			array(
+				'host' => 'smtp.example.com',
+				'auth' => false,
+			)
+		);
 
 		wp_mail( 'to@example.org', 'Integration', 'Body' );
 
@@ -226,7 +238,13 @@ class Logger_Tests extends WP_UnitTestCase {
 	}
 
 	public function test_wp_mail_reconfigured_by_another_plugin_is_logged_as_other() {
-		update_option( Settings::OPTION, array( 'host' => 'smtp.example.com' ) );
+		update_option(
+			Settings::OPTION,
+			array(
+				'host' => 'smtp.example.com',
+				'auth' => false,
+			)
+		);
 
 		$other_plugin = static function ( $phpmailer ) {
 			$phpmailer->Host = 'smtp.other-plugin.example';

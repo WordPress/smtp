@@ -32,7 +32,13 @@ class Delivery_Tracker_Tests extends WP_UnitTestCase {
 	}
 
 	private function configure_plugin() {
-		update_option( Settings::OPTION, array( 'host' => 'smtp.example.com' ) );
+		update_option(
+			Settings::OPTION,
+			array(
+				'host' => 'smtp.example.com',
+				'auth' => false,
+			)
+		);
 	}
 
 	private function configured_phpmailer() {
