@@ -15,6 +15,7 @@ use WordPress\SMTP\Delivery_Tracker;
 use WordPress\SMTP\Log_Repository;
 use WordPress\SMTP\Provider_Registry;
 use WordPress\SMTP\Settings;
+use WordPress\SMTP\Test_Utils\Fake_Secrets_API;
 use WordPress\SMTP\Test_Utils\Traits\With_Log_Table;
 
 class Admin_Page_Tests extends WP_UnitTestCase {
@@ -127,6 +128,21 @@ class Admin_Page_Tests extends WP_UnitTestCase {
 		$this->assertStringContainsString( 'nav-tab-active', $html );
 		$this->assertStringContainsString( 'name="smtp_settings[host]"', $html );
 		$this->assertStringContainsString( 'name="smtp_settings[provider]"', $html );
+	}
+
+	public function test_settings_tab_shows_the_secret_storage() {
+		$api      = new Fake_Secrets_API();
+		$registry = new Provider_Registry();
+		$settings = new Settings( $registry, new Credentials( $api ) );
+
+		$this->admin_page = new Admin_Page( $settings, $registry, new Log_Repository(), WP_SMTP_MAIN_FILE, new Delivery_Tracker( $settings ) );
+		$this->admin_page->register_settings();
+
+		$this->assertStringContainsString( 'Passwords are stored encrypted with the WordPress Secrets API.', $this->render( 'settings' ) );
+
+		$api->available = false;
+
+		$this->assertStringContainsString( 'Passwords are stored in the database without encryption.', $this->render( 'settings' ) );
 	}
 
 	private function get_tab_slugs( string $html ): array {

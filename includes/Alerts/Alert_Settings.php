@@ -8,6 +8,7 @@
 namespace WordPress\SMTP\Alerts;
 
 use WordPress\SMTP\Credentials;
+use WordPress\SMTP\Settings;
 
 /**
  * Reads and sanitizes the alert settings.
@@ -170,7 +171,7 @@ class Alert_Settings {
 
 				if ( 'password' === ( $field['type'] ?? '' ) ) {
 					if ( '' !== $value ) {
-						$this->credentials->set( self::get_secret_key( $id, $key ), $value );
+						Settings::report_secret_error( $this->credentials->set( self::get_secret_key( $id, $key ), $value ), $field['label'] ?? $key );
 					}
 					continue;
 				}

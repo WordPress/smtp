@@ -77,6 +77,16 @@ Each field accepts:
 
 Fields of type `password` are stored apart from the other settings, are never printed back into the page, and are redacted from the connection log of the test email.
 
+### Where secrets are stored
+
+Secrets (passwords and the Slack webhook URL) are stored with the [WordPress Secrets API](https://make.wordpress.org/core/2026/11/11/the-secrets-api-in-wordpress-7-2/) when it is available and writable, as `smtp/<key>` (for example `smtp/password`). The API needs WordPress 7.2 (or the feature plugin) and `WP_SECRETS_KEY` in `wp-config.php`. Otherwise they are stored in the `smtp_credentials` option, which is not autoloaded.
+
+- When the API becomes available, an admin page load moves each value from the option to the API, reads it back to check it, then removes it from the option.
+- When a secret can not be read any more, for example after `WP_SECRETS_KEY` changed or the feature plugin was deactivated, the plugin never falls back to an old plain text value. The provider is treated as not configured and an admin notice asks to check the key or enter the password again.
+- When a write to the API fails, nothing is saved and the error is shown. The value is never stored in plain text instead.
+- Constants keep overriding both storages.
+- The storage in use is shown under the settings form and in `wp smtp status` (`secret_storage`).
+
 Providers with an invalid definition (no label, or a `configure` that is not callable) are ignored. Providers that talk to an HTTP API instead of SMTP are not supported yet, see [#1](https://github.com/WordPress/smtp/issues/1).
 
 ## WP-CLI

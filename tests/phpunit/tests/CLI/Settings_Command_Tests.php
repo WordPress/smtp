@@ -9,6 +9,7 @@ use WordPress\SMTP\CLI\Settings_Command;
 use WordPress\SMTP\Credentials;
 use WordPress\SMTP\Provider_Registry;
 use WordPress\SMTP\Settings;
+use WordPress\SMTP\Test_Utils\Fake_Secrets_API;
 
 require_once TESTS_PLUGIN_DIR . '/tests/phpunit/utils/wp-cli-stub.php';
 
@@ -147,6 +148,24 @@ class Settings_Command_Tests extends WP_UnitTestCase {
 
 		$this->assertSame( 's3cret-value', $this->credentials->get( 'password' ) );
 		$this->assertArrayNotHasKey( 'password', get_option( Settings::OPTION ) );
+	}
+
+	public function test_set_fails_when_the_password_can_not_be_stored() {
+		$api               = new Fake_Secrets_API();
+		$api->set_error    = new WP_Error( 'secret_key_unavailable', 'The key is missing.' );
+		$this->credentials = new Credentials( $api );
+		$this->settings    = new Settings( new Provider_Registry(), $this->credentials );
+
+		try {
+			$this->run_set( array( 'password=-' ), "s3cret-value\n" );
+			$this->fail( 'Expected the command to fail.' );
+		} catch ( RuntimeException $error ) {
+			$this->assertStringContainsString( 'The password could not be saved.', $error->getMessage() );
+			$this->assertStringNotContainsString( 's3cret-value', $error->getMessage() );
+		}
+
+		$this->assertSame( array(), WP_CLI::$successes );
+		$this->assertFalse( get_option( Credentials::OPTION ) );
 	}
 
 	public function test_set_keeps_the_password_when_it_is_not_passed() {

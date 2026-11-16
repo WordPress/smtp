@@ -224,7 +224,7 @@ class Settings {
 				case 'password':
 					// An empty submission keeps the current secret.
 					if ( is_string( $raw ) && '' !== $raw ) {
-						$this->credentials->set( $key, $raw );
+						self::report_secret_error( $this->credentials->set( $key, $raw ), $field['label'] );
 					}
 					break;
 
@@ -247,6 +247,45 @@ class Settings {
 		}
 
 		return $clean;
+	}
+
+	/**
+	 * Returns the storage used for new secrets.
+	 *
+	 * @since 1.3.0
+	 *
+	 * @return string Credentials::STORAGE_SECRETS or Credentials::STORAGE_OPTION.
+	 */
+	public function get_secret_storage(): string {
+		return $this->credentials->get_storage();
+	}
+
+	/**
+	 * Shows a settings error when a secret could not be saved.
+	 *
+	 * @since 1.3.0
+	 *
+	 * @param true|\WP_Error $result Result of Credentials::set().
+	 * @param string         $label  Label of the field.
+	 */
+	public static function report_secret_error( $result, string $label ) {
+		// add_settings_error() is only loaded in the admin.
+		if ( ! is_wp_error( $result ) || ! function_exists( 'add_settings_error' ) ) {
+			return;
+		}
+
+		add_settings_error(
+			self::OPTION,
+			'smtp_secret_not_saved',
+			esc_html(
+				sprintf(
+					/* translators: 1: field label, 2: error message */
+					__( '%1$s was not saved: %2$s', 'smtp' ),
+					$label,
+					$result->get_error_message()
+				)
+			)
+		);
 	}
 
 	/**
