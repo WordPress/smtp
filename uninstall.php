@@ -17,9 +17,17 @@ delete_metadata( 'user', 0, 'smtp_failures_dismissed', '', true );
 $smtp_uninstall_site = static function () {
 	global $wpdb;
 
+	// Secrets stored with the WordPress Secrets API. They stay if the API is not available any more.
+	if ( function_exists( 'wp_delete_secret' ) ) {
+		foreach ( (array) get_option( 'smtp_secret_keys', array() ) as $smtp_secret_key ) {
+			wp_delete_secret( 'smtp/' . $smtp_secret_key );
+		}
+	}
+
 	delete_option( 'smtp_settings' );
 	delete_option( 'smtp_connections' );
 	delete_option( 'smtp_credentials' );
+	delete_option( 'smtp_secret_keys' );
 	delete_option( 'smtp_db_version' );
 	delete_option( 'smtp_alert_settings' );
 	delete_option( 'smtp_alert_state' );

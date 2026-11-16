@@ -34,6 +34,7 @@ class Uninstall_Tests extends WP_UnitTestCase {
 		( new Credentials() )->set( 'password', 'secret' );
 		( new Credentials() )->set( Alert_Settings::get_secret_key( 'slack', 'webhook_url' ), 'https://hooks.slack.com/services/secret' );
 		update_option( Alert_Settings::OPTION, array( 'channel' => 'slack' ) );
+		update_option( Credentials::KEYS_OPTION, array( 'password' ) );
 		update_option( Alert_Dispatcher::STATE_OPTION, array( 'slack' => array( 'last_sent' => time() ) ) );
 		update_option( Migration::LEGACY_OPTION, array( 'host' => 'smtp.example.com' ) );
 		update_option( Migration::DONE_OPTION, '1' );
@@ -66,6 +67,7 @@ class Uninstall_Tests extends WP_UnitTestCase {
 
 		$this->assertFalse( get_option( Settings::OPTION ) );
 		$this->assertFalse( get_option( Credentials::OPTION ) );
+		$this->assertFalse( get_option( Credentials::KEYS_OPTION ) );
 		$this->assertFalse( get_option( Log_Repository::DB_VERSION_OPTION ) );
 		$this->assertFalse( get_option( Alert_Settings::OPTION ) );
 		$this->assertFalse( get_option( Alert_Dispatcher::STATE_OPTION ) );

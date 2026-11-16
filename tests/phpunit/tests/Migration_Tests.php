@@ -12,6 +12,7 @@ use WordPress\SMTP\Migration;
 use WordPress\SMTP\Plugin_Main;
 use WordPress\SMTP\Provider_Registry;
 use WordPress\SMTP\Settings;
+use WordPress\SMTP\Test_Utils\Fake_Secrets_API;
 use WordPress\SMTP\Test_Utils\Traits\With_Log_Table;
 use WordPress\SMTP\Test_Utils\Traits\With_PHPMailer;
 
@@ -276,6 +277,19 @@ class Migration_Tests extends WP_UnitTestCase {
 		);
 
 		$this->assertSame( '', $this->credentials->get( 'password' ) );
+		$this->assertSame( Migration::NOTICE_PASSWORD_MISSING, get_option( Migration::NOTICE_OPTION ) );
+	}
+
+	public function test_a_password_the_secrets_api_refuses_asks_the_user_to_enter_it_again() {
+		update_option( Migration::LEGACY_OPTION, $this->legacy() );
+		$api               = new Fake_Secrets_API();
+		$api->set_error    = new WP_Error( 'secret_key_unavailable', 'No key.' );
+		$this->credentials = new Credentials( $api );
+
+		$this->assertTrue( $this->migration()->maybe_migrate() );
+
+		$this->assertSame( '', $this->credentials->get( 'password' ) );
+		$this->assertFalse( get_option( Credentials::OPTION ) );
 		$this->assertSame( Migration::NOTICE_PASSWORD_MISSING, get_option( Migration::NOTICE_OPTION ) );
 	}
 
