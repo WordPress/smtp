@@ -5,6 +5,7 @@
  * @package smtp
  */
 
+use WordPress\SMTP\Connections;
 use WordPress\SMTP\Admin\Test_Email;
 use WordPress\SMTP\Credentials;
 use WordPress\SMTP\Delivery_Tracker;
@@ -329,5 +330,74 @@ class Test_Email_Tests extends WP_UnitTestCase {
 		$method->setAccessible( true );
 
 		$this->assertSame( 'SERVER -> CLIENT: 220 ready', $method->invoke( $this->test_email, 'SERVER -> CLIENT: 220 ready' ) );
+	}
+
+	private function connections_for_test(): Connections {
+		$registry    = new Provider_Registry();
+		$credentials = new Credentials();
+		$settings    = new Settings( $registry, $credentials );
+		$connections = new Connections( $registry, $credentials, $settings );
+		$connections->save(
+			'sponsors',
+			'Sponsors',
+			array(
+				'provider'   => 'smtp',
+				'host'       => 'smtp.sponsors.example',
+				'auth'       => '1',
+				'username'   => 'sponsors-user',
+				'password'   => 'sponsors-secret',
+				'from_email' => 'sponsors@example.org',
+			)
+		);
+
+		$mailer = new Mailer( $settings, $registry, $this->tracker, $connections );
+		$mailer->add_hooks();
+
+		return $connections;
+	}
+
+	public function test_send_tests_the_selected_connection() {
+		$connections = $this->connections_for_test();
+		$test_email  = new Test_Email( new Settings( new Provider_Registry(), new Credentials() ), $this->tracker, $connections );
+
+		$result = $test_email->send( 'to@example.org', 'sponsors' );
+
+		$this->assertTrue( $result['success'] );
+		$this->assertSame( 'sponsors', $result['connection_id'] );
+		$this->assertSame( 'smtp.sponsors.example', tests_retrieve_phpmailer_instance()->Host );
+		$this->assertSame( 'sponsors', $this->get_logged_entries()[0]['connection_id'] );
+	}
+
+	public function test_redact_removes_the_password_of_the_selected_connection() {
+		$connections = $this->connections_for_test();
+		$test_email  = new Test_Email( new Settings( new Provider_Registry(), new Credentials() ), $this->tracker, $connections );
+		$log         = 'AUTH PLAIN ' . base64_encode( "\0sponsors-user\0sponsors-secret" ) . ' sponsors-secret'; // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode
+
+		$method = new ReflectionMethod( Test_Email::class, 'redact' );
+		$method->setAccessible( true );
+		$redacted = $method->invoke( $test_email, $log, 'sponsors' );
+
+		$this->assertStringNotContainsString( 'sponsors-secret', $redacted );
+		$this->assertStringNotContainsString( base64_encode( "\0sponsors-user\0sponsors-secret" ), $redacted ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode
+		$this->assertStringContainsString( '[redacted]', $redacted );
+	}
+
+	public function test_send_uses_the_default_connection_for_an_unknown_one() {
+		$connections = $this->connections_for_test();
+		$test_email  = new Test_Email( new Settings( new Provider_Registry(), new Credentials() ), $this->tracker, $connections );
+
+		$result = $test_email->send( 'to@example.org', 'missing' );
+
+		$this->assertTrue( $result['success'] );
+		$this->assertSame( 'default', $result['connection_id'] );
+	}
+
+	public function test_send_does_not_leave_the_connection_filter_behind() {
+		$connections = $this->connections_for_test();
+		$test_email  = new Test_Email( new Settings( new Provider_Registry(), new Credentials() ), $this->tracker, $connections );
+
+		$test_email->send( 'to@example.org', 'sponsors' );
+
+		$this->assertFalse( has_filter( 'smtp_connection_for_email' ) );
 	}
 }

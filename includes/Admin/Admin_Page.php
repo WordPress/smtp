@@ -7,6 +7,7 @@
 
 namespace WordPress\SMTP\Admin;
 
+use WordPress\SMTP\Connections;
 use WordPress\SMTP\Delivery_Tracker;
 use WordPress\SMTP\Error_Hints;
 use WordPress\SMTP\Log_Repository;
@@ -76,24 +77,34 @@ class Admin_Page {
 	private $alerts_tab;
 
 	/**
+	 * Connections tab, or null when connections are not available.
+	 *
+	 * @since 1.2.0
+	 * @var Connections_Tab|null
+	 */
+	private $connections_tab;
+
+	/**
 	 * Constructor.
 	 *
 	 * @since 1.2.0
 	 *
-	 * @param Settings          $settings   Settings.
-	 * @param Provider_Registry $registry   Provider registry.
-	 * @param Log_Repository    $repository Log repository.
-	 * @param string            $main_file  Absolute path to the main plugin file.
-	 * @param Delivery_Tracker  $tracker    Delivery tracker.
-	 * @param Alerts_Tab|null   $alerts_tab Optional. Alerts tab. Default null, which hides the tab.
+	 * @param Settings             $settings        Settings of the default connection.
+	 * @param Provider_Registry    $registry        Provider registry.
+	 * @param Log_Repository       $repository      Log repository.
+	 * @param string               $main_file       Absolute path to the main plugin file.
+	 * @param Delivery_Tracker     $tracker         Delivery tracker.
+	 * @param Alerts_Tab|null      $alerts_tab      Optional. Alerts tab. Default null, which hides the tab.
+	 * @param Connections_Tab|null $connections_tab Optional. Connections tab. Default null, which hides the tab.
 	 */
-	public function __construct( Settings $settings, Provider_Registry $registry, Log_Repository $repository, string $main_file, Delivery_Tracker $tracker, ?Alerts_Tab $alerts_tab = null ) {
-		$this->settings   = $settings;
-		$this->registry   = $registry;
-		$this->repository = $repository;
-		$this->main_file  = $main_file;
-		$this->tracker    = $tracker;
-		$this->alerts_tab = $alerts_tab;
+	public function __construct( Settings $settings, Provider_Registry $registry, Log_Repository $repository, string $main_file, Delivery_Tracker $tracker, ?Alerts_Tab $alerts_tab = null, ?Connections_Tab $connections_tab = null ) {
+		$this->settings        = $settings;
+		$this->registry        = $registry;
+		$this->repository      = $repository;
+		$this->main_file       = $main_file;
+		$this->tracker         = $tracker;
+		$this->alerts_tab      = $alerts_tab;
+		$this->connections_tab = $connections_tab;
 	}
 
 	/**
@@ -249,6 +260,8 @@ class Admin_Page {
 				$this->render_test_tab();
 			} elseif ( 'alerts' === $current && $this->alerts_tab ) {
 				$this->alerts_tab->render();
+			} elseif ( 'connections' === $current && $this->connections_tab ) {
+				$this->connections_tab->render();
 			} else {
 				$this->render_settings_tab();
 			}
@@ -272,6 +285,13 @@ class Admin_Page {
 			'log'      => __( 'Email log', 'smtp' ),
 			'test'     => __( 'Test', 'smtp' ),
 		);
+
+		if ( $this->connections_tab ) {
+			$tabs = array(
+				'settings'    => $tabs['settings'],
+				'connections' => __( 'Connections', 'smtp' ),
+			) + $tabs;
+		}
 
 		if ( $this->alerts_tab ) {
 			$tabs['alerts'] = __( 'Alerts', 'smtp' );
@@ -313,89 +333,7 @@ class Admin_Page {
 	 * @param array $args Field arguments: `key` and `field`.
 	 */
 	public function render_field( array $args ) {
-		$key    = $args['key'];
-		$field  = $args['field'];
-		$id     = 'smtp-' . $key;
-		$name   = Settings::OPTION . '[' . $key . ']';
-		$locked = $this->settings->is_locked( $field );
-		$value  = $this->settings->get( $key );
-
-		switch ( $field['type'] ) {
-			case 'checkbox':
-				?>
-				<label for="<?php echo esc_attr( $id ); ?>">
-					<input type="checkbox" id="<?php echo esc_attr( $id ); ?>" name="<?php echo esc_attr( $name ); ?>" value="1" <?php checked( (bool) $value ); ?> <?php disabled( $locked ); ?> />
-					<?php echo esc_html( $field['description'] ); ?>
-				</label>
-				<?php
-				$field['description'] = '';
-				break;
-
-			case 'select':
-				?>
-				<select id="<?php echo esc_attr( $id ); ?>" name="<?php echo esc_attr( $name ); ?>" <?php disabled( $locked ); ?>>
-					<?php foreach ( $field['options'] as $option_value => $option_label ) : ?>
-						<option value="<?php echo esc_attr( $option_value ); ?>" <?php selected( $value, (string) $option_value ); ?>>
-							<?php echo esc_html( $option_label ); ?>
-						</option>
-					<?php endforeach; ?>
-				</select>
-				<?php
-				break;
-
-			case 'password':
-				// The saved secret is never printed back into the page.
-				?>
-				<input
-					type="password"
-					class="regular-text"
-					id="<?php echo esc_attr( $id ); ?>"
-					name="<?php echo esc_attr( $name ); ?>"
-					value=""
-					autocomplete="new-password"
-					placeholder="<?php echo '' !== $value ? esc_attr( str_repeat( '•', 8 ) ) : ''; ?>"
-					<?php disabled( $locked ); ?>
-				/>
-				<?php
-				if ( '' !== $value && ! $locked ) {
-					$field['description'] = __( 'A password is saved. Leave empty to keep it.', 'smtp' );
-				}
-				break;
-
-			default:
-				$type = in_array( $field['type'], array( 'number', 'email' ), true ) ? $field['type'] : 'text';
-				?>
-				<input
-					type="<?php echo esc_attr( $type ); ?>"
-					class="regular-text"
-					id="<?php echo esc_attr( $id ); ?>"
-					name="<?php echo esc_attr( $name ); ?>"
-					value="<?php echo esc_attr( (string) $value ); ?>"
-					<?php disabled( $locked ); ?>
-				/>
-				<?php
-		}
-
-		if ( $locked ) {
-			?>
-			<p class="description">
-				<?php
-				echo wp_kses(
-					sprintf(
-						/* translators: %s: PHP constant name */
-						__( 'Defined by the %s constant.', 'smtp' ),
-						'<code>' . esc_html( $field['constant'] ) . '</code>'
-					),
-					array( 'code' => array() )
-				);
-				?>
-			</p>
-			<?php
-		} elseif ( '' !== $field['description'] ) {
-			?>
-			<p class="description"><?php echo esc_html( $field['description'] ); ?></p>
-			<?php
-		}
+		Field_Renderer::render( $args['key'], $args['field'], $this->settings, Settings::OPTION . '[' . $args['key'] . ']' );
 	}
 
 	/**
@@ -428,7 +366,7 @@ class Admin_Page {
 	private function render_log_tab() {
 		require_once ABSPATH . 'wp-admin/includes/class-wp-list-table.php';
 
-		$table = new Log_List_Table( $this->repository, $this->registry );
+		$table = new Log_List_Table( $this->repository, $this->registry, $this->connections_tab ? $this->connections_tab->get_connections() : null );
 		$table->prepare_items();
 		?>
 		<p>
@@ -519,6 +457,21 @@ class Admin_Page {
 			<input type="hidden" name="action" value="<?php echo esc_attr( Test_Email::ACTION ); ?>" />
 			<?php wp_nonce_field( Test_Email::ACTION ); ?>
 			<table class="form-table" role="presentation">
+				<?php if ( $this->connections_tab && $this->connections_tab->get_connections()->has_extra() ) : ?>
+					<?php $connections = $this->connections_tab->get_connections(); ?>
+					<tr>
+						<th scope="row"><label for="smtp-test-connection"><?php esc_html_e( 'Connection', 'smtp' ); ?></label></th>
+						<td>
+							<select id="smtp-test-connection" name="connection">
+								<?php foreach ( $connections->get_ids() as $connection_id ) : ?>
+									<option value="<?php echo esc_attr( $connection_id ); ?>" <?php selected( $result['connection_id'] ?? Connections::DEFAULT_ID, $connection_id ); ?>>
+										<?php echo esc_html( $connections->get_label( $connection_id ) ); ?>
+									</option>
+								<?php endforeach; ?>
+							</select>
+						</td>
+					</tr>
+				<?php endif; ?>
 				<tr>
 					<th scope="row"><label for="smtp-test-to"><?php esc_html_e( 'Send to', 'smtp' ); ?></label></th>
 					<td>

@@ -29,6 +29,7 @@ smtp/
 │   ├── Plugin_Main.php       # Wires every component, activation/deactivation, purge schedule
 │   ├── Provider_Registry.php # smtp_providers filter, provider validation, Generic SMTP provider
 │   ├── Rate_Limits.php       # Sending limits of a provider: declared, saved override, smtp_rate_limits filter
+│   ├── Connections.php       # Stored connections (smtp_connections), smtp_connection_for_email, resolve()
 │   ├── Settings.php          # Field resolution (constant > saved value > default) and sanitization
 │   ├── Credentials.php       # The only place that reads/writes secrets
 │   ├── Migration.php         # One-time import of the legacy SMTP plugin (smtp_options) settings
@@ -50,6 +51,8 @@ smtp/
 │   │   └── Settings_Command.php # wp smtp settings set
 │   └── Admin/                # Tools > SMTP screen
 │       ├── Admin_Page.php    # Tabs (the Email log tab comes first once configured), Settings API registration, field rendering
+│       ├── Connections_Tab.php # Connections tab: list, add, edit and delete connections
+│       ├── Field_Renderer.php  # Renders a settings field, shared by the Settings and Connections tabs
 │       ├── Alerts_Tab.php    # Alerts tab (channel select, fields shown per channel), admin-post handler for the test alert
 │       ├── Log_List_Table.php
 │       ├── Failure_Notice.php # Admin notice about recently failed emails, dismissible per user
@@ -80,6 +83,16 @@ A provider is an array registered through the `smtp_providers` filter:
 - `rate_limits` (array, optional): default sending limits. See "Sending limits".
 
 `Provider_Registry::get_all()` discards invalid providers. Providers only configure PHPMailer; they must not send mail themselves.
+
+### Connections
+
+- A connection is a provider with its own settings, secrets, From address and limits. The settings of Tools > SMTP (`smtp_settings`) are the **default connection** (ID `default`), so nothing changes for single-connection sites. Other connections live in `smtp_connections` (`id => label + settings`, not autoloaded), and `Connections` is the only class that reads and writes them.
+- `Settings` is scoped to a connection by its constructor (`new Settings( $registry, $credentials, $id )`). Constants only lock the default connection, and the secrets of the others go to `Credentials` under `connection:{id}:{field}`. The colon can not be in an ID, so one ID prefix never matches another (`a` and `a_b`). **Never build a secret key by hand: use `Connections::get_secret_prefix()`.**
+- `Mailer` picks the connection in the `wp_mail` filter (last priority, so it sees the final email data) with `Connections::resolve()`, which applies `smtp_connection_for_email`. `phpmailer_init` and the From filters then read the settings of that connection, and `Delivery_Tracker` credits its provider. An unknown or incomplete connection falls back to the default one so email is never dropped.
+- `wp_smtp_mail()` adds a one-shot `smtp_connection_for_email` callback at `PHP_INT_MAX` around `wp_mail()`. `wp_smtp_get_connections()` describes the connections without credentials. Both live in `smtp.php`.
+- The log table has a `connection_id` column (schema version 2). It is empty for the default connection, so entries logged before connections existed stay correct, and for emails that were not delivered by a connection.
+- `Admin\Connections_Tab` lists, adds, edits and deletes connections (admin-post handlers with nonce and capability checks), and `Admin\Field_Renderer` renders a field for both the Settings and the Connections tabs.
+- `wp smtp` commands only handle the default connection.
 
 ### Sending limits
 
@@ -114,7 +127,7 @@ This plugin replaces the SMTP plugin 1.x published under the same slug, so sites
 ### Email log
 
 - Table `{prefix}smtp_logs`, created with `dbDelta()` by `Log_Repository::maybe_upgrade()` (schema version in the `smtp_db_version` option).
-- Only metadata is stored: recipient, subject, status, error and provider. **Never store the message body, headers or attachments.**
+- Only metadata is stored: recipient, subject, status, error, provider and connection. **Never store the message body, headers or attachments.**
 - The `provider` column holds the slug of the provider that delivered the email, `default` for the WordPress mailer, or `other` when another plugin delivered it (it replaced `wp_mail()`, short-circuited it with `pre_wp_mail`, or changed PHPMailer after the provider configured it). `Delivery_Tracker` decides which; the Settings and Test tabs warn when another plugin controls outgoing email.
 - Entries older than 30 days are deleted daily by the `smtp_purge_logs` cron event.
 - `Failure_Notice` shows users with `manage_options` how many emails failed in the last 24 hours, on every admin screen except Tools > SMTP. Dismissing it stores the time in the `smtp_failures_dismissed` user meta, and it comes back when a newer email fails.
@@ -134,7 +147,8 @@ This plugin replaces the SMTP plugin 1.x published under the same slug, so sites
 - `smtp_log_enabled` (filter): return `false` to skip logging an email. Receives the mail data and the status.
 - `smtp_log_retention_days` (filter): days to keep log entries. Default `30`; `0` or less disables the purge.
 - `smtp_failure_notice_period` (filter): seconds the recent failures admin notice looks back. Default one day.
-- `smtp_rate_limits` (filter): change the sending limits of a provider. Receives the limits and the provider slug.
+- `smtp_rate_limits` (filter): change the sending limits of a provider. Receives the limits, the provider slug and the connection ID.
+- `smtp_connection_for_email` (filter): pick the connection an email is sent through. Receives the connection ID (`default`) and the mail data.
 - `smtp_timeout` (filter): seconds PHPMailer waits for the SMTP server to connect and to answer each command. Default `15`; `0` or less keeps the PHPMailer default (300). Receives the provider slug.
 - `smtp_alert_channels` (filter): add alert channels (`Alert_Channel` instances).
 - `smtp_alert_enabled` (filter): return `false` to skip the alert for a failed email. Receives the `Alert`.

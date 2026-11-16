@@ -83,6 +83,61 @@ function wp_smtp_get_rate_limits( string $provider = '' ): array {
 }
 
 /**
+ * Returns the SMTP connections, so a connection can be picked for an email.
+ *
+ * The default connection is the one configured under Tools > SMTP. The result never includes credentials.
+ *
+ * @since 1.2.0
+ *
+ * @return array[] Connections keyed by ID. The default connection is first, with the ID `default`. Each one has:
+ *                 `label` (string), `provider` (provider slug), `configured` (bool, whether it can send mail)
+ *                 and `rate_limits` (array, see wp_smtp_get_rate_limits()).
+ */
+function wp_smtp_get_connections(): array {
+	// The classes are not loaded when a requirement check failed.
+	if ( ! class_exists( WordPress\SMTP\Connections::class ) ) {
+		return array();
+	}
+
+	$registry    = new WordPress\SMTP\Provider_Registry();
+	$credentials = new WordPress\SMTP\Credentials();
+
+	return ( new WordPress\SMTP\Connections( $registry, $credentials, new WordPress\SMTP\Settings( $registry, $credentials ) ) )->describe();
+}
+
+/**
+ * Sends an email through a given SMTP connection.
+ *
+ * It works like wp_mail(). An unknown connection, or one that is not fully configured, falls back to the
+ * default connection, so the email is still sent. To route emails you do not send yourself, use the
+ * `smtp_connection_for_email` filter instead.
+ *
+ * @since 1.2.0
+ *
+ * @param string          $connection  ID of the connection, see wp_smtp_get_connections().
+ * @param string|string[] $to          Array or comma-separated list of email addresses to send the message to.
+ * @param string          $subject     Email subject.
+ * @param string          $message     Message contents.
+ * @param string|string[] $headers     Optional. Additional headers.
+ * @param string|string[] $attachments Optional. Paths to files to attach.
+ * @return bool Whether the email was sent successfully.
+ */
+function wp_smtp_mail( string $connection, $to, string $subject, string $message, $headers = '', $attachments = array() ): bool {
+	$select = static function () use ( $connection ) {
+		return $connection;
+	};
+
+	// Runs last, so the connection chosen by the caller wins over the one of any other callback.
+	add_filter( 'smtp_connection_for_email', $select, PHP_INT_MAX );
+
+	try {
+		return wp_mail( $to, $subject, $message, $headers, $attachments );
+	} finally {
+		remove_filter( 'smtp_connection_for_email', $select, PHP_INT_MAX );
+	}
+}
+
+/**
  * Displays an admin notice when the PHP version is not supported.
  *
  * @since 1.2.0

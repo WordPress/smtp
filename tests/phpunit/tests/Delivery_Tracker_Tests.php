@@ -5,6 +5,7 @@
  * @package smtp
  */
 
+use WordPress\SMTP\Connections;
 use WordPress\SMTP\Credentials;
 use WordPress\SMTP\Delivery_Tracker;
 use WordPress\SMTP\Provider_Registry;
@@ -205,5 +206,50 @@ class Delivery_Tracker_Tests extends WP_UnitTestCase {
 		wp_mail( 'to@example.org', 'First', 'Body' );
 
 		$this->assertSame( 'smtp', $this->tracker->get_provider() );
+	}
+
+	public function test_the_connection_is_the_default_one_until_another_is_set() {
+		$this->assertSame( 'default', $this->tracker->get_connection_id() );
+	}
+
+	public function test_it_uses_the_provider_of_the_selected_connection() {
+		$registry = new Provider_Registry();
+		$settings = new Settings( $registry, new Credentials(), 'sponsors' );
+		update_option(
+			Connections::OPTION,
+			array(
+				'sponsors' => array(
+					'label'    => 'Sponsors',
+					'settings' => array(
+						'provider' => 'sponsor_mailer',
+						'token'    => 'x',
+					),
+				),
+			)
+		);
+		add_filter(
+			'smtp_providers',
+			static function ( $providers ) {
+				$providers['sponsor_mailer'] = array(
+					'label'     => 'Sponsor mailer',
+					'configure' => '__return_null',
+				);
+
+				return $providers;
+			}
+		);
+
+		$this->tracker->set_connection( 'sponsors', $settings );
+
+		$this->assertSame( 'sponsors', $this->tracker->get_connection_id() );
+		$this->assertSame( 'sponsor_mailer', $this->tracker->get_provider() );
+	}
+
+	public function test_reset_goes_back_to_the_default_connection() {
+		$this->tracker->set_connection( 'sponsors', new Settings( new Provider_Registry(), new Credentials(), 'sponsors' ) );
+
+		$this->tracker->reset();
+
+		$this->assertSame( 'default', $this->tracker->get_connection_id() );
 	}
 }

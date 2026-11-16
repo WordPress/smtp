@@ -154,4 +154,19 @@ class Log_Repository_Tests extends WP_UnitTestCase {
 		$this->assertSame( 1, $this->repository->count_failed_since( gmdate( 'Y-m-d H:i:s', time() - DAY_IN_SECONDS ) ) );
 		$this->assertSame( 2, $this->repository->count_failed_since( gmdate( 'Y-m-d H:i:s', time() - ( 3 * DAY_IN_SECONDS ) ) ) );
 	}
+
+	public function test_insert_stores_the_connection() {
+		$entry                  = $this->entry();
+		$entry['connection_id'] = 'sponsors';
+
+		$this->repository->insert( $entry );
+
+		$this->assertSame( 'sponsors', $this->get_logged_entries()[0]['connection_id'] );
+	}
+
+	public function test_insert_leaves_the_connection_empty_by_default() {
+		$this->repository->insert( $this->entry() );
+
+		$this->assertSame( '', $this->get_logged_entries()[0]['connection_id'] );
+	}
 }

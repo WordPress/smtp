@@ -5,6 +5,8 @@
  * @package smtp
  */
 
+use WordPress\SMTP\Admin\Connections_Tab;
+use WordPress\SMTP\Connections;
 use WordPress\SMTP\Admin\Admin_Page;
 use WordPress\SMTP\Admin\Alerts_Tab;
 use WordPress\SMTP\Alerts\Alert_Channel_Registry;
@@ -460,5 +462,60 @@ class Admin_Page_Tests extends WP_UnitTestCase {
 		preg_match_all( '/tab=([a-z]+)"\s+class="nav-tab/', $this->render(), $matches );
 
 		$this->assertSame( array( 'settings', 'log', 'test', 'alerts' ), $matches[1] );
+	}
+
+	private function use_connections_tab() {
+		$registry    = new Provider_Registry();
+		$credentials = new Credentials();
+		$settings    = new Settings( $registry, $credentials );
+		$connections = new Connections( $registry, $credentials, $settings );
+
+		$this->admin_page = new Admin_Page(
+			$settings,
+			$registry,
+			new Log_Repository(),
+			WP_SMTP_MAIN_FILE,
+			new Delivery_Tracker( $settings ),
+			null,
+			new Connections_Tab( $connections, $registry, $credentials )
+		);
+
+		return $connections;
+	}
+
+	public function test_the_connections_tab_comes_after_settings() {
+		$this->use_connections_tab();
+
+		$this->assertSame( array( 'settings', 'connections', 'log', 'test' ), $this->get_tab_slugs( $this->render() ) );
+	}
+
+	public function test_render_page_shows_the_connections_tab() {
+		$this->use_connections_tab();
+
+		$this->assertStringContainsString( 'Add connection', $this->render( 'connections' ) );
+	}
+
+	public function test_the_connections_tab_is_unknown_without_the_tab() {
+		$this->assertStringContainsString( 'name="smtp_settings[host]"', $this->render( 'connections' ) );
+	}
+
+	public function test_the_test_tab_asks_for_the_connection_when_there_are_several() {
+		$connections = $this->use_connections_tab();
+
+		$this->assertStringNotContainsString( 'name="connection"', $this->render( 'test' ) );
+
+		$connections->save( 'sponsors', 'Sponsors team', array( 'host' => 'smtp.example.com' ) );
+
+		$html = $this->render( 'test' );
+		$this->assertStringContainsString( 'name="connection"', $html );
+		$this->assertStringContainsString( 'value="sponsors"', $html );
+		$this->assertStringContainsString( 'Sponsors team', $html );
+	}
+
+	public function test_the_log_tab_shows_the_connection_column_when_there_are_several_connections() {
+		$connections = $this->use_connections_tab();
+		$connections->save( 'sponsors', 'Sponsors team', array( 'host' => 'smtp.example.com' ) );
+
+		$this->assertStringContainsString( '>Connection<', $this->render( 'log' ) );
 	}
 }

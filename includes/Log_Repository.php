@@ -23,7 +23,7 @@ class Log_Repository {
 	 *
 	 * @since 1.2.0
 	 */
-	const DB_VERSION = '1';
+	const DB_VERSION = '2';
 
 	/**
 	 * Name of the option that stores the installed schema version.
@@ -71,6 +71,7 @@ class Log_Repository {
 				status varchar(10) NOT NULL,
 				error text NOT NULL,
 				provider varchar(50) NOT NULL,
+				connection_id varchar(50) NOT NULL DEFAULT '',
 				PRIMARY KEY  (id),
 				KEY status (status),
 				KEY created_at (created_at)
@@ -85,7 +86,7 @@ class Log_Repository {
 	 *
 	 * @since 1.2.0
 	 *
-	 * @param array $entry Entry with `recipient`, `subject`, `status`, `error` and `provider`.
+	 * @param array $entry Entry with `recipient`, `subject`, `status`, `error`, `provider` and, optionally, `connection_id`.
 	 */
 	public function insert( array $entry ) {
 		global $wpdb;
@@ -93,14 +94,15 @@ class Log_Repository {
 		$wpdb->insert(
 			$this->get_table_name(),
 			array(
-				'created_at' => current_time( 'mysql', true ),
-				'recipient'  => $entry['recipient'],
-				'subject'    => $entry['subject'],
-				'status'     => $entry['status'],
-				'error'      => $entry['error'],
-				'provider'   => $entry['provider'],
+				'created_at'    => current_time( 'mysql', true ),
+				'recipient'     => $entry['recipient'],
+				'subject'       => $entry['subject'],
+				'status'        => $entry['status'],
+				'error'         => $entry['error'],
+				'provider'      => $entry['provider'],
+				'connection_id' => $entry['connection_id'] ?? '',
 			),
-			array( '%s', '%s', '%s', '%s', '%s', '%s' )
+			array( '%s', '%s', '%s', '%s', '%s', '%s', '%s' )
 		);
 	}
 
