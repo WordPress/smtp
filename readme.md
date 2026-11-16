@@ -63,6 +63,7 @@ add_filter( 'smtp_providers', function ( $providers ) {
 | `fields` (array) | Settings fields, keyed by field key. |
 | `required` (string[]) | Field keys that must have a value before the provider is used. Until then, mail is sent as usual. |
 | `required_if` (array) | Field keys that must have a value when another field is enabled, as `field => condition field` pairs. For example `array( 'password' => 'auth' )`. |
+| `rate_limits` (array) | Optional default sending limits, see [Sending limits](#sending-limits). |
 
 Each field accepts:
 
@@ -78,6 +79,48 @@ Each field accepts:
 Fields of type `password` are stored apart from the other settings, are never printed back into the page, and are redacted from the connection log of the test email.
 
 Providers with an invalid definition (no label, or a `configure` that is not callable) are ignored. Providers that talk to an HTTP API instead of SMTP are not supported yet, see [#1](https://github.com/WordPress/smtp/issues/1).
+
+## Sending limits
+
+Email providers limit how much you can send. A provider can declare its limits with the optional `rate_limits` key, and every value is optional, since not every provider publishes a limit for every interval:
+
+```php
+$providers['my-provider'] = array(
+	// ...
+	'rate_limits' => array(
+		'per_second'  => 2,
+		'per_minute'  => 60,
+		'per_hour'    => 500,
+		'per_day'     => 2000,
+		'concurrency' => 1,
+		// For services that count recipients instead of messages.
+		'recipients'  => array( 'per_day' => 5000 ),
+	),
+);
+```
+
+| Key | Description |
+|---|---|
+| `per_second`, `per_minute`, `per_hour`, `per_day` | Maximum number of messages in that interval. |
+| `concurrency` | Maximum number of simultaneous connections or sending operations. |
+| `recipients` | The same interval keys, for the maximum number of recipients. |
+
+Limits resolve in this order:
+
+1. The default declared by the provider.
+2. The value saved under _Tools > SMTP > Sending limits_, for the active provider. It covers the message limits and `concurrency`, since the right values often depend on the account or plan.
+3. The `smtp_rate_limits` filter, which receives `$limits` and the provider slug.
+
+Other plugins read the result with `wp_smtp_get_rate_limits( $provider = '' )`, which defaults to the active provider. Keys without a known limit are missing, so the result is an empty array when there are none:
+
+```php
+if ( function_exists( 'wp_smtp_get_rate_limits' ) ) {
+	$limits = wp_smtp_get_rate_limits();
+	$per_minute = $limits['per_minute'] ?? null;
+}
+```
+
+The values are configured limits, not the remaining capacity: the same account may be shared with other applications. The plugin does not queue, delay or throttle email. It only reports the limits, so queue plugins can use them to schedule messages.
 
 ## WP-CLI
 
@@ -107,6 +150,7 @@ Passwords cannot be passed as arguments, since those end up in the shell history
 | `smtp_log_enabled` | Return `false` to skip logging an email. Receives `$enabled`, `$mail_data` and `$status` (`sent` or `failed`). |
 | `smtp_log_retention_days` | Number of days log entries are kept. Default `30`. A value of `0` or less disables the purge. |
 | `smtp_failure_notice_period` | Seconds the admin notice about failed emails looks back. Default one day. |
+| `smtp_rate_limits` | Change the sending limits of a provider. Receives `$limits` and the provider slug. See [Sending limits](#sending-limits). |
 | `smtp_timeout` | Seconds to wait for the SMTP server to connect and to answer each command. Default `15`. A value of `0` or less keeps the PHPMailer default of 300 seconds. |
 | `smtp_alert_channels` | Add alert channels. Receives an array of `WordPress\SMTP\Alerts\Alert_Channel` instances. |
 | `smtp_alert_enabled` | Return `false` to skip the alert for a failed email. Receives `$enabled` and the `Alert`. |

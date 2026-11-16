@@ -28,6 +28,7 @@ smtp/
 ├── includes/                 # PSR-4 autoloaded under WordPress\SMTP\
 │   ├── Plugin_Main.php       # Wires every component, activation/deactivation, purge schedule
 │   ├── Provider_Registry.php # smtp_providers filter, provider validation, Generic SMTP provider
+│   ├── Rate_Limits.php       # Sending limits of a provider: declared, saved override, smtp_rate_limits filter
 │   ├── Settings.php          # Field resolution (constant > saved value > default) and sanitization
 │   ├── Credentials.php       # The only place that reads/writes secrets
 │   ├── Migration.php         # One-time import of the legacy SMTP plugin (smtp_options) settings
@@ -76,8 +77,15 @@ A provider is an array registered through the `smtp_providers` filter:
 - `required` (string[]): field keys that must have a value before the provider is used.
 - `required_if` (array): `field => condition field` pairs. The field must have a value when the condition field is enabled. Generic SMTP uses it for `username` and `password` when `auth` is on.
 - `configure` (callable): receives the `PHPMailer` instance and the resolved field values.
+- `rate_limits` (array, optional): default sending limits. See "Sending limits".
 
 `Provider_Registry::get_all()` discards invalid providers. Providers only configure PHPMailer; they must not send mail themselves.
+
+### Sending limits
+
+- `Rate_Limits` only **reports** limits (`per_second`, `per_minute`, `per_hour`, `per_day`, `concurrency` for messages, and `recipients` with the interval keys). It never queues, delays or throttles email. They are configured values, not remaining capacity.
+- A limit resolves as: provider default (`rate_limits`), saved override of the active provider (`rate_limit_*` fields, shown in the Sending limits section of the Settings tab), then the `smtp_rate_limits` filter. `Rate_Limits::normalize()` keeps only known keys with positive whole numbers, so a missing key means no known limit.
+- Other plugins read them with `wp_smtp_get_rate_limits( $provider = '' )` (defined in `smtp.php`).
 
 ### Settings and credentials
 
@@ -126,6 +134,7 @@ This plugin replaces the SMTP plugin 1.x published under the same slug, so sites
 - `smtp_log_enabled` (filter): return `false` to skip logging an email. Receives the mail data and the status.
 - `smtp_log_retention_days` (filter): days to keep log entries. Default `30`; `0` or less disables the purge.
 - `smtp_failure_notice_period` (filter): seconds the recent failures admin notice looks back. Default one day.
+- `smtp_rate_limits` (filter): change the sending limits of a provider. Receives the limits and the provider slug.
 - `smtp_timeout` (filter): seconds PHPMailer waits for the SMTP server to connect and to answer each command. Default `15`; `0` or less keeps the PHPMailer default (300). Receives the provider slug.
 - `smtp_alert_channels` (filter): add alert channels (`Alert_Channel` instances).
 - `smtp_alert_enabled` (filter): return `false` to skip the alert for a failed email. Receives the `Alert`.

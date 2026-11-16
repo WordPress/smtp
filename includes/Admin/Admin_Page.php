@@ -167,6 +167,7 @@ class Admin_Page {
 		);
 
 		add_settings_section( 'smtp_main', '', '__return_empty_string', self::PAGE_SLUG );
+		add_settings_section( 'smtp_limits', __( 'Sending limits', 'smtp' ), array( $this, 'render_limits_section' ), self::PAGE_SLUG );
 
 		add_settings_field(
 			'provider',
@@ -183,7 +184,7 @@ class Admin_Page {
 				$field['label'],
 				array( $this, 'render_field' ),
 				self::PAGE_SLUG,
-				'smtp_main',
+				0 === strpos( $key, 'rate_limit_' ) ? 'smtp_limits' : 'smtp_main',
 				array(
 					'key'       => $key,
 					'field'     => $field,
@@ -191,6 +192,19 @@ class Admin_Page {
 				)
 			);
 		}
+	}
+
+	/**
+	 * Renders the introduction of the sending limits section.
+	 *
+	 * @since 1.2.0
+	 */
+	public function render_limits_section() {
+		?>
+		<p class="description">
+			<?php esc_html_e( 'The limits of your provider or plan. Leave a field empty to use the default of the provider, if it has one. The plugin does not queue or throttle emails: other plugins can read these limits to schedule them.', 'smtp' ); ?>
+		</p>
+		<?php
 	}
 
 	/**

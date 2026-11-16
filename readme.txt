@@ -57,4 +57,5 @@ SMTP is developed in the open. Bug reports, ideas and pull requests are welcome 
 * Initial release, maintained by the WordPress Plugins Team and the community.
 * Settings of the previous SMTP plugin are imported automatically.
 * Alerts tab: get notified on Slack when an email fails to send.
+* Providers can declare their sending limits (per second, minute, hour and day, and concurrency). Administrators can override them, and other plugins read them with `wp_smtp_get_rate_limits()` or the `smtp_rate_limits` filter.
 * With authentication on, mail goes through SMTP only once a username and password are saved. Until then, the default mailer and From address are kept.

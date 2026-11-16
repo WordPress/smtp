@@ -103,6 +103,18 @@ class Admin_Page_Tests extends WP_UnitTestCase {
 		);
 	}
 
+	public function test_register_settings_puts_the_rate_limits_in_their_own_section() {
+		$this->admin_page->register_settings();
+
+		$fields = array_keys( $GLOBALS['wp_settings_fields'][ Admin_Page::PAGE_SLUG ]['smtp_limits'] );
+
+		$this->assertSame(
+			array( 'rate_limit_per_second', 'rate_limit_per_minute', 'rate_limit_per_hour', 'rate_limit_per_day', 'rate_limit_concurrency' ),
+			$fields
+		);
+		$this->assertSame( 'Sending limits', $GLOBALS['wp_settings_sections'][ Admin_Page::PAGE_SLUG ]['smtp_limits']['title'] );
+	}
+
 	public function test_the_setting_is_sanitized_through_the_settings_class() {
 		$this->admin_page->register_settings();
 
