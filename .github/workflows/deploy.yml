@@ -36,6 +36,4 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ github.event.release.tag_name }}
           ZIP_PATH: ${{ steps.deploy.outputs.zip-path }}
-        run: |
-          cp "$ZIP_PATH" "${{ github.event.repository.name }}.zip"
-          gh release upload "$TAG" "${{ github.event.repository.name }}.zip" --clobber
+        run: gh release upload "$TAG" "$ZIP_PATH" --clobber
