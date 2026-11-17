@@ -79,6 +79,14 @@ class Credentials_Tests extends WP_UnitTestCase {
 		$this->assertSame( 'not-an-array', get_option( Credentials::OPTION ) );
 	}
 
+	public function test_deleting_the_last_secret_removes_the_option() {
+		$this->credentials->set( 'password', 'one' );
+
+		$this->credentials->delete( 'password' );
+
+		$this->assertFalse( get_option( Credentials::OPTION ) );
+	}
+
 	public function test_secrets_are_not_autoloaded_after_a_delete() {
 		$this->credentials->set( 'password', 'one' );
 		$this->credentials->set( 'api_key', 'two' );

@@ -89,7 +89,7 @@ class Credentials {
 	}
 
 	/**
-	 * Removes a stored secret.
+	 * Removes a stored secret. The option is deleted once it holds no secret.
 	 *
 	 * @since 1.3.0
 	 *
@@ -103,6 +103,12 @@ class Credentials {
 		}
 
 		unset( $secrets[ $key ] );
+
+		if ( empty( $secrets ) ) {
+			delete_option( self::OPTION );
+
+			return;
+		}
 
 		update_option( self::OPTION, $secrets, false );
 	}

@@ -110,7 +110,7 @@ class Field_Renderer {
 						</label>
 					</p>
 					<?php
-					$field['description'] = __( 'A password is saved. Leave empty to keep it.', 'smtp' );
+					$field['description'] = __( 'A password is saved. Leave empty to keep it, or check the box above to remove it.', 'smtp' );
 				}
 				break;
 

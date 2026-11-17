@@ -260,7 +260,7 @@ class Admin_Page_Tests extends WP_UnitTestCase {
 		$html = $this->render();
 
 		$this->assertStringNotContainsString( 'top-secret-password', $html );
-		$this->assertStringContainsString( 'A password is saved. Leave empty to keep it.', $html );
+		$this->assertStringContainsString( 'A password is saved. Leave empty to keep it, or check the box above to remove it.', $html );
 	}
 
 	public function test_a_saved_password_can_be_removed() {
@@ -336,6 +336,26 @@ class Admin_Page_Tests extends WP_UnitTestCase {
 
 		$this->assertStringContainsString( 'No emails logged yet.', $html );
 		$this->assertStringContainsString( 'never stored', $html );
+	}
+
+	public function test_the_settings_tab_warns_when_saved_settings_are_incomplete() {
+		$this->admin_page->register_settings();
+		$this->assertStringNotContainsString( 'is not fully configured', $this->render( 'settings' ) );
+
+		update_option(
+			Settings::OPTION,
+			array(
+				'host'     => 'smtp.example.com',
+				'auth'     => true,
+				'username' => 'user@example.com',
+			)
+		);
+
+		$this->assertStringContainsString( 'is not fully configured', $this->render( 'settings' ) );
+
+		( new Credentials() )->set( 'password', 'secret' );
+
+		$this->assertStringNotContainsString( 'is not fully configured', $this->render( 'settings' ) );
 	}
 
 	public function test_render_page_shows_the_test_tab() {
