@@ -336,7 +336,7 @@ class Alerts_Tab {
 									</label>
 								</p>
 								<?php
-								$description = trim( $description . ' ' . __( 'A value is already saved. Leave the field empty to keep it.', 'smtp' ) );
+								$description = trim( $description . ' ' . __( 'A value is already saved. Leave the field empty to keep it, or check the box above to remove it.', 'smtp' ) );
 								?>
 							<?php endif; ?>
 						<?php else : ?>

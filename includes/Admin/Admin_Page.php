@@ -353,7 +353,7 @@ class Admin_Page {
 						</label>
 					</p>
 					<?php
-					$field['description'] = __( 'A password is saved. Leave empty to keep it.', 'smtp' );
+					$field['description'] = __( 'A password is saved. Leave empty to keep it, or check the box above to remove it.', 'smtp' );
 				}
 				break;
 
@@ -400,6 +400,15 @@ class Admin_Page {
 	 */
 	private function render_settings_tab() {
 		$this->render_other_mailer_notice();
+
+		// Saved but incomplete settings, for example after removing a required password.
+		if ( false !== get_option( Settings::OPTION, false ) && ! $this->settings->is_configured() && '' === $this->tracker->get_wp_mail_owner() ) {
+			?>
+			<div class="notice notice-warning inline">
+				<p><?php esc_html_e( 'SMTP is not fully configured, so emails are sent with the default WordPress mailer. Fill in the required fields to use SMTP.', 'smtp' ); ?></p>
+			</div>
+			<?php
+		}
 		?>
 		<form action="options.php" method="post">
 			<?php
