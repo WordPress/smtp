@@ -328,11 +328,17 @@ class Alerts_Tab {
 								autocomplete="new-password"
 								placeholder="<?php echo '' !== $value ? esc_attr( str_repeat( '•', 8 ) ) : ''; ?>"
 							/>
-							<?php
-							if ( '' !== $value ) {
+							<?php if ( '' !== $value ) : ?>
+								<p>
+									<label for="<?php echo esc_attr( $field_id . '-remove' ); ?>">
+										<input type="checkbox" id="<?php echo esc_attr( $field_id . '-remove' ); ?>" name="<?php echo esc_attr( $name . '[remove_secrets][' . $key . ']' ); ?>" value="1" />
+										<?php esc_html_e( 'Remove the saved value', 'smtp' ); ?>
+									</label>
+								</p>
+								<?php
 								$description = trim( $description . ' ' . __( 'A value is already saved. Leave the field empty to keep it.', 'smtp' ) );
-							}
-							?>
+								?>
+							<?php endif; ?>
 						<?php else : ?>
 							<input
 								type="<?php echo esc_attr( $type ); ?>"

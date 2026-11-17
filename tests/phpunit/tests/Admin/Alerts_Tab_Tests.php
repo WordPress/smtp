@@ -156,6 +156,18 @@ class Alerts_Tab_Tests extends WP_UnitTestCase {
 		$this->assertStringContainsString( 'Send test alert to Slack', $html );
 	}
 
+	public function test_a_saved_webhook_url_can_be_removed() {
+		$this->as_admin();
+
+		$this->assertStringNotContainsString( 'remove_secrets', $this->render() );
+
+		$this->configure_slack();
+		$html = $this->render();
+
+		$this->assertStringContainsString( 'name="smtp_alert_settings[channels][slack][remove_secrets][webhook_url]"', $html );
+		$this->assertStringContainsString( 'Remove the saved value', $html );
+	}
+
 	public function test_a_selected_unconfigured_channel_shows_a_warning() {
 		$this->as_admin();
 		update_option( Alert_Settings::OPTION, array( 'channel' => 'slack' ) );
