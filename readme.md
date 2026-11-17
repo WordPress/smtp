@@ -84,6 +84,8 @@ Secrets (passwords and the Slack webhook URL) are stored with the [WordPress Sec
 - When the API becomes available, an admin page load moves each value from the option to the API, reads it back to check it, then removes it from the option.
 - When a secret can not be read any more, for example after `WP_SECRETS_KEY` changed or the feature plugin was deactivated, the plugin never falls back to an old plain text value. The provider is treated as not configured and an admin notice asks to check the key or enter the password again.
 - When a write to the API fails, nothing is saved and the error is shown. The value is never stored in plain text instead.
+- A secret that was stored with the API is never saved in plain text later, even when the API is not available or writable any more. Saving it shows an error until the API works again, or the password can be defined with a constant.
+- When some secrets can not be moved to the API, the plugin waits an hour before it tries again.
 - Constants keep overriding both storages.
 - The storage in use is shown under the settings form and in `wp smtp status` (`secret_storage`).
 

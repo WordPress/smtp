@@ -56,12 +56,27 @@ class Credentials {
 	const STORAGE_OPTION = 'option';
 
 	/**
+	 * Transient set after a migration that could not move every secret, to wait before trying again.
+	 *
+	 * @since 1.3.0
+	 */
+	const RETRY_TRANSIENT = 'smtp_secrets_migration_retry';
+
+	/**
 	 * Secrets API.
 	 *
 	 * @since 1.3.0
 	 * @var Secrets_API
 	 */
 	private $secrets;
+
+	/**
+	 * Result of has_unreadable(), cached for the request.
+	 *
+	 * @since 1.3.0
+	 * @var bool|null
+	 */
+	private $unreadable;
 
 	/**
 	 * Constructor.
@@ -106,7 +121,9 @@ class Credentials {
 	 * Stores a secret.
 	 *
 	 * When the Secrets API is available and the write fails, nothing is stored: the value is never
-	 * written in plain text instead.
+	 * written in plain text instead. A secret that was stored with the Secrets API is not stored in
+	 * plain text either when the API can not store it any more, for example when `WP_SECRETS_KEY` was
+	 * removed or the provider became read-only.
 	 *
 	 * @since 1.2.0
 	 * @since 1.3.0 Returns the result.
@@ -128,15 +145,19 @@ class Credentials {
 			return true;
 		}
 
+		if ( in_array( $key, $this->get_migrated_keys(), true ) ) {
+			return new \WP_Error(
+				'smtp_secrets_unavailable',
+				__( 'The WordPress Secrets API can not store it, and it is not saved in plain text because it was encrypted before. Fix the Secrets API, for example WP_SECRETS_KEY in wp-config.php, or define the password as a constant in wp-config.php.', 'smtp' )
+			);
+		}
+
 		$secrets = $this->get_option();
 
 		$secrets[ $key ] = $value;
 
 		// Not autoloaded: secrets are only needed when sending mail or saving settings.
 		update_option( self::OPTION, $secrets, false );
-
-		// The Secrets API is gone and the value was entered again, so the option is the storage now.
-		$this->set_migrated( $key, false );
 
 		return true;
 	}
@@ -145,23 +166,27 @@ class Credentials {
 	 * Moves the secrets stored in the option to the Secrets API.
 	 *
 	 * Each value is read back before it is removed from the option. Values that could not be moved
-	 * stay in the option and are tried again on the next run.
+	 * stay in the option and are tried again after an hour, so a failing API is not called on every
+	 * admin request.
 	 *
 	 * @since 1.3.0
 	 *
 	 * @return int Number of secrets moved.
 	 */
 	public function migrate(): int {
-		if ( ! $this->secrets->is_writable() ) {
+		if ( ! $this->secrets->is_writable() || get_transient( self::RETRY_TRANSIENT ) ) {
 			return 0;
 		}
 
 		$moved = array();
+		$tried = 0;
 
 		foreach ( $this->get_option() as $key => $value ) {
 			if ( ! is_string( $key ) || ! is_string( $value ) ) {
 				continue;
 			}
+
+			++$tried;
 
 			$name = self::SECRET_PREFIX . $key;
 			if ( is_wp_error( $this->secrets->set( $name, $value ) ) || $this->secrets->get( $name ) !== $value ) {
@@ -173,6 +198,10 @@ class Credentials {
 		}
 
 		$this->remove_from_option( $moved );
+
+		if ( count( $moved ) < $tried ) {
+			set_transient( self::RETRY_TRANSIENT, 1, HOUR_IN_SECONDS );
+		}
 
 		return count( $moved );
 	}
@@ -192,20 +221,26 @@ class Credentials {
 	 * Whether a secret stored with the Secrets API can not be read.
 	 *
 	 * This happens when the key material changed, or when the API is not available any more, for
-	 * example after the feature plugin was deactivated.
+	 * example after the feature plugin was deactivated. The result is cached for the request, since
+	 * it decrypts every stored secret.
 	 *
 	 * @since 1.3.0
 	 *
 	 * @return bool True when at least one secret can not be read.
 	 */
 	public function has_unreadable(): bool {
-		foreach ( $this->get_migrated_keys() as $key ) {
-			if ( is_wp_error( $this->read( $key ) ) ) {
-				return true;
+		if ( null === $this->unreadable ) {
+			$this->unreadable = false;
+
+			foreach ( $this->get_migrated_keys() as $key ) {
+				if ( is_wp_error( $this->read( $key ) ) ) {
+					$this->unreadable = true;
+					break;
+				}
 			}
 		}
 
-		return false;
+		return $this->unreadable;
 	}
 
 	/**
@@ -327,6 +362,9 @@ class Credentials {
 	 * @param bool   $migrated Whether the key is stored with the Secrets API.
 	 */
 	private function set_migrated( string $key, bool $migrated ) {
+		// The value changed, so it may be readable again.
+		$this->unreadable = null;
+
 		$keys = $this->get_migrated_keys();
 		$has  = in_array( $key, $keys, true );
 

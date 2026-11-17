@@ -21,6 +21,7 @@ if ( function_exists( 'wp_delete_secret' ) ) {
 delete_option( 'smtp_settings' );
 delete_option( 'smtp_credentials' );
 delete_option( 'smtp_secret_keys' );
+delete_transient( 'smtp_secrets_migration_retry' );
 delete_option( 'smtp_db_version' );
 delete_option( 'smtp_alert_settings' );
 delete_option( 'smtp_alert_state' );
