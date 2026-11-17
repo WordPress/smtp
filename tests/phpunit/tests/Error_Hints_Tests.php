@@ -28,6 +28,8 @@ class Error_Hints_Tests extends WP_UnitTestCase {
 			'timeout'           => array( 'SMTP ERROR: Failed to connect to server: Connection timed out (110)', 'could not be reached' ),
 			'no starttls'       => array( "CLIENT -> SERVER: STARTTLS\nSERVER -> CLIENT: 502 5.5.1 Not implemented\nSMTP ERROR: STARTTLS command failed: 502 5.5.1 Not implemented", 'could not be set up' ),
 			'handshake failed'  => array( "CLIENT -> SERVER: STARTTLS\nSERVER -> CLIENT: 220 2.0.0 Ready to start TLS\nSMTP Error: Could not connect to SMTP host.", 'could not be set up' ),
+			'ssl cert failed'   => array( 'SMTP ERROR: Failed to connect to server: stream_socket_client(): SSL operation failed with code 1. OpenSSL Error messages: error:1416F086:SSL routines:tls_process_server_certificate:certificate verify failed (0)', 'could not be set up' ),
+			'self-signed cert'  => array( 'SMTP ERROR: Failed to connect to server: stream_socket_client(): SSL: certificate verify failed: self-signed certificate (0)', 'could not be set up' ),
 			'sender rejected'   => array( 'SMTP ERROR: MAIL FROM command failed: 550 5.7.1 Sender not verified', 'rejected the sender' ),
 			'recipient refused' => array( 'SMTP ERROR: RCPT TO command failed: 550 5.1.1 User unknown', 'rejected the recipient' ),
 			'message refused'   => array( 'SMTP ERROR: DATA END command failed: 554 5.7.1 Message rejected', 'rejected the message' ),
