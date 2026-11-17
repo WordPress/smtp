@@ -208,6 +208,30 @@ class Credentials_Tests extends WP_UnitTestCase {
 		$this->assertSame( 'secret', $this->credentials->get( 'password' ) );
 	}
 
+	public function test_migrate_waits_before_trying_again_after_a_failure() {
+		$this->credentials->set( 'password', 'secret' );
+		$this->api->available = true;
+		$this->api->set_error = new WP_Error( 'secret_key_unavailable', 'No key.' );
+		$this->credentials->migrate();
+
+		$this->api->set_error = null;
+
+		$this->assertSame( 0, $this->credentials->migrate() );
+		$this->assertSame( array( 'password' => 'secret' ), get_option( Credentials::OPTION ) );
+
+		delete_transient( Credentials::RETRY_TRANSIENT );
+
+		$this->assertSame( 1, $this->credentials->migrate() );
+	}
+
+	public function test_migrate_does_not_wait_after_a_success() {
+		$this->credentials->set( 'password', 'secret' );
+		$this->api->available = true;
+		$this->credentials->migrate();
+
+		$this->assertFalse( get_transient( Credentials::RETRY_TRANSIENT ) );
+	}
+
 	public function test_migrate_keeps_values_that_do_not_read_back() {
 		$this->credentials->set( 'password', 'secret' );
 		$this->api->available  = true;
@@ -246,15 +270,51 @@ class Credentials_Tests extends WP_UnitTestCase {
 		$this->assertTrue( $this->credentials->has_unreadable() );
 	}
 
-	public function test_entering_a_secret_again_without_the_api_recovers_it() {
+	public function test_a_migrated_secret_is_not_stored_in_plain_text_without_the_api() {
 		$this->api->available = true;
 		$this->credentials->set( 'password', 'secret' );
 		$this->api->available = false;
 
-		$this->credentials->set( 'password', 'new' );
+		$result = $this->credentials->set( 'password', 'new' );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'smtp_secrets_unavailable', $result->get_error_code() );
+		$this->assertFalse( get_option( Credentials::OPTION ) );
+		$this->assertTrue( $this->credentials->has_unreadable() );
+	}
+
+	public function test_a_migrated_secret_is_not_stored_in_plain_text_with_a_read_only_provider() {
+		$this->api->available = true;
+		$this->credentials->set( 'password', 'secret' );
+		$this->api->writable = false;
+
+		$this->assertWPError( $this->credentials->set( 'password', 'new' ) );
+		$this->assertFalse( get_option( Credentials::OPTION ) );
+		$this->assertSame( 'secret', $this->credentials->get( 'password' ) );
+	}
+
+	public function test_entering_a_secret_again_once_the_api_is_back_recovers_it() {
+		$this->api->available = true;
+		$this->credentials->set( 'password', 'secret' );
+		$this->api->unreadable = array( 'smtp/password' );
+		$this->assertTrue( $this->credentials->has_unreadable() );
+
+		$this->api->unreadable = array();
+		$this->assertTrue( $this->credentials->set( 'password', 'new' ) );
 
 		$this->assertSame( 'new', $this->credentials->get( 'password' ) );
 		$this->assertFalse( $this->credentials->has_unreadable() );
+	}
+
+	public function test_has_unreadable_is_cached_for_the_request() {
+		$this->api->available = true;
+		$this->credentials->set( 'password', 'secret' );
+		$this->api->unreadable = array( 'smtp/password' );
+		$this->assertTrue( $this->credentials->has_unreadable() );
+
+		$this->api->unreadable = array();
+
+		$this->assertTrue( $this->credentials->has_unreadable() );
 	}
 
 	public function test_has_unreadable_is_false_when_everything_can_be_read() {

@@ -134,9 +134,10 @@ class Settings_Command {
 
 		$this->settings->update( $values );
 
-		// Settings::sanitize() reports a failed write as a settings error, which the CLI does not show.
-		if ( '' !== $secret && $this->settings->get( $secret ) !== $values[ $secret ] ) {
-			\WP_CLI::error( __( 'The password could not be saved. Check that the WordPress Secrets API is set up, for example that WP_SECRETS_KEY is defined in wp-config.php.', 'smtp' ) );
+		$error = '' !== $secret ? $this->settings->get_secret_error( $secret ) : null;
+		if ( null !== $error ) {
+			/* translators: %s: error message */
+			\WP_CLI::error( sprintf( __( 'The password could not be saved: %s', 'smtp' ), $error->get_error_message() ) );
 		}
 
 		if ( ! $this->settings->is_configured() ) {

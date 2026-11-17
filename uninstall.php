@@ -28,6 +28,7 @@ $smtp_uninstall_site = static function () {
 	delete_option( 'smtp_connections' );
 	delete_option( 'smtp_credentials' );
 	delete_option( 'smtp_secret_keys' );
+	delete_transient( 'smtp_secrets_migration_retry' );
 	delete_option( 'smtp_db_version' );
 	delete_option( 'smtp_alert_settings' );
 	delete_option( 'smtp_alert_state' );

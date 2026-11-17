@@ -52,6 +52,14 @@ class Settings {
 	private $connection;
 
 	/**
+	 * Errors of the secrets that could not be saved in this request, keyed by field key.
+	 *
+	 * @since 1.3.0
+	 * @var \WP_Error[]
+	 */
+	private $secret_errors = array();
+
+	/**
 	 * Constructor.
 	 *
 	 * @since 1.2.0
@@ -251,7 +259,14 @@ class Settings {
 				case 'password':
 					// An empty submission keeps the current secret.
 					if ( is_string( $raw ) && '' !== $raw ) {
-						self::report_secret_error( $this->credentials->set( $this->get_secret_key( $key ), $raw ), $field['label'] );
+						$result = $this->credentials->set( $this->get_secret_key( $key ), $raw );
+						self::report_secret_error( $result, $field['label'] ?? $key );
+
+						if ( is_wp_error( $result ) ) {
+							$this->secret_errors[ $key ] = $result;
+						} else {
+							unset( $this->secret_errors[ $key ] );
+						}
 					}
 					break;
 
@@ -292,6 +307,20 @@ class Settings {
 	 */
 	public function get_secret_storage(): string {
 		return $this->credentials->get_storage();
+	}
+
+	/**
+	 * Returns why a secret submitted in this request could not be saved.
+	 *
+	 * Settings errors are only shown in the admin, so WP-CLI reads the error here.
+	 *
+	 * @since 1.3.0
+	 *
+	 * @param string $key Field key.
+	 * @return \WP_Error|null The error, or null when the secret was saved or not submitted.
+	 */
+	public function get_secret_error( string $key ) {
+		return $this->secret_errors[ $key ] ?? null;
 	}
 
 	/**

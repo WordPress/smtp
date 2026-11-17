@@ -160,7 +160,7 @@ class Settings_Command_Tests extends WP_UnitTestCase {
 			$this->run_set( array( 'password=-' ), "s3cret-value\n" );
 			$this->fail( 'Expected the command to fail.' );
 		} catch ( RuntimeException $error ) {
-			$this->assertStringContainsString( 'The password could not be saved.', $error->getMessage() );
+			$this->assertStringContainsString( 'The password could not be saved: The key is missing.', $error->getMessage() );
 			$this->assertStringNotContainsString( 's3cret-value', $error->getMessage() );
 		}
 
