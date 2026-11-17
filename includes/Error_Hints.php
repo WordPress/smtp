@@ -43,12 +43,15 @@ class Error_Hints {
 			return __( 'The host name could not be found. Check the Host setting for typos.', 'smtp' );
 		}
 
-		if ( false !== strpos( $log, 'Failed to connect to server' ) ) {
-			return __( 'The server could not be reached. Check the host and port. Port 465 needs SSL and port 587 needs TLS. If they are correct, your hosting company may be blocking the port, so try 587 or ask them.', 'smtp' );
+		if ( preg_match( '/(?:SSL operation failed|Failed to enable crypto|did not match expected CN)/i', $log )
+			|| false !== strpos( $log, 'STARTTLS command failed' )
+			|| preg_match( '/CLIENT -> SERVER: STARTTLS\s+SERVER -> CLIENT: 220(?![\s\S]*CLIENT -> SERVER: EHLO)/', $log )
+		) {
+			return __( 'The encrypted connection could not be set up. Check that the Encryption setting matches the port, and that the host name matches the certificate of the server.', 'smtp' );
 		}
 
-		if ( false !== strpos( $log, 'STARTTLS command failed' ) || preg_match( '/CLIENT -> SERVER: STARTTLS\s+SERVER -> CLIENT: 220(?![\s\S]*CLIENT -> SERVER: EHLO)/', $log ) ) {
-			return __( 'The encrypted connection could not be set up. Check that the Encryption setting matches the port, and that the host name matches the certificate of the server.', 'smtp' );
+		if ( false !== strpos( $log, 'Failed to connect to server' ) ) {
+			return __( 'The server could not be reached. Check the host and port. Port 465 needs SSL and port 587 needs TLS. If they are correct, your hosting company may be blocking the port, so try 587 or ask them.', 'smtp' );
 		}
 
 		if ( false !== strpos( $log, 'MAIL FROM command failed' ) ) {

@@ -1,7 +1,7 @@
 === SMTP ===
 
 Contributors:      wordpressdotorg
-Tested up to:      6.9
+Tested up to:      7.2
 Stable tag:        1.2.0
 Requires at least: 6.3
 Requires PHP:      7.4
