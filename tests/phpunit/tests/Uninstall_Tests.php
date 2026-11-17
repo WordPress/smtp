@@ -128,4 +128,32 @@ class Uninstall_Tests extends WP_UnitTestCase {
 			);
 		}
 	}
+
+	public function test_uninstall_cleans_sites_fetched_in_several_batches() {
+		$this->skipWithoutMultisite();
+
+		$site_ids = array( get_current_blog_id(), self::factory()->blog->create(), self::factory()->blog->create() );
+
+		foreach ( $site_ids as $site_id ) {
+			switch_to_blog( $site_id );
+			update_option( Settings::OPTION, array( 'host' => 'smtp.example.com' ) );
+			restore_current_blog();
+		}
+
+		// One site per batch, so the uninstall has to page through the network.
+		add_action(
+			'pre_get_sites',
+			static function ( $query ) {
+				$query->query_vars['number'] = 1;
+			}
+		);
+
+		$this->run_uninstall();
+
+		foreach ( $site_ids as $site_id ) {
+			switch_to_blog( $site_id );
+			$this->assertFalse( get_option( Settings::OPTION ), "Site {$site_id} was not cleaned." );
+			restore_current_blog();
+		}
+	}
 }

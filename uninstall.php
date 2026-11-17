@@ -36,17 +36,26 @@ $smtp_uninstall_site = static function () {
 };
 
 if ( is_multisite() ) {
-	// shortcut: loads every site ID at once, batch with `offset` if huge networks time out.
-	foreach ( get_sites(
-		array(
-			'fields' => 'ids',
-			'number' => 0,
-		)
-	) as $smtp_site_id ) {
-		switch_to_blog( $smtp_site_id );
-		$smtp_uninstall_site();
-		restore_current_blog();
-	}
+	// Sites of every network (the default `network_id` is 0), in batches to keep memory low on large networks.
+	$smtp_offset = 0;
+
+	do {
+		$smtp_site_ids = get_sites(
+			array(
+				'fields' => 'ids',
+				'number' => 100,
+				'offset' => $smtp_offset,
+			)
+		);
+
+		foreach ( $smtp_site_ids as $smtp_site_id ) {
+			switch_to_blog( $smtp_site_id );
+			$smtp_uninstall_site();
+			restore_current_blog();
+		}
+
+		$smtp_offset += count( $smtp_site_ids );
+	} while ( $smtp_site_ids );
 } else {
 	$smtp_uninstall_site();
 }
