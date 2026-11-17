@@ -77,4 +77,55 @@ class Uninstall_Tests extends WP_UnitTestCase {
 			preg_grep( '/^DROP (TEMPORARY )?TABLE IF EXISTS ' . preg_quote( $wpdb->prefix, '/' ) . 'smtp_logs$/', $queries )
 		);
 	}
+
+	public function test_uninstall_cleans_every_site_of_a_network() {
+		global $wpdb;
+
+		$this->skipWithoutMultisite();
+
+		$site_ids = array( get_current_blog_id(), self::factory()->blog->create() );
+		$prefixes = array();
+
+		foreach ( $site_ids as $site_id ) {
+			switch_to_blog( $site_id );
+			$this->create_log_table();
+			update_option( Settings::OPTION, array( 'host' => 'smtp.example.com' ) );
+			( new Credentials() )->set( 'password', 'secret' );
+			update_option( Alert_Settings::OPTION, array( 'channel' => 'slack' ) );
+			update_option( Migration::LEGACY_OPTION, array( 'host' => 'smtp.example.com' ) );
+			wp_schedule_event( time() + DAY_IN_SECONDS, 'daily', Plugin_Main::PURGE_HOOK );
+			$prefixes[] = $wpdb->prefix;
+			restore_current_blog();
+		}
+
+		$queries = array();
+		add_filter(
+			'query',
+			static function ( $query ) use ( &$queries ) {
+				$queries[] = trim( $query );
+
+				return $query;
+			}
+		);
+
+		$this->run_uninstall();
+
+		$this->assertSame( $site_ids[0], get_current_blog_id() );
+
+		foreach ( $site_ids as $index => $site_id ) {
+			switch_to_blog( $site_id );
+			$this->assertFalse( get_option( Settings::OPTION ) );
+			$this->assertFalse( get_option( Credentials::OPTION ) );
+			$this->assertFalse( get_option( Log_Repository::DB_VERSION_OPTION ) );
+			$this->assertFalse( get_option( Alert_Settings::OPTION ) );
+			$this->assertFalse( get_option( Migration::LEGACY_OPTION ) );
+			$this->assertFalse( wp_next_scheduled( Plugin_Main::PURGE_HOOK ) );
+			restore_current_blog();
+
+			$this->assertNotEmpty(
+				preg_grep( '/^DROP (TEMPORARY )?TABLE IF EXISTS ' . preg_quote( $prefixes[ $index ], '/' ) . 'smtp_logs$/', $queries ),
+				"Log table of site {$site_id} was not dropped."
+			);
+		}
+	}
 }

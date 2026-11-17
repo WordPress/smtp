@@ -12,6 +12,7 @@ on:
       - 'package.json'
       - 'package-lock.json'
       - 'phpunit.xml.dist'
+      - 'phpunit-multisite.xml.dist'
       - 'composer.json'
       - 'composer.lock'
   pull_request:
@@ -26,6 +27,7 @@ on:
       - 'package.json'
       - 'package-lock.json'
       - 'phpunit.xml.dist'
+      - 'phpunit-multisite.xml.dist'
       - 'composer.json'
       - 'composer.lock'
     types:
@@ -39,7 +41,7 @@ concurrency:
 
 jobs:
   php-test:
-    name: PHP ${{ matrix.php }} - WP ${{ matrix.wordpress }}${{ matrix.experimental && ' (experimental)' || '' }}
+    name: PHP ${{ matrix.php }} - WP ${{ matrix.wordpress }}${{ matrix.multisite && ' (multisite)' || '' }}${{ matrix.experimental && ' (experimental)' || '' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     continue-on-error: ${{ matrix.experimental == true }}
@@ -53,9 +55,13 @@ jobs:
           - '8.2'
           - '8.3'
         wordpress: [ 'latest' ]
+        multisite: [ false ]
         include:
           - php: '7.4'
             wordpress: '6.3'
+          - php: '8.3'
+            wordpress: 'latest'
+            multisite: true
           - php: '8.4'
             wordpress: 'trunk'
             experimental: true
@@ -87,4 +93,4 @@ jobs:
         run: npm run wp-env:start:tests
 
       - name: Run tests
-        run: npm run test-php
+        run: npm run ${{ matrix.multisite && 'test-php-multisite' || 'test-php' }}

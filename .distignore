@@ -17,6 +17,7 @@ package-lock.json
 package.json
 phpcs.xml.dist
 phpunit.xml.dist
+phpunit-multisite.xml.dist
 readme.md
 tests
 .worktrees

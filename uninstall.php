@@ -9,24 +9,44 @@ if ( ! defined( 'WP_UNINSTALL_PLUGIN' ) ) {
 	exit;
 }
 
-global $wpdb;
-
-delete_option( 'smtp_settings' );
-delete_option( 'smtp_credentials' );
-delete_option( 'smtp_db_version' );
-delete_option( 'smtp_alert_settings' );
-delete_option( 'smtp_alert_state' );
-
-// Data of the legacy plugin that this one replaces, and the import bookkeeping.
-delete_option( 'smtp_options' );
-delete_option( 'smtp_legacy_migrated' );
-delete_option( 'smtp_migration_notice' );
-
-// Per-user dismissal of the recent failures notice.
+// Per-user dismissal of the recent failures notice. User meta is shared by the whole network,
+// so it is removed once, before the per-site loop.
 delete_metadata( 'user', 0, 'smtp_failures_dismissed', '', true );
 
-wp_clear_scheduled_hook( 'smtp_purge_logs' );
+// A closure, not a function, so the file can be loaded more than once (tests).
+$smtp_uninstall_site = static function () {
+	global $wpdb;
 
-// The table name is built from the trusted `$wpdb->prefix` only.
-// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.SchemaChange, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-$wpdb->query( "DROP TABLE IF EXISTS {$wpdb->prefix}smtp_logs" );
+	delete_option( 'smtp_settings' );
+	delete_option( 'smtp_credentials' );
+	delete_option( 'smtp_db_version' );
+	delete_option( 'smtp_alert_settings' );
+	delete_option( 'smtp_alert_state' );
+
+	// Data of the legacy plugin that this one replaces, and the import bookkeeping.
+	delete_option( 'smtp_options' );
+	delete_option( 'smtp_legacy_migrated' );
+	delete_option( 'smtp_migration_notice' );
+
+	wp_clear_scheduled_hook( 'smtp_purge_logs' );
+
+	// The table name is built from the trusted `$wpdb->prefix` only.
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.SchemaChange, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+	$wpdb->query( "DROP TABLE IF EXISTS {$wpdb->prefix}smtp_logs" );
+};
+
+if ( is_multisite() ) {
+	// shortcut: loads every site ID at once, batch with `offset` if huge networks time out.
+	foreach ( get_sites(
+		array(
+			'fields' => 'ids',
+			'number' => 0,
+		)
+	) as $smtp_site_id ) {
+		switch_to_blog( $smtp_site_id );
+		$smtp_uninstall_site();
+		restore_current_blog();
+	}
+} else {
+	$smtp_uninstall_site();
+}
