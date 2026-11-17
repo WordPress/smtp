@@ -260,13 +260,17 @@ class Mailer_Tests extends WP_UnitTestCase {
 		$this->assertNull( $GLOBALS['phpmailer'] );
 	}
 
-	public function test_use_transport_does_nothing_until_the_provider_is_configured() {
+	public function test_an_unconfigured_provider_sends_like_phpmailer() {
 		$this->configure_api_provider( false );
 		$GLOBALS['phpmailer'] = null;
 
 		$this->mailer->use_transport( array() );
+		$this->mailer->configure( $GLOBALS['phpmailer'] );
 
-		$this->assertNull( $GLOBALS['phpmailer'] );
+		$transport = new ReflectionProperty( Transport_PHPMailer::class, 'transport' );
+		$transport->setAccessible( true );
+		$this->assertNull( $transport->getValue( $GLOBALS['phpmailer'] ), 'Another wp_mail callback may still pick a configured provider.' );
+		$this->assertSame( 'mail', $GLOBALS['phpmailer']->Mailer );
 	}
 
 	public function test_configure_sets_the_transport_and_tells_the_tracker() {
@@ -284,6 +288,27 @@ class Mailer_Tests extends WP_UnitTestCase {
 		$this->assertSame( 'mail', $phpmailer->Mailer, 'An API provider must not switch PHPMailer to SMTP.' );
 		$this->assertSame( 'api', $this->tracker->get_provider() );
 		$this->assertTrue( $phpmailer->send() );
+	}
+
+	public function test_use_transport_replaces_phpmailer_while_an_smtp_provider_is_active() {
+		$this->configure_api_provider();
+		$this->configure();
+		$GLOBALS['phpmailer'] = null;
+
+		$this->mailer->use_transport( array() );
+
+		$this->assertInstanceOf( Transport_PHPMailer::class, $GLOBALS['phpmailer'], 'Another wp_mail callback may still pick the API provider.' );
+	}
+
+	public function test_configure_leaves_the_smtp_time_limit_alone_for_api_providers() {
+		$this->configure_api_provider();
+		$this->get_phpmailer();
+
+		$phpmailer = new Transport_PHPMailer( true );
+		$this->mailer->configure( $phpmailer );
+
+		$this->assertSame( 15, $phpmailer->Timeout );
+		$this->assertSame( 300, $phpmailer->getSMTPInstance()->Timelimit );
 	}
 
 	public function test_configure_credits_another_plugin_when_its_phpmailer_sends() {

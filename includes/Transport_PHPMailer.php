@@ -47,6 +47,25 @@ class Transport_PHPMailer extends PHPMailer {
 	private $secrets = array();
 
 	/**
+	 * Whether a provider callback is delivering an email.
+	 *
+	 * @since 1.3.0
+	 * @var bool
+	 */
+	private static $sending = false;
+
+	/**
+	 * Returns whether a provider callback is delivering an email.
+	 *
+	 * @since 1.3.0
+	 *
+	 * @return bool True while a `send` callback runs.
+	 */
+	public static function is_sending(): bool {
+		return self::$sending;
+	}
+
+	/**
 	 * Sets the callback that delivers the next email.
 	 *
 	 * It is used once: the email after that is sent with PHPMailer unless a callback is set again.
@@ -60,7 +79,7 @@ class Transport_PHPMailer extends PHPMailer {
 	public function set_transport( callable $transport, array $values, array $secrets = array() ) {
 		$this->transport = $transport;
 		$this->values    = $values;
-		$this->secrets   = array_values( array_filter( array_map( 'strval', $secrets ), 'strlen' ) );
+		$this->secrets   = self::get_redacted_values( $secrets, $values );
 	}
 
 	/**
@@ -73,10 +92,6 @@ class Transport_PHPMailer extends PHPMailer {
 	 * @throws Exception When the email can not be sent and exceptions are enabled.
 	 */
 	public function send() {
-		if ( null === $this->transport ) {
-			return parent::send();
-		}
-
 		$transport = $this->transport;
 		$values    = $this->values;
 		$secrets   = $this->secrets;
@@ -85,16 +100,24 @@ class Transport_PHPMailer extends PHPMailer {
 		$this->values    = array();
 		$this->secrets   = array();
 
-		// Validates the addresses and builds the MIME message, for APIs that accept raw emails.
-		if ( ! $this->preSend() ) {
+		if ( self::$sending ) {
+			// A send callback called wp_mail(). Sending it could loop forever.
+			$result = new \WP_Error( 'smtp_transport_nested', __( 'An email can not be sent while the provider is sending another one.', 'smtp' ) );
+		} elseif ( null === $transport ) {
+			return parent::send();
+		} elseif ( ! $this->preSend() ) {
+			// Validates the addresses and builds the MIME message, for APIs that accept raw emails.
 			return false;
-		}
-
-		try {
-			$result = call_user_func( $transport, $this, $values );
-		} catch ( \Throwable $e ) {
-			// wp_mail() only catches PHPMailer exceptions, anything else would be a fatal error.
-			$result = new \WP_Error( 'smtp_transport', $e->getMessage() );
+		} else {
+			self::$sending = true;
+			try {
+				$result = call_user_func( $transport, $this, $values );
+			} catch ( \Throwable $e ) {
+				// wp_mail() only catches PHPMailer exceptions, anything else would be a fatal error.
+				$result = new \WP_Error( 'smtp_transport', $e->getMessage() );
+			} finally {
+				self::$sending = false;
+			}
 		}
 
 		if ( true === $result ) {
@@ -115,5 +138,54 @@ class Transport_PHPMailer extends PHPMailer {
 		}
 
 		return false;
+	}
+
+	/**
+	 * Returns the secrets and the encoded forms an API may echo, longest first.
+	 *
+	 * @since 1.3.0
+	 *
+	 * @param string[] $secrets Secret values.
+	 * @param array    $values  Resolved field values, to match Basic auth tokens like `user:secret`.
+	 * @return string[] Values to replace in error messages.
+	 */
+	private static function get_redacted_values( array $secrets, array $values ): array {
+		$redacted = array();
+
+		foreach ( $secrets as $secret ) {
+			$secret = (string) $secret;
+			if ( '' === $secret ) {
+				continue;
+			}
+
+			$redacted[] = $secret;
+			$redacted[] = base64_encode( $secret ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode -- Matches a key the API echoes encoded.
+			$redacted[] = rawurlencode( $secret );
+			$redacted[] = urlencode( $secret ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.urlencode_urlencode -- Form bodies encode spaces as +.
+			$redacted[] = substr( (string) wp_json_encode( $secret ), 1, -1 );
+			foreach ( array( JSON_UNESCAPED_SLASHES, JSON_UNESCAPED_UNICODE, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE ) as $flags ) {
+				$redacted[] = substr( (string) wp_json_encode( $secret, $flags ), 1, -1 );
+			}
+
+			// Basic auth encodes the user and the secret together. The user may be empty.
+			$redacted[] = base64_encode( ':' . $secret ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode -- Matches an echoed Basic auth header.
+			foreach ( $values as $value ) {
+				if ( is_scalar( $value ) ) {
+					$redacted[] = base64_encode( $value . ':' . $secret ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode -- Matches an echoed Basic auth header.
+				}
+			}
+		}
+
+		$redacted = array_values( array_unique( array_filter( $redacted, 'strlen' ) ) );
+
+		// Longest first, so a secret that contains another one is replaced as a whole.
+		usort(
+			$redacted,
+			static function ( $a, $b ) {
+				return strlen( $b ) - strlen( $a );
+			}
+		);
+
+		return $redacted;
 	}
 }

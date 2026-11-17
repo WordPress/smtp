@@ -113,10 +113,10 @@ A provider that does not use SMTP sets a `send` callback. `wp_mail()` still buil
 },
 ```
 
-- Return `true` when the email was accepted, or a `WP_Error`. Its message becomes the `wp_mail_failed` error, so it shows up in the email log, the alerts and the test email result. Values of `password` fields are redacted from it.
+- Return `true` when the email was accepted, or a `WP_Error`. Its message becomes the `wp_mail_failed` error, so it shows up in the email log, the alerts and the test email result. Values of `password` fields are redacted from it, also when they are base64, URL or JSON encoded.
 - The email is available through the usual PHPMailer accessors: `getToAddresses()`, `getCcAddresses()`, `getBccAddresses()`, `getReplyToAddresses()`, `getAttachments()`, `getCustomHeaders()`, `Body`, `AltBody`, `ContentType` and `CharSet`. APIs that accept a raw email can use `getSentMIMEMessage()`.
 - Use `$phpmailer->Timeout` (see `smtp_timeout`) as the request timeout. There are no automatic retries.
-- Never call `wp_mail()` from `send`.
+- Never call `wp_mail()` from `send`. That email fails, so the one in progress is not changed.
 - The plugin only uses its own PHPMailer when `wp_mail()` would create the default one. If another plugin already replaced it, the email is sent by that plugin, without the provider.
 
 ## WP-CLI

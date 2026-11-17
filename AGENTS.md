@@ -81,7 +81,7 @@ A provider is an array registered through the `smtp_providers` filter:
 
 `Provider_Registry::get_all()` discards invalid providers. Providers without `send` only configure PHPMailer; they must not send mail themselves.
 
-When the configured provider has `send`, `Mailer::use_transport()` (on the `wp_mail` filter) puts a `Transport_PHPMailer` in the global `$phpmailer`, only when it would be the default instance. `wp_mail()` then builds the email as usual, and `Transport_PHPMailer::send()` calls the provider instead of sending it. A `WP_Error` is thrown as a PHPMailer exception, so core fires `wp_mail_failed` and the log and alerts work unchanged. **A `send` callback must never call `wp_mail()`.** Do not use `pre_wp_mail` for this: core skips its parsing and the success and failure actions.
+When a registered provider has `send`, `Mailer::use_transport()` (on the `wp_mail` filter) puts a `Transport_PHPMailer` in the global `$phpmailer`, only when it would be the default instance. It does not read which provider the email uses: `Mailer::configure()` decides that on `phpmailer_init`, after every `wp_mail` callback ran. Without a callback the instance sends like PHPMailer. `wp_mail()` then builds the email as usual, and `Transport_PHPMailer::send()` calls the provider instead of sending it. A `WP_Error` is thrown as a PHPMailer exception, so core fires `wp_mail_failed` and the log and alerts work unchanged. **A `send` callback must never call `wp_mail()`**: `Transport_PHPMailer` fails that email and `use_transport()` gives it a new instance, so the email in progress is not changed. Do not use `pre_wp_mail` for this: core skips its parsing and the success and failure actions.
 
 ### Settings and credentials
 

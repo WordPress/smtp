@@ -241,4 +241,157 @@ class Transport_PHPMailer_Tests extends WP_UnitTestCase {
 		$this->assertSame( 'Key [redacted] is not allowed', $entry['error'] );
 		$this->assertSame( 'api', $entry['provider'] );
 	}
+
+	private function get_error_message( Transport_PHPMailer $mailer ): string {
+		try {
+			$mailer->send();
+		} catch ( Exception $e ) {
+			return $e->getMessage();
+		}
+
+		$this->fail( 'The email must fail.' );
+	}
+
+	public function test_encoded_secrets_are_redacted() {
+		$mailer = $this->get_mailer();
+		$mailer->set_transport( array( $this, 'send' ), array( 'user' => 'me' ), array( 'key/1+2=' ) );
+		$this->result = new WP_Error(
+			'api',
+			// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode
+			'Plain key/1+2= Base64 ' . base64_encode( 'key/1+2=' ) . ' Basic ' . base64_encode( 'me:key/1+2=' ) . ' URL key%2F1%2B2%3D JSON {"key":"key\/1+2="} {"key":"key/1+2="}'
+		);
+
+		$this->assertSame(
+			'Plain [redacted] Base64 [redacted] Basic [redacted] URL [redacted] JSON {"key":"[redacted]"} {"key":"[redacted]"}',
+			$this->get_error_message( $mailer )
+		);
+	}
+
+	public function test_json_and_basic_forms_of_a_secret_are_redacted() {
+		$mailer = $this->get_mailer();
+		$mailer->set_transport( array( $this, 'send' ), array( 'api_key' => 'clé/a' ), array( 'clé/a' ) );
+		$this->result = new WP_Error(
+			'api',
+			// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode
+			'A clé/a B clé\/a C clé\/a D ' . base64_encode( ':clé/a' ) . ' E ' . base64_encode( 'clé/a:clé/a' )
+		);
+
+		$this->assertSame( 'A [redacted] B [redacted] C [redacted] D [redacted] E [redacted]', $this->get_error_message( $mailer ) );
+	}
+
+	public function test_a_secret_that_contains_another_is_redacted_as_a_whole() {
+		$mailer = $this->get_mailer();
+		$mailer->set_transport( array( $this, 'send' ), array(), array( 'abc', 'abcdef' ) );
+		$this->result = new WP_Error( 'api', 'Bad key abcdef' );
+
+		$this->assertSame( 'Bad key [redacted]', $this->get_error_message( $mailer ) );
+	}
+
+	public function test_the_provider_is_read_when_an_unconfigured_default_changes() {
+		$this->register_api_provider();
+		update_option( Settings::OPTION, array( 'provider' => 'smtp' ) );
+		$GLOBALS['phpmailer'] = null;
+
+		add_filter(
+			'wp_mail',
+			static function ( $atts ) {
+				update_option( Settings::OPTION, array( 'provider' => 'api' ) );
+
+				return $atts;
+			},
+			PHP_INT_MAX
+		);
+
+		$this->assertTrue( wp_mail( 'to@example.org', 'Selected', 'Body' ) );
+		$this->assertCount( 1, $this->calls );
+	}
+
+	public function test_phpmailer_can_not_send_while_a_callback_sends() {
+		$error  = '';
+		$mailer = $this->get_mailer();
+		$mailer->set_transport(
+			function () use ( &$error ) {
+				try {
+					// No callback: this would be a plain SMTP or mail() send.
+					$this->get_mailer()->send();
+				} catch ( Exception $e ) {
+					$error = $e->getMessage();
+				}
+
+				return true;
+			},
+			array()
+		);
+
+		$this->assertTrue( $mailer->send() );
+		$this->assertSame( 'An email can not be sent while the provider is sending another one.', $error );
+	}
+
+	public function test_the_provider_is_read_when_phpmailer_is_set_up() {
+		$this->register_api_provider();
+		update_option(
+			Settings::OPTION,
+			array(
+				'provider' => 'smtp',
+				'host'     => 'smtp.example.com',
+				'auth'     => false,
+			)
+		);
+		$GLOBALS['phpmailer'] = null;
+
+		// Runs after the plugin, like a callback that picks the connection of the email.
+		add_filter(
+			'wp_mail',
+			static function ( $atts ) {
+				update_option( Settings::OPTION, array( 'provider' => 'api' ) );
+
+				return $atts;
+			},
+			PHP_INT_MAX
+		);
+
+		$this->assertTrue( wp_mail( 'to@example.org', 'Selected', 'Body' ) );
+		$this->assertCount( 1, $this->calls );
+		$this->assertSame( 'Selected', $this->calls[0]['subject'] );
+		$this->assertSame( 'api', $this->get_logged_entries()[0]['provider'] );
+	}
+
+	public function test_a_send_callback_can_not_send_another_email() {
+		$this->register_api_provider();
+		$GLOBALS['phpmailer'] = null;
+
+		$nested = null;
+		add_filter(
+			'smtp_providers',
+			function ( $providers ) use ( &$nested ) {
+				$providers['api']['send'] = function ( $phpmailer ) use ( &$nested ) {
+					$subject = $phpmailer->Subject;
+					$nested  = wp_mail( 'other@example.org', 'Nested', 'Body' );
+
+					$this->calls[] = array(
+						'subject' => $subject,
+						'after'   => $phpmailer->Subject,
+					);
+
+					return true;
+				};
+
+				return $providers;
+			},
+			11
+		);
+
+		$this->assertTrue( wp_mail( 'to@example.org', 'Outer', 'Body' ) );
+		$this->assertFalse( $nested );
+		$this->assertSame(
+			array(
+				array(
+					'subject' => 'Outer',
+					'after'   => 'Outer',
+				),
+			),
+			$this->calls,
+			'The nested email must not change the email in progress.'
+		);
+	}
 }

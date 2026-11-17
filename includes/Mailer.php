@@ -114,8 +114,8 @@ class Mailer {
 			// is awaited for up to Timelimit seconds, 300 by default.
 			$phpmailer->Timeout = $timeout;
 
-			// wp_mail() loads the SMTP class together with PHPMailer.
-			if ( class_exists( '\\PHPMailer\\PHPMailer\\SMTP' ) ) {
+			// wp_mail() loads the SMTP class together with PHPMailer. API providers do not use it.
+			if ( null === $provider['send'] && class_exists( '\\PHPMailer\\PHPMailer\\SMTP' ) ) {
 				$phpmailer->getSMTPInstance()->Timelimit = $timeout;
 			}
 			// phpcs:enable WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase
@@ -142,9 +142,12 @@ class Mailer {
 	}
 
 	/**
-	 * Puts a PHPMailer that can send through the provider in place, when the provider does not use SMTP.
+	 * Puts a PHPMailer that can send through a provider `send` callback in place.
 	 *
-	 * Runs on the `wp_mail` filter, before `wp_mail()` creates its PHPMailer instance.
+	 * Runs on the `wp_mail` filter, before `wp_mail()` creates its PHPMailer instance. It does not
+	 * read the provider of the email: other `wp_mail` callbacks may still change it, so `configure()`
+	 * picks it on `phpmailer_init`, also when the saved provider is not configured. Without a
+	 * callback, the instance sends like PHPMailer.
 	 *
 	 * @since 1.3.0
 	 *
@@ -154,18 +157,16 @@ class Mailer {
 	public function use_transport( $atts ) {
 		global $phpmailer;
 
-		if ( ! $this->settings->is_configured() ) {
-			return $atts;
-		}
-
-		$provider = $this->registry->get( $this->settings->get_provider_slug() );
-		if ( ! $provider || null === $provider['send'] || $phpmailer instanceof Transport_PHPMailer ) {
+		// A send callback called wp_mail(): a new instance keeps the email in progress intact,
+		// and Transport_PHPMailer fails the new one. Not autoloaded, PHPMailer may not be loaded yet.
+		$sending = class_exists( Transport_PHPMailer::class, false ) && Transport_PHPMailer::is_sending();
+		if ( ! $sending && ( ! $this->has_send_provider() || $phpmailer instanceof Transport_PHPMailer ) ) {
 			return $atts;
 		}
 
 		// Only replace the instance WordPress creates, never one set by another plugin.
 		$current = is_object( $phpmailer ) ? get_class( $phpmailer ) : '';
-		if ( ! in_array( $current, array( '', 'PHPMailer\\PHPMailer\\PHPMailer', 'WP_PHPMailer' ), true ) ) {
+		if ( ! in_array( $current, array( '', 'PHPMailer\\PHPMailer\\PHPMailer', 'WP_PHPMailer', Transport_PHPMailer::class ), true ) ) {
 			return $atts;
 		}
 
@@ -238,6 +239,23 @@ class Mailer {
 		}
 
 		return $name;
+	}
+
+	/**
+	 * Returns whether a registered provider sends through a `send` callback.
+	 *
+	 * @since 1.3.0
+	 *
+	 * @return bool True when at least one provider has a `send` callback.
+	 */
+	private function has_send_provider(): bool {
+		foreach ( $this->registry->get_all() as $provider ) {
+			if ( null !== $provider['send'] ) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	/**
