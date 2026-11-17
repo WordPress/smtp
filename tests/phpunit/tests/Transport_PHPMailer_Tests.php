@@ -49,7 +49,8 @@ class Transport_PHPMailer_Tests extends WP_UnitTestCase {
 		$this->calls[] = array(
 			'to'          => wp_list_pluck( $phpmailer->getToAddresses(), 0 ),
 			'cc'          => wp_list_pluck( $phpmailer->getCcAddresses(), 0 ),
-			'reply_to'    => wp_list_pluck( $phpmailer->getReplyToAddresses(), 0 ),
+			// Older PHPMailer versions key Reply-To addresses by address.
+			'reply_to'    => array_values( wp_list_pluck( $phpmailer->getReplyToAddresses(), 0 ) ),
 			'attachments' => wp_list_pluck( $phpmailer->getAttachments(), 2 ),
 			'subject'     => $phpmailer->Subject,
 			'body'        => $phpmailer->Body,
