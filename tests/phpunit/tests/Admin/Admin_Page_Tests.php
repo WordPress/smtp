@@ -221,6 +221,44 @@ class Admin_Page_Tests extends WP_UnitTestCase {
 		$this->assertStringContainsString( 'A password is saved. Leave empty to keep it.', $html );
 	}
 
+	public function test_a_saved_password_can_be_removed() {
+		( new Credentials() )->set( 'password', 'top-secret-password' );
+		$this->admin_page->register_settings();
+
+		$html = $this->render( 'settings' );
+
+		$this->assertStringContainsString( 'name="smtp_settings[remove_secrets][password]"', $html );
+		$this->assertStringContainsString( 'Remove the saved password', $html );
+	}
+
+	public function test_the_remove_checkbox_is_hidden_without_a_saved_password() {
+		$this->admin_page->register_settings();
+
+		$html = $this->render( 'settings' );
+
+		$this->assertStringNotContainsString( 'remove_secrets', $html );
+	}
+
+	public function test_the_remove_checkbox_is_hidden_for_a_password_locked_by_a_constant() {
+		if ( ! defined( 'SMTP_TESTS_ADMIN_LOCKED_PASSWORD' ) ) {
+			define( 'SMTP_TESTS_ADMIN_LOCKED_PASSWORD', 'from-constant' );
+		}
+
+		add_filter(
+			'smtp_providers',
+			static function ( $providers ) {
+				$providers['smtp']['fields']['password']['constant'] = 'SMTP_TESTS_ADMIN_LOCKED_PASSWORD';
+
+				return $providers;
+			}
+		);
+		$this->admin_page->register_settings();
+
+		$html = $this->render( 'settings' );
+
+		$this->assertStringNotContainsString( 'remove_secrets', $html );
+	}
+
 	public function test_saved_values_are_escaped() {
 		update_option( Settings::OPTION, array( 'host' => '"><script>alert(1)</script>' ) );
 		$this->admin_page->register_settings();

@@ -61,4 +61,23 @@ class Credentials {
 		// Not autoloaded: secrets are only needed when sending mail or saving settings.
 		update_option( self::OPTION, $secrets, false );
 	}
+
+	/**
+	 * Removes a stored secret.
+	 *
+	 * @since 1.3.0
+	 *
+	 * @param string $key Secret key.
+	 */
+	public function delete( string $key ) {
+		$secrets = get_option( self::OPTION, array() );
+
+		if ( ! is_array( $secrets ) || ! array_key_exists( $key, $secrets ) ) {
+			return;
+		}
+
+		unset( $secrets[ $key ] );
+
+		update_option( self::OPTION, $secrets, false );
+	}
 }
