@@ -43,7 +43,7 @@ class Error_Hints {
 			return __( 'The host name could not be found. Check the Host setting for typos.', 'smtp' );
 		}
 
-		if ( preg_match( '/(?:certificate verify failed|self-signed certificate|SSL operation failed)/i', $log )
+		if ( preg_match( '/(?:SSL operation failed|Failed to enable crypto|did not match expected CN)/i', $log )
 			|| false !== strpos( $log, 'STARTTLS command failed' )
 			|| preg_match( '/CLIENT -> SERVER: STARTTLS\s+SERVER -> CLIENT: 220(?![\s\S]*CLIENT -> SERVER: EHLO)/', $log )
 		) {
