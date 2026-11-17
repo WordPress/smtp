@@ -71,6 +71,7 @@ class Mailer {
 	 * @since 1.2.0
 	 */
 	public function add_hooks() {
+		add_filter( 'wp_mail', array( $this, 'use_transport' ), PHP_INT_MAX );
 		add_action( 'phpmailer_init', array( $this, 'configure' ) );
 		add_filter( 'wp_mail_from', array( $this, 'filter_from_email' ), PHP_INT_MAX );
 		add_filter( 'wp_mail_from_name', array( $this, 'filter_from_name' ), PHP_INT_MAX );
@@ -96,7 +97,8 @@ class Mailer {
 		/**
 		 * Filters the number of seconds to wait for the SMTP server to connect and to answer each command.
 		 *
-		 * The provider can still set its own value when it configures PHPMailer.
+		 * The provider can still set its own value when it configures PHPMailer. Providers that
+		 * send through an API read it from `$phpmailer->Timeout`.
 		 *
 		 * @since 1.2.0
 		 *
@@ -119,9 +121,73 @@ class Mailer {
 			// phpcs:enable WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase
 		}
 
-		call_user_func( $provider['configure'], $phpmailer, $this->settings->get_provider_values() );
+		$values = $this->settings->get_provider_values();
+
+		if ( null !== $provider['configure'] ) {
+			call_user_func( $provider['configure'], $phpmailer, $values );
+		}
+
+		if ( null !== $provider['send'] ) {
+			// Another plugin put its own PHPMailer in place: the email does not go through the provider.
+			// An empty snapshot never matches the real instance, so the tracker credits another plugin.
+			if ( ! $phpmailer instanceof Transport_PHPMailer ) {
+				$this->tracker->remember( null );
+				return;
+			}
+
+			$phpmailer->set_transport( $provider['send'], $values, $this->get_secrets( $values ) );
+		}
 
 		$this->tracker->remember( $phpmailer );
+	}
+
+	/**
+	 * Puts a PHPMailer that can send through the provider in place, when the provider does not use SMTP.
+	 *
+	 * Runs on the `wp_mail` filter, before `wp_mail()` creates its PHPMailer instance.
+	 *
+	 * @since 1.3.0
+	 *
+	 * @param array $atts Arguments of `wp_mail()`.
+	 * @return array Unchanged arguments.
+	 */
+	public function use_transport( $atts ) {
+		global $phpmailer;
+
+		if ( ! $this->settings->is_configured() ) {
+			return $atts;
+		}
+
+		$provider = $this->registry->get( $this->settings->get_provider_slug() );
+		if ( ! $provider || null === $provider['send'] || $phpmailer instanceof Transport_PHPMailer ) {
+			return $atts;
+		}
+
+		// Only replace the instance WordPress creates, never one set by another plugin.
+		$current = is_object( $phpmailer ) ? get_class( $phpmailer ) : '';
+		if ( ! in_array( $current, array( '', 'PHPMailer\\PHPMailer\\PHPMailer', 'WP_PHPMailer' ), true ) ) {
+			return $atts;
+		}
+
+		// wp_mail() only loads these when it creates the instance itself.
+		require_once ABSPATH . WPINC . '/PHPMailer/PHPMailer.php';
+		require_once ABSPATH . WPINC . '/PHPMailer/SMTP.php';
+		require_once ABSPATH . WPINC . '/PHPMailer/Exception.php';
+
+		$phpmailer = new Transport_PHPMailer( true ); // phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited -- wp_mail() reuses this instance.
+
+		// Same setup as wp_mail() gives its own instance.
+		$phpmailer::$validator = static function ( $email ) {
+			return (bool) is_email( $email );
+		};
+
+		// Translated PHPMailer errors, since WordPress 6.8. The strings are shared by every instance.
+		if ( file_exists( ABSPATH . WPINC . '/class-wp-phpmailer.php' ) ) {
+			require_once ABSPATH . WPINC . '/class-wp-phpmailer.php';
+			\WP_PHPMailer::setLanguage();
+		}
+
+		return $atts;
 	}
 
 	/**
@@ -172,6 +238,26 @@ class Mailer {
 		}
 
 		return $name;
+	}
+
+	/**
+	 * Returns the values of the password fields of the active provider.
+	 *
+	 * @since 1.3.0
+	 *
+	 * @param array $values Resolved field values.
+	 * @return string[] Secret values.
+	 */
+	private function get_secrets( array $values ): array {
+		$secrets = array();
+
+		foreach ( $this->settings->get_fields() as $key => $field ) {
+			if ( 'password' === $field['type'] && isset( $values[ $key ] ) ) {
+				$secrets[] = (string) $values[ $key ];
+			}
+		}
+
+		return $secrets;
 	}
 
 	/**

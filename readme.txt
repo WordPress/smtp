@@ -44,13 +44,17 @@ No. When this version loads for the first time it imports your host, port, encry
 
 = Does it support providers that use an HTTP API instead of SMTP? =
 
-Not yet. Providers can configure PHPMailer, which covers any service that offers SMTP.
+Yes, for developers. A provider can send the email through an API instead of SMTP, while the email log, the alerts and the test email keep working. The plugin ships with Generic SMTP only. See the technical documentation on [GitHub](https://github.com/wordpress/smtp).
 
 == Contributing ==
 
 SMTP is developed in the open. Bug reports, ideas and pull requests are welcome at [github.com/wordpress/smtp](https://github.com/wordpress/smtp).
 
 == Changelog ==
+
+= 1.3.0 =
+
+* Developers can add providers that send through an HTTP API instead of SMTP, with the new `send` callback. The email log, alerts and test email work with them too.
 
 = 1.2.0 =
 

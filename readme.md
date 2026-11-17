@@ -23,7 +23,7 @@ Constants defined in `wp-config.php` override the saved value and lock the field
 
 ## Adding a provider
 
-Providers are added with the `smtp_providers` filter. A provider configures the `PHPMailer` instance used by `wp_mail()`, so it works with any service that offers SMTP. The built-in Generic SMTP provider is registered through the same filter.
+Providers are added with the `smtp_providers` filter. A provider configures the `PHPMailer` instance used by `wp_mail()`, so it works with any service that offers SMTP. Providers that send through an HTTP API are supported too, see below. The built-in Generic SMTP provider is registered through the same filter.
 
 ```php
 add_filter( 'smtp_providers', function ( $providers ) {
@@ -59,7 +59,8 @@ add_filter( 'smtp_providers', function ( $providers ) {
 | Key | Description |
 |---|---|
 | `label` (string) | Name shown in the provider select. Required. |
-| `configure` (callable) | Receives the `PHPMailer` instance and the resolved field values. Required. |
+| `configure` (callable) | Receives the `PHPMailer` instance and the resolved field values. Required unless `send` is set. |
+| `send` (callable) | For providers that send through an HTTP API instead of SMTP. See below. |
 | `fields` (array) | Settings fields, keyed by field key. |
 | `required` (string[]) | Field keys that must have a value before the provider is used. Until then, mail is sent as usual. |
 | `required_if` (array) | Field keys that must have a value when another field is enabled, as `field => condition field` pairs. For example `array( 'password' => 'auth' )`. |
@@ -77,7 +78,46 @@ Each field accepts:
 
 Fields of type `password` are stored apart from the other settings, are never printed back into the page, and are redacted from the connection log of the test email.
 
-Providers with an invalid definition (no label, or a `configure` that is not callable) are ignored. Providers that talk to an HTTP API instead of SMTP are not supported yet, see [#1](https://github.com/WordPress/smtp/issues/1).
+Providers with an invalid definition (no label, no `configure` or `send`, or one that is not callable) are ignored.
+
+### HTTP API providers
+
+A provider that does not use SMTP sets a `send` callback. `wp_mail()` still builds the email as usual: it parses the headers, recipients and attachments, applies the From, content type and charset filters, and runs `phpmailer_init`. Then, instead of sending it, PHPMailer calls `send` with the ready `PHPMailer` instance and the resolved field values.
+
+```php
+'send' => function ( $phpmailer, $values ) {
+	$response = wp_remote_post(
+		'https://api.my-provider.example/send',
+		array(
+			'timeout' => $phpmailer->Timeout,
+			'headers' => array( 'Authorization' => 'Bearer ' . $values['api_key'] ),
+			'body'    => array(
+				'from'    => $phpmailer->From,
+				'to'      => wp_list_pluck( $phpmailer->getToAddresses(), 0 ),
+				'subject' => $phpmailer->Subject,
+				'html'    => $phpmailer->Body,
+				'text'    => $phpmailer->AltBody,
+			),
+		)
+	);
+
+	if ( is_wp_error( $response ) ) {
+		return $response;
+	}
+
+	if ( 200 !== wp_remote_retrieve_response_code( $response ) ) {
+		return new WP_Error( 'my_provider_error', wp_remote_retrieve_body( $response ) );
+	}
+
+	return true;
+},
+```
+
+- Return `true` when the email was accepted, or a `WP_Error`. Its message becomes the `wp_mail_failed` error, so it shows up in the email log, the alerts and the test email result. Values of `password` fields are redacted from it.
+- The email is available through the usual PHPMailer accessors: `getToAddresses()`, `getCcAddresses()`, `getBccAddresses()`, `getReplyToAddresses()`, `getAttachments()`, `getCustomHeaders()`, `Body`, `AltBody`, `ContentType` and `CharSet`. APIs that accept a raw email can use `getSentMIMEMessage()`.
+- Use `$phpmailer->Timeout` (see `smtp_timeout`) as the request timeout. There are no automatic retries.
+- Never call `wp_mail()` from `send`.
+- The plugin only uses its own PHPMailer when `wp_mail()` would create the default one. If another plugin already replaced it, the email is sent by that plugin, without the provider.
 
 ## WP-CLI
 

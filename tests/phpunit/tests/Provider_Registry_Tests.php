@@ -71,6 +71,52 @@ class Provider_Registry_Tests extends WP_UnitTestCase {
 		$this->assertSame( array(), $provider['required_if'] );
 	}
 
+	public function test_a_provider_can_send_without_configure() {
+		add_filter(
+			'smtp_providers',
+			static function ( $providers ) {
+				$providers['api'] = array(
+					'label' => 'API',
+					'send'  => '__return_true',
+				);
+
+				return $providers;
+			}
+		);
+
+		$provider = $this->registry->get( 'api' );
+
+		$this->assertIsArray( $provider );
+		$this->assertNull( $provider['configure'] );
+		$this->assertSame( '__return_true', $provider['send'] );
+	}
+
+	public function test_smtp_providers_have_no_send_callback() {
+		$this->assertNull( $this->registry->get( 'smtp' )['send'] );
+	}
+
+	public function test_providers_with_an_invalid_send_are_discarded() {
+		add_filter(
+			'smtp_providers',
+			static function ( $providers ) {
+				$providers['bad-send']      = array(
+					'label' => 'Bad send',
+					'send'  => 'not_a_function',
+				);
+				$providers['bad-configure'] = array(
+					'label'     => 'Bad configure',
+					'configure' => 'not_a_function',
+					'send'      => '__return_true',
+				);
+
+				return $providers;
+			}
+		);
+
+		$this->assertNull( $this->registry->get( 'bad-send' ) );
+		$this->assertNull( $this->registry->get( 'bad-configure' ) );
+	}
+
 	public function test_invalid_providers_are_discarded() {
 		add_filter(
 			'smtp_providers',
