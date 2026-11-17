@@ -330,4 +330,43 @@ class Test_Email_Tests extends WP_UnitTestCase {
 
 		$this->assertSame( 'SERVER -> CLIENT: 220 ready', $method->invoke( $this->test_email, 'SERVER -> CLIENT: 220 ready' ) );
 	}
+
+	public function test_redact_removes_every_password_field_of_the_provider() {
+		add_filter(
+			'smtp_providers',
+			static function ( $providers ) {
+				$providers['relay'] = array(
+					'label'     => 'Relay',
+					'required'  => array( 'api_key' ),
+					'fields'    => array(
+						'api_key' => array(
+							'label' => 'API key',
+							'type'  => 'password',
+						),
+					),
+					'configure' => '__return_null',
+				);
+
+				return $providers;
+			}
+		);
+		update_option( Settings::OPTION, array( 'provider' => 'relay' ) );
+		( new Credentials() )->set( 'api_key', 'relay-key-123' );
+
+		$log = implode(
+			"\n",
+			array(
+				'CLIENT -> SERVER: ' . base64_encode( 'relay-key-123' ), // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode
+				'key is relay-key-123',
+			)
+		);
+
+		$method = new ReflectionMethod( Test_Email::class, 'redact' );
+		$method->setAccessible( true );
+		$redacted = $method->invoke( $this->test_email, $log );
+
+		$this->assertStringNotContainsString( 'relay-key-123', $redacted );
+		$this->assertStringNotContainsString( base64_encode( 'relay-key-123' ), $redacted ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode
+		$this->assertSame( "CLIENT -> SERVER: [redacted]\nkey is [redacted]", $redacted );
+	}
 }
