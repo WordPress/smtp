@@ -233,8 +233,10 @@ class Settings {
 					break;
 
 				case 'number':
-					$number        = absint( $raw );
-					$clean[ $key ] = $number > 0 ? $number : $field['default'];
+					$number = absint( $raw );
+					$valid  = $number > 0 && ( 'port' !== $key || $number <= 65535 );
+
+					$clean[ $key ] = $valid ? $number : $field['default'];
 					break;
 
 				case 'email':

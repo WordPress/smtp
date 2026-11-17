@@ -399,6 +399,11 @@ class Settings_Tests extends WP_UnitTestCase {
 		$this->assertSame( 'tls', $clean['encryption'] );
 	}
 
+	public function test_sanitize_rejects_a_port_above_65535() {
+		$this->assertSame( 587, $this->settings->sanitize( array( 'port' => '65536' ) )['port'] );
+		$this->assertSame( 65535, $this->settings->sanitize( array( 'port' => '65535' ) )['port'] );
+	}
+
 	public function test_sanitize_falls_back_to_the_current_provider_when_unknown() {
 		$clean = $this->settings->sanitize( array( 'provider' => 'unknown' ) );
 
