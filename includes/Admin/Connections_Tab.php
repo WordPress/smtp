@@ -13,10 +13,12 @@ use WordPress\SMTP\Provider_Registry;
 use WordPress\SMTP\Settings;
 
 /**
- * Renders and handles the Connections tab of the Tools > SMTP screen.
+ * Renders and handles the extra connections inside the Settings tab of the Tools > SMTP screen.
  *
- * The default connection is the one configured in the Settings tab. This tab lists it and manages the
- * others: each one has its own provider, credentials, From address and sending limits.
+ * The Settings tab is where every connection is managed: the default one has its form there, and this
+ * class adds the links to switch between connections plus the forms to add, edit and delete the others.
+ * Each connection has its own provider, credentials, From address and sending limits. The ID of a
+ * connection is generated from its name when it is added, and never changes.
  *
  * @since 1.2.0
  */
@@ -112,7 +114,7 @@ class Connections_Tab {
 	}
 
 	/**
-	 * Returns the URL of the tab, or of the form of a connection.
+	 * Returns the URL of the Settings tab, or of the form of a connection.
 	 *
 	 * @since 1.2.0
 	 *
@@ -121,7 +123,7 @@ class Connections_Tab {
 	 * @return string Admin URL.
 	 */
 	public static function get_url( string $connection = '', array $args = array() ): string {
-		$url = Admin_Page::get_url( 'connections' );
+		$url = Admin_Page::get_url( 'settings' );
 
 		if ( '' !== $connection ) {
 			$args['connection'] = $connection;
@@ -150,20 +152,24 @@ class Connections_Tab {
 		$submitted = isset( $_POST[ Settings::OPTION ] ) && is_array( $_POST[ Settings::OPTION ] ) ? wp_unslash( $_POST[ Settings::OPTION ] ) : array();
 		// phpcs:enable WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
 
-		$clean_id = Connections::sanitize_id( $id );
+		if ( $is_new ) {
+			// The ID comes from the name and is unique, so adding a connection never overwrites another one.
+			$clean_id = $this->connections->generate_id( $label );
 
-		if ( '' === $clean_id ) {
-			$this->redirect( self::get_url( $is_new ? self::NEW_CONNECTION : $id, array( 'notice' => 'invalid_id' ) ) );
-		}
+			if ( '' === $clean_id ) {
+				$this->redirect( self::get_url( self::NEW_CONNECTION, array( 'notice' => 'missing_name' ) ) );
+			}
+		} else {
+			$clean_id = Connections::sanitize_id( $id );
 
-		// Adding a connection must not overwrite one that has the same ID.
-		if ( $is_new && $this->connections->exists( $clean_id ) ) {
-			$this->redirect( self::get_url( self::NEW_CONNECTION, array( 'notice' => 'exists' ) ) );
+			if ( '' === $clean_id || ! $this->connections->exists( $clean_id ) ) {
+				$this->redirect( self::get_url( '', array( 'notice' => 'not_found' ) ) );
+			}
 		}
 
 		$saved = $this->connections->save( $clean_id, $label, $submitted );
 
-		$this->redirect( self::get_url( is_wp_error( $saved ) ? '' : $saved, array( 'notice' => is_wp_error( $saved ) ? 'invalid_id' : 'saved' ) ) );
+		$this->redirect( self::get_url( is_wp_error( $saved ) ? '' : $saved, array( 'notice' => is_wp_error( $saved ) ? 'not_found' : 'saved' ) ) );
 	}
 
 	/**
@@ -187,26 +193,69 @@ class Connections_Tab {
 	}
 
 	/**
-	 * Renders the tab: the list of connections, or the form of one of them.
+	 * Returns the ID of the connection the Settings tab must show.
 	 *
 	 * @since 1.2.0
+	 *
+	 * @return string `new`, the ID of an extra connection, or the default ID.
 	 */
-	public function render() {
-		// Read-only navigation parameters, no state is changed.
-		// phpcs:disable WordPress.Security.NonceVerification.Recommended
+	public function get_requested(): string {
+		// Read-only navigation parameter, no state is changed.
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended
 		$requested = isset( $_GET['connection'] ) ? sanitize_text_field( wp_unslash( $_GET['connection'] ) ) : '';
-		$notice    = isset( $_GET['notice'] ) ? sanitize_key( wp_unslash( $_GET['notice'] ) ) : '';
-		// phpcs:enable WordPress.Security.NonceVerification.Recommended
-
-		$this->render_notice( $notice );
 
 		if ( self::NEW_CONNECTION === $requested ) {
-			$this->render_form( self::NEW_SETTINGS_ID );
-		} elseif ( '' !== $requested && Connections::DEFAULT_ID !== $requested && $this->connections->exists( $requested ) ) {
-			$this->render_form( $requested );
-		} else {
-			$this->render_list();
+			return $requested;
 		}
+
+		return '' !== $requested && $this->connections->exists( $requested ) ? $requested : Connections::DEFAULT_ID;
+	}
+
+	/**
+	 * Renders the notice of the last action and the links to switch between connections.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @param string $current Connection being shown: `new`, an ID or the default ID.
+	 */
+	public function render_navigation( string $current ) {
+		// Read-only navigation parameter, no state is changed.
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		$this->render_notice( isset( $_GET['notice'] ) ? sanitize_key( wp_unslash( $_GET['notice'] ) ) : '' );
+
+		$links = array();
+		foreach ( $this->connections->get_ids() as $id ) {
+			$links[] = $this->get_nav_link( Connections::DEFAULT_ID === $id ? '' : $id, $this->connections->get_label( $id ), $id === $current );
+		}
+		$links[] = $this->get_nav_link( self::NEW_CONNECTION, __( 'Add connection', 'smtp' ), self::NEW_CONNECTION === $current );
+
+		?>
+		<ul class="subsubsub">
+			<?php foreach ( $links as $index => $link ) : ?>
+				<li><?php echo wp_kses_post( $link ); ?><?php echo $index < count( $links ) - 1 ? ' |' : ''; ?></li>
+			<?php endforeach; ?>
+		</ul>
+		<br class="clear" />
+		<?php
+	}
+
+	/**
+	 * Returns the link to a connection of the navigation.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @param string $connection Connection ID, `new`, or empty for the default connection.
+	 * @param string $label      Link text.
+	 * @param bool   $is_current Whether it is the connection being shown.
+	 * @return string Link HTML.
+	 */
+	private function get_nav_link( string $connection, string $label, bool $is_current ): string {
+		return sprintf(
+			'<a href="%1$s"%2$s>%3$s</a>',
+			esc_url( self::get_url( $connection ) ),
+			$is_current ? ' class="current" aria-current="page"' : '',
+			esc_html( $label )
+		);
 	}
 
 	/**
@@ -218,10 +267,10 @@ class Connections_Tab {
 	 */
 	private function render_notice( string $notice ) {
 		$messages = array(
-			'saved'      => array( 'success', __( 'Connection saved.', 'smtp' ) ),
-			'deleted'    => array( 'success', __( 'Connection deleted.', 'smtp' ) ),
-			'exists'     => array( 'error', __( 'A connection with that ID already exists.', 'smtp' ) ),
-			'invalid_id' => array( 'error', __( 'Enter an ID with letters, numbers, dashes or underscores. "default" is reserved.', 'smtp' ) ),
+			'saved'        => array( 'success', __( 'Connection saved.', 'smtp' ) ),
+			'deleted'      => array( 'success', __( 'Connection deleted.', 'smtp' ) ),
+			'missing_name' => array( 'error', __( 'Enter a name with letters or numbers. The ID of the connection is generated from it.', 'smtp' ) ),
+			'not_found'    => array( 'error', __( 'That connection does not exist.', 'smtp' ) ),
 		);
 
 		if ( ! isset( $messages[ $notice ] ) ) {
@@ -236,88 +285,13 @@ class Connections_Tab {
 	}
 
 	/**
-	 * Renders the list of connections.
-	 *
-	 * @since 1.2.0
-	 */
-	private function render_list() {
-		?>
-		<p>
-			<?php esc_html_e( 'A connection is a provider with its own credentials, From address and sending limits. Emails use the default connection unless a plugin or your code selects another one.', 'smtp' ); ?>
-		</p>
-		<table class="wp-list-table widefat fixed striped">
-			<thead>
-				<tr>
-					<th scope="col"><?php esc_html_e( 'Name', 'smtp' ); ?></th>
-					<th scope="col"><?php esc_html_e( 'ID', 'smtp' ); ?></th>
-					<th scope="col"><?php esc_html_e( 'Provider', 'smtp' ); ?></th>
-					<th scope="col"><?php esc_html_e( 'From', 'smtp' ); ?></th>
-					<th scope="col"><?php esc_html_e( 'Status', 'smtp' ); ?></th>
-					<th scope="col"><?php esc_html_e( 'Actions', 'smtp' ); ?></th>
-				</tr>
-			</thead>
-			<tbody>
-				<?php foreach ( $this->connections->get_ids() as $id ) : ?>
-					<?php $this->render_row( $id ); ?>
-				<?php endforeach; ?>
-			</tbody>
-		</table>
-		<p>
-			<a class="button button-primary" href="<?php echo esc_url( self::get_url( self::NEW_CONNECTION ) ); ?>">
-				<?php esc_html_e( 'Add connection', 'smtp' ); ?>
-			</a>
-		</p>
-		<?php
-	}
-
-	/**
-	 * Renders a row of the list.
-	 *
-	 * @since 1.2.0
-	 *
-	 * @param string $id Connection ID.
-	 */
-	private function render_row( string $id ) {
-		$settings = $this->connections->get_settings( $id );
-		if ( ! $settings ) {
-			return;
-		}
-
-		$provider   = $this->registry->get( $settings->get_provider_slug() );
-		$is_default = Connections::DEFAULT_ID === $id;
-		$from       = (string) $settings->get( 'from_email' );
-		?>
-		<tr>
-			<td><strong><?php echo esc_html( $this->connections->get_label( $id ) ); ?></strong></td>
-			<td><code><?php echo esc_html( $id ); ?></code></td>
-			<td><?php echo esc_html( $provider ? (string) $provider['label'] : $settings->get_provider_slug() ); ?></td>
-			<td><?php echo '' !== $from ? esc_html( $from ) : '&mdash;'; ?></td>
-			<td><?php echo $settings->is_configured() ? esc_html__( 'Ready', 'smtp' ) : esc_html__( 'Incomplete', 'smtp' ); ?></td>
-			<td>
-				<?php if ( $is_default ) : ?>
-					<a href="<?php echo esc_url( Admin_Page::get_url( 'settings' ) ); ?>"><?php esc_html_e( 'Edit in Settings', 'smtp' ); ?></a>
-				<?php else : ?>
-					<a href="<?php echo esc_url( self::get_url( $id ) ); ?>"><?php esc_html_e( 'Edit', 'smtp' ); ?></a>
-					<form action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" method="post" style="display:inline" onsubmit="return confirm( '<?php echo esc_js( __( 'Delete this connection and its saved credentials?', 'smtp' ) ); ?>' );">
-						<input type="hidden" name="action" value="<?php echo esc_attr( self::DELETE_ACTION ); ?>" />
-						<input type="hidden" name="connection_id" value="<?php echo esc_attr( $id ); ?>" />
-						<?php wp_nonce_field( self::DELETE_ACTION ); ?>
-						| <button type="submit" class="button-link button-link-delete"><?php esc_html_e( 'Delete', 'smtp' ); ?></button>
-					</form>
-				<?php endif; ?>
-			</td>
-		</tr>
-		<?php
-	}
-
-	/**
 	 * Renders the form to add or edit a connection.
 	 *
 	 * @since 1.2.0
 	 *
 	 * @param string $id Connection ID, or the ID of the settings of a new connection.
 	 */
-	private function render_form( string $id ) {
+	public function render_form( string $id ) {
 		$is_new   = self::NEW_SETTINGS_ID === $id;
 		$settings = new Settings( $this->registry, $this->credentials, $id );
 		$current  = $settings->get_provider_slug();
@@ -334,26 +308,10 @@ class Connections_Tab {
 			<?php wp_nonce_field( self::SAVE_ACTION ); ?>
 			<?php if ( $is_new ) : ?>
 				<input type="hidden" name="connection_is_new" value="1" />
+			<?php else : ?>
+				<input type="hidden" name="connection_id" value="<?php echo esc_attr( $id ); ?>" />
 			<?php endif; ?>
 			<table class="form-table" role="presentation">
-				<tr>
-					<th scope="row"><label for="smtp-connection-id"><?php esc_html_e( 'ID', 'smtp' ); ?></label></th>
-					<td>
-						<input
-							type="text"
-							class="regular-text"
-							id="smtp-connection-id"
-							name="connection_id"
-							value="<?php echo esc_attr( $is_new ? '' : $id ); ?>"
-							pattern="[a-z0-9_\-]+"
-							maxlength="<?php echo esc_attr( (string) Connections::MAX_ID_LENGTH ); ?>"
-							<?php echo $is_new ? 'required' : 'readonly'; ?>
-						/>
-						<p class="description">
-							<?php esc_html_e( 'Used in code to pick this connection, for example "sponsors". Lowercase letters, numbers, dashes and underscores. It can not be changed later.', 'smtp' ); ?>
-						</p>
-					</td>
-				</tr>
 				<tr>
 					<th scope="row"><label for="smtp-connection-label"><?php esc_html_e( 'Name', 'smtp' ); ?></label></th>
 					<td>
@@ -363,7 +321,18 @@ class Connections_Tab {
 							id="smtp-connection-label"
 							name="connection_label"
 							value="<?php echo esc_attr( $is_new ? '' : $this->connections->get_label( $id ) ); ?>"
+							required
 						/>
+						<p class="description">
+							<?php
+							echo $is_new
+								? esc_html__( 'The ID used in code to pick this connection is generated from the name, for example "sponsors".', 'smtp' )
+								: wp_kses(
+									sprintf( /* translators: %s: connection ID */ __( 'ID in code: %s. It does not change if you rename the connection.', 'smtp' ), '<code>' . esc_html( $id ) . '</code>' ),
+									array( 'code' => array() )
+								);
+							?>
+						</p>
 					</td>
 				</tr>
 				<tr>
@@ -382,7 +351,17 @@ class Connections_Tab {
 					</td>
 				</tr>
 				<?php
+				$limits_toggled = false;
 				foreach ( $settings->get_fields() as $key => $field ) {
+					if ( ! $limits_toggled && 0 === strpos( $key, 'rate_limit_' ) ) {
+						$limits_toggled = true;
+						?>
+						<tr>
+							<th scope="row"><?php esc_html_e( 'Sending limits', 'smtp' ); ?></th>
+							<td><?php Field_Renderer::render_limits_toggle( $settings ); ?></td>
+						</tr>
+						<?php
+					}
 					?>
 					<tr>
 						<th scope="row"><label for="<?php echo esc_attr( 'smtp-' . $key ); ?>"><?php echo esc_html( $field['label'] ); ?></label></th>
@@ -393,8 +372,15 @@ class Connections_Tab {
 				?>
 			</table>
 			<?php submit_button( $is_new ? __( 'Add connection', 'smtp' ) : __( 'Save connection', 'smtp' ) ); ?>
-			<a href="<?php echo esc_url( self::get_url() ); ?>"><?php esc_html_e( 'Back to the connections', 'smtp' ); ?></a>
 		</form>
+		<?php if ( ! $is_new ) : ?>
+			<form action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" method="post" onsubmit="return confirm( '<?php echo esc_js( __( 'Delete this connection and its saved credentials?', 'smtp' ) ); ?>' );">
+				<input type="hidden" name="action" value="<?php echo esc_attr( self::DELETE_ACTION ); ?>" />
+				<input type="hidden" name="connection_id" value="<?php echo esc_attr( $id ); ?>" />
+				<?php wp_nonce_field( self::DELETE_ACTION ); ?>
+				<button type="submit" class="button-link button-link-delete"><?php esc_html_e( 'Delete this connection', 'smtp' ); ?></button>
+			</form>
+		<?php endif; ?>
 		<?php
 	}
 

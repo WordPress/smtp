@@ -105,6 +105,28 @@ class Admin_Page_Tests extends WP_UnitTestCase {
 		);
 	}
 
+	public function test_the_sending_limits_start_hidden_behind_a_checkbox() {
+		$html = $this->render( 'settings' );
+
+		$this->assertStringContainsString( 'id="smtp-customize-limits"', $html );
+		$this->assertStringContainsString( 'Customize sending limits', $html );
+		$this->assertDoesNotMatchRegularExpression( '/id="smtp-customize-limits"[^>]*checked/', $html );
+	}
+
+	public function test_the_sending_limits_checkbox_is_checked_when_a_limit_is_saved() {
+		update_option( Settings::OPTION, array( 'rate_limit_per_minute' => 30 ) );
+
+		$this->assertMatchesRegularExpression( '/id="smtp-customize-limits"[^>]*checked/', $this->render( 'settings' ) );
+	}
+
+	public function test_enqueue_script_only_loads_on_the_smtp_screen() {
+		$this->admin_page->enqueue_script( 'index.php' );
+		$this->assertFalse( wp_script_is( 'smtp-limits', 'enqueued' ) );
+
+		$this->admin_page->enqueue_script( 'tools_page_smtp' );
+		$this->assertTrue( wp_script_is( 'smtp-limits', 'enqueued' ) );
+	}
+
 	public function test_register_settings_puts_the_rate_limits_in_their_own_section() {
 		$this->admin_page->register_settings();
 
@@ -483,19 +505,38 @@ class Admin_Page_Tests extends WP_UnitTestCase {
 		return $connections;
 	}
 
-	public function test_the_connections_tab_comes_after_settings() {
+	public function test_there_is_no_connections_tab() {
 		$this->use_connections_tab();
 
-		$this->assertSame( array( 'settings', 'connections', 'log', 'test' ), $this->get_tab_slugs( $this->render() ) );
+		$this->assertSame( array( 'settings', 'log', 'test' ), $this->get_tab_slugs( $this->render() ) );
 	}
 
-	public function test_render_page_shows_the_connections_tab() {
+	public function test_the_settings_tab_links_to_the_connections() {
+		$connections = $this->use_connections_tab();
+		$connections->save( 'sponsors', 'Sponsors team', array( 'host' => 'smtp.example.com' ) );
+
+		$html = $this->render( 'settings' );
+
+		$this->assertStringContainsString( 'Add connection', $html );
+		$this->assertStringContainsString( 'connection=sponsors', $html );
+		$this->assertStringContainsString( 'name="smtp_settings[host]"', $html );
+	}
+
+	public function test_the_settings_tab_shows_the_form_of_the_requested_connection() {
+		$connections = $this->use_connections_tab();
+		$connections->save( 'sponsors', 'Sponsors team', array( 'host' => 'smtp.example.com' ) );
+		$_GET['connection'] = 'sponsors';
+
+		$html = $this->render( 'settings' );
+		unset( $_GET['connection'] );
+
+		$this->assertStringContainsString( 'name="connection_label"', $html );
+		$this->assertStringContainsString( 'value="smtp_save_connection"', $html );
+	}
+
+	public function test_the_connections_tab_is_unknown() {
 		$this->use_connections_tab();
 
-		$this->assertStringContainsString( 'Add connection', $this->render( 'connections' ) );
-	}
-
-	public function test_the_connections_tab_is_unknown_without_the_tab() {
 		$this->assertStringContainsString( 'name="smtp_settings[host]"', $this->render( 'connections' ) );
 	}
 

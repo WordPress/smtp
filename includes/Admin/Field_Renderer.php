@@ -7,6 +7,7 @@
 
 namespace WordPress\SMTP\Admin;
 
+use WordPress\SMTP\Rate_Limits;
 use WordPress\SMTP\Settings;
 
 /**
@@ -15,6 +16,35 @@ use WordPress\SMTP\Settings;
  * @since 1.2.0
  */
 class Field_Renderer {
+
+	/**
+	 * Renders the checkbox that reveals the sending limit fields.
+	 *
+	 * The box is not saved: it starts checked when a limit is set, and unchecking it clears the limits (see
+	 * assets/js/limits.js, which disables the hidden fields).
+	 *
+	 * @since 1.2.0
+	 *
+	 * @param Settings $settings Settings the limits are read from.
+	 */
+	public static function render_limits_toggle( Settings $settings ) {
+		$customized = false;
+		foreach ( array_keys( Rate_Limits::get_override_fields() ) as $key ) {
+			if ( (int) $settings->get( $key ) > 0 ) {
+				$customized = true;
+			}
+		}
+
+		?>
+		<label for="smtp-customize-limits">
+			<input type="checkbox" id="smtp-customize-limits" value="1" <?php checked( $customized ); ?> />
+			<?php esc_html_e( 'Customize sending limits', 'smtp' ); ?>
+		</label>
+		<p class="description">
+			<?php esc_html_e( 'The limits of your provider or plan. Leave a field empty to use the default of the provider, if it has one. The plugin does not queue or throttle emails: other plugins can read these limits to schedule them.', 'smtp' ); ?>
+		</p>
+		<?php
+	}
 
 	/**
 	 * Renders a settings field.
@@ -83,7 +113,7 @@ class Field_Renderer {
 					class="regular-text"
 					id="<?php echo esc_attr( $id ); ?>"
 					name="<?php echo esc_attr( $name ); ?>"
-					value="<?php echo esc_attr( (string) $value ); ?>"
+					value="<?php echo esc_attr( 'number' === $field['type'] && ! (int) $value ? '' : (string) $value ); ?>"
 					<?php disabled( $locked ); ?>
 				/>
 				<?php

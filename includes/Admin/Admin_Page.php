@@ -77,7 +77,7 @@ class Admin_Page {
 	private $alerts_tab;
 
 	/**
-	 * Connections tab, or null when connections are not available.
+	 * Connections, or null when they are not available.
 	 *
 	 * @since 1.2.0
 	 * @var Connections_Tab|null
@@ -95,7 +95,7 @@ class Admin_Page {
 	 * @param string               $main_file       Absolute path to the main plugin file.
 	 * @param Delivery_Tracker     $tracker         Delivery tracker.
 	 * @param Alerts_Tab|null      $alerts_tab      Optional. Alerts tab. Default null, which hides the tab.
-	 * @param Connections_Tab|null $connections_tab Optional. Connections tab. Default null, which hides the tab.
+	 * @param Connections_Tab|null $connections_tab Optional. Connections of the Settings tab. Default null, which hides them.
 	 */
 	public function __construct( Settings $settings, Provider_Registry $registry, Log_Repository $repository, string $main_file, Delivery_Tracker $tracker, ?Alerts_Tab $alerts_tab = null, ?Connections_Tab $connections_tab = null ) {
 		$this->settings        = $settings;
@@ -115,6 +115,7 @@ class Admin_Page {
 	public function add_hooks() {
 		add_action( 'admin_menu', array( $this, 'add_menu' ) );
 		add_action( 'admin_init', array( $this, 'register_settings' ) );
+		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_script' ) );
 		add_filter( 'plugin_action_links_' . plugin_basename( $this->main_file ), array( $this, 'add_action_link' ) );
 	}
 
@@ -206,16 +207,27 @@ class Admin_Page {
 	}
 
 	/**
-	 * Renders the introduction of the sending limits section.
+	 * Adds the script that shows the sending limits when they are customized.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @param string $hook_suffix Current admin page.
+	 */
+	public function enqueue_script( $hook_suffix ) {
+		if ( 'tools_page_' . self::PAGE_SLUG !== $hook_suffix ) {
+			return;
+		}
+
+		wp_enqueue_script( 'smtp-limits', plugins_url( 'assets/js/limits.js', $this->main_file ), array(), WP_SMTP_VERSION, true );
+	}
+
+	/**
+	 * Renders the checkbox that reveals the fields of the sending limits section.
 	 *
 	 * @since 1.2.0
 	 */
 	public function render_limits_section() {
-		?>
-		<p class="description">
-			<?php esc_html_e( 'The limits of your provider or plan. Leave a field empty to use the default of the provider, if it has one. The plugin does not queue or throttle emails: other plugins can read these limits to schedule them.', 'smtp' ); ?>
-		</p>
-		<?php
+		Field_Renderer::render_limits_toggle( $this->settings );
 	}
 
 	/**
@@ -260,8 +272,6 @@ class Admin_Page {
 				$this->render_test_tab();
 			} elseif ( 'alerts' === $current && $this->alerts_tab ) {
 				$this->alerts_tab->render();
-			} elseif ( 'connections' === $current && $this->connections_tab ) {
-				$this->connections_tab->render();
 			} else {
 				$this->render_settings_tab();
 			}
@@ -285,13 +295,6 @@ class Admin_Page {
 			'log'      => __( 'Email log', 'smtp' ),
 			'test'     => __( 'Test', 'smtp' ),
 		);
-
-		if ( $this->connections_tab ) {
-			$tabs = array(
-				'settings'    => $tabs['settings'],
-				'connections' => __( 'Connections', 'smtp' ),
-			) + $tabs;
-		}
 
 		if ( $this->alerts_tab ) {
 			$tabs['alerts'] = __( 'Alerts', 'smtp' );
@@ -342,6 +345,19 @@ class Admin_Page {
 	 * @since 1.2.0
 	 */
 	private function render_settings_tab() {
+		$requested = $this->connections_tab ? $this->connections_tab->get_requested() : Connections::DEFAULT_ID;
+
+		if ( $this->connections_tab ) {
+			$this->connections_tab->render_navigation( $requested );
+		}
+
+		// The default connection is the one of the Settings API form below. The others have their own form.
+		if ( $this->connections_tab && Connections::DEFAULT_ID !== $requested ) {
+			$this->connections_tab->render_form( Connections_Tab::NEW_CONNECTION === $requested ? Connections_Tab::NEW_SETTINGS_ID : $requested );
+
+			return;
+		}
+
 		$this->render_other_mailer_notice();
 		?>
 		<form action="options.php" method="post">

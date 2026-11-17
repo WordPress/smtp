@@ -94,6 +94,33 @@ class Connections_Tests extends WP_UnitTestCase {
 		$this->assertSame( Connections::MAX_ID_LENGTH, strlen( Connections::sanitize_id( str_repeat( 'a', 80 ) ) ) );
 	}
 
+	public function test_generate_id_uses_sanitize_title_on_the_name() {
+		$this->assertSame( 'sponsors-team', $this->connections->generate_id( 'Sponsors Team!' ) );
+		$this->assertSame( 'cafe-del-mar', $this->connections->generate_id( 'Café del Mar' ) );
+	}
+
+	public function test_generate_id_returns_an_empty_string_when_nothing_is_left() {
+		$this->assertSame( '', $this->connections->generate_id( '!!!' ) );
+		$this->assertSame( '', $this->connections->generate_id( '' ) );
+	}
+
+	public function test_generate_id_never_returns_the_reserved_or_a_taken_id() {
+		$this->assertSame( 'default-2', $this->connections->generate_id( 'Default' ) );
+
+		$this->add_connection();
+
+		$this->assertSame( 'sponsors-2', $this->connections->generate_id( 'Sponsors' ) );
+	}
+
+	public function test_generate_id_fits_the_size_of_the_log_column_when_adding_a_number() {
+		$this->connections->save( str_repeat( 'a', Connections::MAX_ID_LENGTH ), 'Long', array( 'host' => 'smtp.example.com' ) );
+
+		$id = $this->connections->generate_id( str_repeat( 'a', 80 ) );
+
+		$this->assertSame( Connections::MAX_ID_LENGTH, strlen( $id ) );
+		$this->assertStringEndsWith( '-2', $id );
+	}
+
 	public function test_save_creates_a_connection() {
 		$this->add_connection();
 

@@ -82,7 +82,7 @@ Providers with an invalid definition (no label, or a `configure` that is not cal
 
 ## Multiple connections
 
-A connection is a provider with its own settings, credentials, From address and sending limits. The settings saved under _Tools > SMTP > Settings_ are the **default connection**, so existing sites keep working unchanged. Add the others under the **Connections** tab, each one with an ID such as `sponsors`.
+A connection is a provider with its own settings, credentials, From address and sending limits. The settings saved under _Tools > SMTP > Settings_ are the **default connection**, so existing sites keep working unchanged. Add the others from the same _Settings_ tab with **Add connection**: the ID used in code (such as `sponsors`) is generated from the name.
 
 Emails use the default connection, unless the connection is picked for that email:
 

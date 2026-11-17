@@ -77,9 +77,18 @@ class Connections_Tab_Tests extends WP_UnitTestCase {
 		return '';
 	}
 
+	/**
+	 * Renders what the Settings tab shows for the connections: the links and, except for the default connection, the form.
+	 */
 	private function render(): string {
+		$requested = $this->tab->get_requested();
+
 		ob_start();
-		$this->tab->render();
+		$this->tab->render_navigation( $requested );
+
+		if ( Connections::DEFAULT_ID !== $requested ) {
+			$this->tab->render_form( Connections_Tab::NEW_CONNECTION === $requested ? Connections_Tab::NEW_SETTINGS_ID : $requested );
+		}
 
 		return ob_get_clean();
 	}
@@ -91,32 +100,29 @@ class Connections_Tab_Tests extends WP_UnitTestCase {
 		$this->assertSame( 10, has_action( 'admin_post_smtp_delete_connection', array( $this->tab, 'handle_delete' ) ) );
 	}
 
-	public function test_get_url_points_to_the_tab_and_the_connection() {
-		$this->assertStringContainsString( 'tools.php?page=smtp&tab=connections', Connections_Tab::get_url() );
+	public function test_get_url_points_to_the_settings_tab_and_the_connection() {
+		$this->assertStringContainsString( 'tools.php?page=smtp&tab=settings', Connections_Tab::get_url() );
 		$this->assertStringContainsString( 'connection=sponsors', Connections_Tab::get_url( 'sponsors' ) );
 		$this->assertStringContainsString( 'notice=saved', Connections_Tab::get_url( '', array( 'notice' => 'saved' ) ) );
 	}
 
-	public function test_the_list_shows_the_default_connection_first() {
+	public function test_the_links_show_the_default_connection_first_and_mark_it_as_current() {
 		$html = $this->render();
 
-		$this->assertStringContainsString( 'Default', $html );
-		$this->assertStringContainsString( 'Edit in Settings', $html );
+		$this->assertLessThan( strpos( $html, 'Add connection' ), strpos( $html, 'Default' ) );
+		$this->assertStringContainsString( 'class="current" aria-current="page">Default', $html );
 		$this->assertStringContainsString( 'connection=new', $html );
 		$this->assertStringNotContainsString( 'Delete', $html );
 	}
 
-	public function test_the_list_shows_the_other_connections_with_their_status() {
+	public function test_the_links_show_the_other_connections() {
 		$this->add_connection();
-		$this->connections->save( 'empty', 'Empty', array( 'provider' => 'smtp' ) );
+		$_GET['connection'] = 'sponsors';
 
 		$html = $this->render();
 
-		$this->assertStringContainsString( 'Sponsors', $html );
-		$this->assertStringContainsString( 'sponsors@example.org', $html );
-		$this->assertStringContainsString( 'Ready', $html );
-		$this->assertStringContainsString( 'Incomplete', $html );
 		$this->assertStringContainsString( 'connection=sponsors', $html );
+		$this->assertStringContainsString( 'class="current" aria-current="page">Sponsors', $html );
 		$this->assertStringContainsString( 'value="smtp_delete_connection"', $html );
 	}
 
@@ -130,6 +136,7 @@ class Connections_Tab_Tests extends WP_UnitTestCase {
 				),
 			)
 		);
+		$_GET['connection'] = 'xss';
 
 		$html = $this->render();
 
@@ -137,16 +144,39 @@ class Connections_Tab_Tests extends WP_UnitTestCase {
 		$this->assertStringContainsString( '&lt;script&gt;', $html );
 	}
 
-	public function test_the_form_to_add_a_connection_has_an_editable_id() {
+	public function test_the_form_to_add_a_connection_asks_for_a_name_and_no_id() {
 		$_GET['connection'] = 'new';
 
 		$html = $this->render();
 
 		$this->assertStringContainsString( 'name="connection_is_new"', $html );
-		$this->assertStringContainsString( 'name="connection_id"', $html );
-		$this->assertStringNotContainsString( 'readonly', $html );
+		$this->assertStringContainsString( 'name="connection_label"', $html );
+		$this->assertStringNotContainsString( 'name="connection_id"', $html );
 		$this->assertStringContainsString( 'name="smtp_settings[host]"', $html );
 		$this->assertStringContainsString( 'name="smtp_settings[rate_limit_per_minute]"', $html );
+	}
+
+	public function test_the_form_of_a_connection_hides_the_limits_behind_a_checkbox() {
+		$_GET['connection'] = 'new';
+
+		$html = $this->render();
+
+		$this->assertStringContainsString( 'id="smtp-customize-limits"', $html );
+		$this->assertDoesNotMatchRegularExpression( '/id="smtp-customize-limits"[^>]*checked/', $html );
+	}
+
+	public function test_the_checkbox_of_a_connection_is_checked_when_it_has_limits() {
+		$this->connections->save(
+			'sponsors',
+			'Sponsors',
+			array(
+				'host'                => 'smtp.example.com',
+				'rate_limit_per_hour' => '100',
+			)
+		);
+		$_GET['connection'] = 'sponsors';
+
+		$this->assertMatchesRegularExpression( '/id="smtp-customize-limits"[^>]*checked/', $this->render() );
 	}
 
 	public function test_the_form_to_edit_a_connection_keeps_its_id_and_never_prints_the_password() {
@@ -155,22 +185,23 @@ class Connections_Tab_Tests extends WP_UnitTestCase {
 
 		$html = $this->render();
 
-		$this->assertStringContainsString( 'readonly', $html );
+		$this->assertStringContainsString( '<input type="hidden" name="connection_id" value="sponsors" />', $html );
 		$this->assertStringContainsString( 'value="smtp.sponsors.example"', $html );
 		$this->assertStringNotContainsString( 'sponsors-secret', $html );
 		$this->assertStringNotContainsString( 'connection_is_new', $html );
 	}
 
-	public function test_an_unknown_connection_shows_the_list() {
+	public function test_an_unknown_connection_shows_the_default_one() {
 		$_GET['connection'] = 'missing';
 
-		$this->assertStringContainsString( 'Add connection', $this->render() );
-		$this->assertStringNotContainsString( 'name="connection_id"', $this->render() );
+		$this->assertSame( Connections::DEFAULT_ID, $this->tab->get_requested() );
+		$this->assertStringNotContainsString( 'name="connection_label"', $this->render() );
 	}
 
-	public function test_the_default_connection_is_edited_in_the_settings_tab() {
+	public function test_the_default_connection_has_no_form_of_its_own() {
 		$_GET['connection'] = 'default';
 
+		$this->assertSame( Connections::DEFAULT_ID, $this->tab->get_requested() );
 		$this->assertStringNotContainsString( 'name="connection_id"', $this->render() );
 	}
 
@@ -184,12 +215,11 @@ class Connections_Tab_Tests extends WP_UnitTestCase {
 		$this->assertStringNotContainsString( 'notice-success', $this->render() );
 	}
 
-	public function test_save_adds_a_connection_and_redirects_to_its_form() {
+	public function test_save_adds_a_connection_with_an_id_generated_from_the_name() {
 		$this->nonce( Connections_Tab::SAVE_ACTION );
 		$_POST = array(
 			'connection_is_new' => '1',
-			'connection_id'     => 'Sponsors',
-			'connection_label'  => 'Sponsors team',
+			'connection_label'  => 'Sponsors Team!',
 			'smtp_settings'     => array(
 				'provider' => 'smtp',
 				'host'     => 'smtp.sponsors.example',
@@ -199,13 +229,28 @@ class Connections_Tab_Tests extends WP_UnitTestCase {
 
 		$location = $this->run_handler( 'handle_save' );
 
-		$this->assertStringContainsString( 'connection=sponsors', $location );
+		$this->assertStringContainsString( 'connection=sponsors-team', $location );
 		$this->assertStringContainsString( 'notice=saved', $location );
-		$this->assertSame( 'Sponsors team', $this->connections->get_label( 'sponsors' ) );
-		$this->assertSame( 'sponsors-secret', $this->connections->get_settings( 'sponsors' )->get( 'password' ) );
+		$this->assertSame( 'Sponsors Team!', $this->connections->get_label( 'sponsors-team' ) );
+		$this->assertSame( 'sponsors-secret', $this->connections->get_settings( 'sponsors-team' )->get( 'password' ) );
 	}
 
-	public function test_save_updates_a_connection() {
+	public function test_save_ignores_a_posted_id_when_adding() {
+		$this->nonce( Connections_Tab::SAVE_ACTION );
+		$_POST = array(
+			'connection_is_new' => '1',
+			'connection_id'     => 'other',
+			'connection_label'  => 'Sponsors',
+			'smtp_settings'     => array( 'host' => 'smtp.sponsors.example' ),
+		);
+
+		$this->run_handler( 'handle_save' );
+
+		$this->assertTrue( $this->connections->exists( 'sponsors' ) );
+		$this->assertFalse( $this->connections->exists( 'other' ) );
+	}
+
+	public function test_save_updates_a_connection_without_changing_its_id() {
 		$this->add_connection();
 		$this->nonce( Connections_Tab::SAVE_ACTION );
 		$_POST = array(
@@ -220,12 +265,14 @@ class Connections_Tab_Tests extends WP_UnitTestCase {
 			),
 		);
 
-		$this->run_handler( 'handle_save' );
+		$location = $this->run_handler( 'handle_save' );
 
 		$settings = $this->connections->get_settings( 'sponsors' );
+		$this->assertStringContainsString( 'connection=sponsors', $location );
 		$this->assertSame( 'Renamed', $this->connections->get_label( 'sponsors' ) );
 		$this->assertSame( 'smtp.new.example', $settings->get( 'host' ) );
 		$this->assertSame( 'sponsors-secret', $settings->get( 'password' ) );
+		$this->assertFalse( $this->connections->exists( 'renamed' ) );
 	}
 
 	public function test_save_does_not_overwrite_an_existing_connection_when_adding() {
@@ -233,30 +280,42 @@ class Connections_Tab_Tests extends WP_UnitTestCase {
 		$this->nonce( Connections_Tab::SAVE_ACTION );
 		$_POST = array(
 			'connection_is_new' => '1',
-			'connection_id'     => 'sponsors',
-			'connection_label'  => 'Other',
+			'connection_label'  => 'Sponsors',
 			'smtp_settings'     => array( 'host' => 'smtp.other.example' ),
 		);
 
 		$location = $this->run_handler( 'handle_save' );
 
-		$this->assertStringContainsString( 'notice=exists', $location );
-		$this->assertSame( 'Sponsors', $this->connections->get_label( 'sponsors' ) );
+		$this->assertStringContainsString( 'connection=sponsors-2', $location );
 		$this->assertSame( 'smtp.sponsors.example', $this->connections->get_settings( 'sponsors' )->get( 'host' ) );
+		$this->assertSame( 'smtp.other.example', $this->connections->get_settings( 'sponsors-2' )->get( 'host' ) );
 	}
 
-	public function test_save_rejects_an_invalid_id() {
+	public function test_save_rejects_a_name_without_letters_or_numbers() {
 		$this->nonce( Connections_Tab::SAVE_ACTION );
 		$_POST = array(
 			'connection_is_new' => '1',
-			'connection_id'     => 'default',
-			'connection_label'  => 'Default',
+			'connection_label'  => '!!!',
 			'smtp_settings'     => array( 'host' => 'smtp.example.com' ),
 		);
 
 		$location = $this->run_handler( 'handle_save' );
 
-		$this->assertStringContainsString( 'notice=invalid_id', $location );
+		$this->assertStringContainsString( 'notice=missing_name', $location );
+		$this->assertFalse( $this->connections->has_extra() );
+	}
+
+	public function test_save_does_not_create_a_connection_when_editing_an_unknown_one() {
+		$this->nonce( Connections_Tab::SAVE_ACTION );
+		$_POST = array(
+			'connection_id'    => 'ghost',
+			'connection_label' => 'Ghost',
+			'smtp_settings'    => array( 'host' => 'smtp.example.com' ),
+		);
+
+		$location = $this->run_handler( 'handle_save' );
+
+		$this->assertStringContainsString( 'notice=not_found', $location );
 		$this->assertFalse( $this->connections->has_extra() );
 	}
 

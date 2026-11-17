@@ -51,8 +51,8 @@ smtp/
 │   │   └── Settings_Command.php # wp smtp settings set
 │   └── Admin/                # Tools > SMTP screen
 │       ├── Admin_Page.php    # Tabs (the Email log tab comes first once configured), Settings API registration, field rendering
-│       ├── Connections_Tab.php # Connections tab: list, add, edit and delete connections
-│       ├── Field_Renderer.php  # Renders a settings field, shared by the Settings and Connections tabs
+│       ├── Connections_Tab.php # Settings tab connections: switch, add, edit and delete connections
+│       ├── Field_Renderer.php  # Renders a settings field, shared by the default and the extra connections
 │       ├── Alerts_Tab.php    # Alerts tab (channel select, fields shown per channel), admin-post handler for the test alert
 │       ├── Log_List_Table.php
 │       ├── Failure_Notice.php # Admin notice about recently failed emails, dismissible per user
@@ -91,7 +91,7 @@ A provider is an array registered through the `smtp_providers` filter:
 - `Mailer` picks the connection in the `wp_mail` filter (last priority, so it sees the final email data) with `Connections::resolve()`, which applies `smtp_connection_for_email`. `phpmailer_init` and the From filters then read the settings of that connection, and `Delivery_Tracker` credits its provider. An unknown or incomplete connection falls back to the default one so email is never dropped.
 - `wp_smtp_mail()` adds a one-shot `smtp_connection_for_email` callback at `PHP_INT_MAX` around `wp_mail()`. `wp_smtp_get_connections()` describes the connections without credentials. Both live in `smtp.php`.
 - The log table has a `connection_id` column (schema version 2). It is empty for the default connection, so entries logged before connections existed stay correct, and for emails that were not delivered by a connection.
-- `Admin\Connections_Tab` lists, adds, edits and deletes connections (admin-post handlers with nonce and capability checks), and `Admin\Field_Renderer` renders a field for both the Settings and the Connections tabs.
+- `Admin\Connections_Tab` adds the connection links and forms to the Settings tab (add, edit, delete; the ID comes from the name) (admin-post handlers with nonce and capability checks), and `Admin\Field_Renderer` renders a field for the default and the extra connections.
 - `wp smtp` commands only handle the default connection.
 
 ### Sending limits

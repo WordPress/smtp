@@ -170,6 +170,36 @@ class Connections {
 	}
 
 	/**
+	 * Generates the ID of a new connection from its name.
+	 *
+	 * The name goes through sanitize_title(). When the result is the reserved default ID or is already
+	 * taken, a number is appended: `sponsors`, `sponsors-2`, `sponsors-3`...
+	 *
+	 * @since 1.2.0
+	 *
+	 * @param string $label Connection name.
+	 * @return string Unique ID, empty when nothing is left of the name.
+	 */
+	public function generate_id( string $label ): string {
+		$base = trim( substr( sanitize_title( $label ), 0, self::MAX_ID_LENGTH ), '-' );
+
+		if ( '' === $base ) {
+			return '';
+		}
+
+		$id     = $base;
+		$number = 2;
+
+		while ( self::DEFAULT_ID === $id || $this->exists( $id ) ) {
+			$suffix = '-' . $number;
+			$id     = substr( $base, 0, self::MAX_ID_LENGTH - strlen( $suffix ) ) . $suffix;
+			++$number;
+		}
+
+		return $id;
+	}
+
+	/**
 	 * Returns the IDs of every connection, the default one first.
 	 *
 	 * @since 1.2.0
