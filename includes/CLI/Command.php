@@ -8,6 +8,7 @@
 namespace WordPress\SMTP\CLI;
 
 use WordPress\SMTP\Admin\Test_Email;
+use WordPress\SMTP\Error_Hints;
 use WordPress\SMTP\Settings;
 
 /**
@@ -102,7 +103,8 @@ class Command {
 	/**
 	 * Sends a test email.
 	 *
-	 * Exits with a non-zero code when the email cannot be sent.
+	 * Exits with a non-zero code when the email cannot be sent, and adds a hint on what to check
+	 * when the problem is recognized.
 	 *
 	 * ## OPTIONS
 	 *
@@ -134,7 +136,10 @@ class Command {
 		}
 
 		if ( ! $result['success'] ) {
-			\WP_CLI::error( '' !== $result['error'] ? $result['error'] : __( 'The email could not be sent.', 'smtp' ) );
+			$message = '' !== $result['error'] ? $result['error'] : __( 'The email could not be sent.', 'smtp' );
+			$hint    = Error_Hints::get( $result['debug'] );
+
+			\WP_CLI::error( '' !== $hint ? $message . "\n" . $hint : $message );
 		}
 
 		/* translators: %s: email address */

@@ -93,7 +93,7 @@ wp smtp status --format=json
 | Command | Description |
 |---|---|
 | `wp smtp settings set <setting>...` | Changes the given settings and keeps the others. Nothing is saved when a value is invalid. |
-| `wp smtp test [<to>] [--connection-log]` | Sends a test email, to the admin email by default. Exits with a non-zero code on failure. |
+| `wp smtp test [<to>] [--connection-log]` | Sends a test email, to the admin email by default. Exits with a non-zero code on failure, with a hint on what to check when the problem is recognized. |
 | `wp smtp status [--format=<format>]` | Shows the active provider, each setting and whether it comes from a constant, the database or the default. |
 
 Like saving the admin form, `settings set` saves every field, so afterwards `status` reports `database` for all of them. The exceptions are fields set by a constant, which show `constant`, and passwords that were never set, which show `default`.
