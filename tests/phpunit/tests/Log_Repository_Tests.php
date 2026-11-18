@@ -16,6 +16,18 @@ class Log_Repository_Tests extends WP_UnitTestCase {
 	 */
 	private $repository;
 
+	public static function set_up_before_class() {
+		global $wpdb;
+
+		parent::set_up_before_class();
+
+		// The plugin creates the real table on init while the test suite boots. Without it, these tests
+		// only see the temporary table they create, so dropping that one really leaves no table.
+		$table = ( new Log_Repository() )->get_table_name();
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$wpdb->query( "DROP TABLE IF EXISTS {$table}" );
+	}
+
 	public function set_up() {
 		parent::set_up();
 
@@ -153,5 +165,70 @@ class Log_Repository_Tests extends WP_UnitTestCase {
 
 		$this->assertSame( 1, $this->repository->count_failed_since( gmdate( 'Y-m-d H:i:s', time() - DAY_IN_SECONDS ) ) );
 		$this->assertSame( 2, $this->repository->count_failed_since( gmdate( 'Y-m-d H:i:s', time() - ( 3 * DAY_IN_SECONDS ) ) ) );
+	}
+
+	private function drop_table() {
+		global $wpdb;
+
+		$table = $this->repository->get_table_name();
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$wpdb->query( "DROP TABLE IF EXISTS {$table}" );
+	}
+
+	public function test_maybe_upgrade_keeps_the_version_unsaved_when_the_table_cannot_be_created() {
+		$this->drop_table();
+		delete_option( Log_Repository::DB_VERSION_OPTION );
+		delete_transient( Log_Repository::UPGRADE_LOCK );
+
+		// Like a database user without the CREATE privilege.
+		$block = static function ( $query ) {
+			return false !== stripos( $query, 'CREATE' ) && false !== strpos( $query, 'smtp_logs' ) ? 'SELECT * FROM smtp_no_such_table' : $query;
+		};
+		add_filter( 'query', $block );
+		$this->repository->maybe_upgrade();
+		remove_filter( 'query', $block );
+
+		$this->assertFalse( get_option( Log_Repository::DB_VERSION_OPTION ) );
+
+		// The next attempt waits instead of running on every request.
+		$this->repository->maybe_upgrade();
+		$this->assertFalse( get_option( Log_Repository::DB_VERSION_OPTION ) );
+
+		delete_transient( Log_Repository::UPGRADE_LOCK );
+		$this->repository->maybe_upgrade();
+		$this->assertSame( Log_Repository::DB_VERSION, get_option( Log_Repository::DB_VERSION_OPTION ) );
+		$this->assertFalse( get_transient( Log_Repository::UPGRADE_LOCK ) );
+	}
+
+	public function test_maybe_upgrade_waits_while_another_request_creates_the_table() {
+		delete_option( Log_Repository::DB_VERSION_OPTION );
+		set_transient( Log_Repository::UPGRADE_LOCK, '1', MINUTE_IN_SECONDS );
+
+		$this->repository->maybe_upgrade();
+
+		$this->assertFalse( get_option( Log_Repository::DB_VERSION_OPTION ) );
+	}
+
+	public function test_insert_creates_the_table_for_email_sent_before_init() {
+		$this->drop_table();
+		delete_option( Log_Repository::DB_VERSION_OPTION );
+		delete_transient( Log_Repository::UPGRADE_LOCK );
+
+		$this->repository->insert( $this->entry( 'sent', 'Early email' ) );
+
+		$this->assertSame( 'Early email', $this->get_logged_entries()[0]['subject'] );
+	}
+
+	public function test_insert_recreates_a_table_dropped_after_the_upgrade() {
+		global $wpdb;
+
+		$this->drop_table();
+		$this->assertSame( Log_Repository::DB_VERSION, get_option( Log_Repository::DB_VERSION_OPTION ) );
+
+		$suppress = $wpdb->suppress_errors( true );
+		$this->repository->insert( $this->entry( 'failed', 'After the drop' ) );
+		$wpdb->suppress_errors( $suppress );
+
+		$this->assertSame( 'After the drop', $this->get_logged_entries()[0]['subject'] );
 	}
 }
