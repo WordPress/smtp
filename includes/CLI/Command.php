@@ -137,7 +137,7 @@ class Command {
 
 		if ( ! $result['success'] ) {
 			$message = '' !== $result['error'] ? $result['error'] : __( 'The email could not be sent.', 'smtp' );
-			$hint    = Error_Hints::get( $result['debug'] );
+			$hint    = Error_Hints::get( (string) ( $result['debug'] ?? '' ) );
 
 			\WP_CLI::error( '' !== $hint ? $message . "\n" . $hint : $message );
 		}

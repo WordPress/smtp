@@ -230,4 +230,17 @@ class Command_Tests extends WP_UnitTestCase {
 			$this->assertStringNotContainsString( "\n", $e->getMessage() );
 		}
 	}
+
+	public function test_test_shows_the_connection_log_and_the_hint_together() {
+		$this->fail_with_connection_log( 'SMTP ERROR: AUTH command failed: 530 5.7.0 Must issue a STARTTLS command first.' );
+
+		try {
+			$this->command->test( array( 'someone@example.com' ), array( 'connection-log' => true ) );
+			$this->fail( 'The command should exit with an error.' );
+		} catch ( RuntimeException $e ) {
+			$this->assertStringContainsString( 'only accepts a login over an encrypted connection', $e->getMessage() );
+		}
+
+		$this->assertSame( array( 'SMTP ERROR: AUTH command failed: 530 5.7.0 Must issue a STARTTLS command first.' ), WP_CLI::$logs );
+	}
 }
