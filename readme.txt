@@ -36,7 +36,7 @@ The plugin does nothing until a host is configured, so activating it never break
 
 = Where are my credentials stored? =
 
-Passwords can be defined with the `SMTP_PASSWORD` constant in `wp-config.php`. Otherwise they are stored in the database, in an option that is not loaded on every request.
+Passwords can be defined with the `SMTP_PASSWORD` constant in `wp-config.php`. Otherwise they are stored encrypted with the WordPress Secrets API (WordPress 7.2 or later, with `WP_SECRETS_KEY` defined in `wp-config.php`). On sites without it, they are stored in the database without encryption, in an option that is not loaded on every request, and moved to the Secrets API once it becomes available. The storage in use is shown under _Tools > SMTP_.
 
 = I was using the previous SMTP plugin. Do I lose my settings? =
 

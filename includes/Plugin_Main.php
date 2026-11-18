@@ -61,6 +61,8 @@ class Plugin_Main {
 		$settings    = new Settings( $registry, $credentials );
 		$repository  = new Log_Repository();
 
+		$credentials->add_hooks();
+
 		$migration = new Migration( $credentials );
 		$migration->add_hooks();
 

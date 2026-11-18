@@ -134,6 +134,12 @@ class Settings_Command {
 
 		$this->settings->update( $values );
 
+		$error = '' !== $secret ? $this->settings->get_secret_error( $secret ) : null;
+		if ( null !== $error ) {
+			/* translators: %s: error message */
+			\WP_CLI::error( sprintf( __( 'The password could not be saved: %s', 'smtp' ), $error->get_error_message() ) );
+		}
+
 		if ( ! $this->settings->is_configured() ) {
 			\WP_CLI::warning( __( 'The provider is still missing required settings, so emails are not sent through it yet.', 'smtp' ) );
 		}

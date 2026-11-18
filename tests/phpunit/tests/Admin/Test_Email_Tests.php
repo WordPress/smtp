@@ -11,6 +11,7 @@ use WordPress\SMTP\Delivery_Tracker;
 use WordPress\SMTP\Mailer;
 use WordPress\SMTP\Provider_Registry;
 use WordPress\SMTP\Settings;
+use WordPress\SMTP\Test_Utils\Fake_Secrets_API;
 use WordPress\SMTP\Test_Utils\Traits\With_Log_Table;
 
 class Test_Email_Tests extends WP_UnitTestCase {
@@ -322,6 +323,30 @@ class Test_Email_Tests extends WP_UnitTestCase {
 		$this->assertStringNotContainsString( base64_encode( "\0user\0hunter2" ), $redacted ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode
 		$this->assertStringContainsString( '[redacted]', $redacted );
 		$this->assertStringContainsString( 'AUTH LOGIN', $redacted );
+	}
+
+	public function test_redact_removes_a_password_read_from_the_secrets_api() {
+		update_option(
+			Settings::OPTION,
+			array(
+				'host'     => 'smtp.example.com',
+				'auth'     => true,
+				'username' => 'user',
+			)
+		);
+		$api         = new Fake_Secrets_API();
+		$credentials = new Credentials( $api );
+		$credentials->set( 'password', 'hunter2' );
+		$settings   = new Settings( new Provider_Registry(), $credentials );
+		$test_email = new Test_Email( $settings, new Delivery_Tracker( $settings ) );
+
+		$method = new ReflectionMethod( Test_Email::class, 'redact' );
+		$method->setAccessible( true );
+		$redacted = $method->invoke( $test_email, 'CLIENT -> SERVER: ' . base64_encode( 'hunter2' ) . "\npassword is hunter2" ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode
+
+		$this->assertSame( array( 'smtp/password' => 'hunter2' ), $api->secrets );
+		$this->assertStringNotContainsString( 'hunter2', $redacted );
+		$this->assertStringNotContainsString( base64_encode( 'hunter2' ), $redacted ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode
 	}
 
 	public function test_redact_leaves_the_text_alone_without_a_password() {

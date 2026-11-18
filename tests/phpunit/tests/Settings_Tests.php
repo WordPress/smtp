@@ -8,6 +8,7 @@
 use WordPress\SMTP\Credentials;
 use WordPress\SMTP\Provider_Registry;
 use WordPress\SMTP\Settings;
+use WordPress\SMTP\Test_Utils\Fake_Secrets_API;
 
 class Settings_Tests extends WP_UnitTestCase {
 
@@ -548,6 +549,82 @@ class Settings_Tests extends WP_UnitTestCase {
 
 		$this->assertSame( 'database', $this->settings->get_source( 'host' ) );
 		$this->assertSame( 'database', $this->settings->get_source( 'password' ) );
+	}
+
+	public function test_get_secret_storage_reports_the_credentials_storage() {
+		$api      = new Fake_Secrets_API();
+		$settings = new Settings( new Provider_Registry(), new Credentials( $api ) );
+
+		$this->assertSame( Credentials::STORAGE_SECRETS, $settings->get_secret_storage() );
+
+		$api->available = false;
+
+		$this->assertSame( Credentials::STORAGE_OPTION, $settings->get_secret_storage() );
+	}
+
+	public function test_sanitize_reports_a_password_that_could_not_be_saved() {
+		require_once ABSPATH . 'wp-admin/includes/template.php';
+
+		$api            = new Fake_Secrets_API();
+		$api->set_error = new WP_Error( 'secret_key_unavailable', 'The key is missing.' );
+		$settings       = new Settings( new Provider_Registry(), new Credentials( $api ) );
+
+		$settings->sanitize(
+			array(
+				'provider' => 'smtp',
+				'password' => 'secret',
+			)
+		);
+
+		$errors = get_settings_errors( Settings::OPTION );
+
+		$error = end( $errors );
+
+		$this->assertSame( 'smtp_secret_not_saved', $error['code'] );
+		$this->assertSame( 'Password was not saved: The key is missing.', $error['message'] );
+		$this->assertFalse( get_option( Credentials::OPTION ) );
+	}
+
+	public function test_is_configured_is_false_when_the_password_can_not_be_read() {
+		$api         = new Fake_Secrets_API();
+		$credentials = new Credentials( $api );
+		$settings    = new Settings( new Provider_Registry(), $credentials );
+		$this->save(
+			array(
+				'host'     => 'smtp.example.com',
+				'auth'     => true,
+				'username' => 'user',
+			)
+		);
+		$credentials->set( 'password', 'secret' );
+
+		$this->assertTrue( $settings->is_configured() );
+
+		$api->unreadable = array( 'smtp/password' );
+
+		$this->assertFalse( $settings->is_configured() );
+	}
+
+	public function test_constants_override_the_secrets_api() {
+		if ( ! defined( 'SMTP_TESTS_LOCKED_PASSWORD' ) ) {
+			define( 'SMTP_TESTS_LOCKED_PASSWORD', 'from-constant' );
+		}
+
+		add_filter(
+			'smtp_providers',
+			static function ( $providers ) {
+				$providers['smtp']['fields']['password']['constant'] = 'SMTP_TESTS_LOCKED_PASSWORD';
+
+				return $providers;
+			}
+		);
+
+		$credentials = new Credentials( new Fake_Secrets_API() );
+		$credentials->set( 'password', 'from-api' );
+		$settings = new Settings( new Provider_Registry(), $credentials );
+
+		$this->assertSame( 'from-constant', $settings->get( 'password' ) );
+		$this->assertSame( 'constant', $settings->get_source( 'password' ) );
 	}
 
 	public function test_get_source_reports_a_constant() {

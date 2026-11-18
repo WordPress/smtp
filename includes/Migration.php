@@ -137,8 +137,8 @@ class Migration {
 		update_option( Settings::OPTION, $settings );
 
 		$password = $this->get_password( $legacy );
-		if ( '' !== $password ) {
-			$this->credentials->set( 'password', $password );
+		// A password the Secrets API refused is asked for again, like one that could not be decrypted.
+		if ( '' !== $password && true === $this->credentials->set( 'password', $password ) ) {
 			update_option( self::NOTICE_OPTION, self::NOTICE_MIGRATED );
 		} elseif ( $settings['auth'] ) {
 			update_option( self::NOTICE_OPTION, self::NOTICE_PASSWORD_MISSING );
@@ -168,7 +168,8 @@ class Migration {
 		$on_settings_page = isset( $_GET['page'], $_GET['tab'] ) && 'smtp' === sanitize_key( wp_unslash( $_GET['page'] ) ) && 'settings' === sanitize_key( wp_unslash( $_GET['tab'] ) );
 
 		if ( self::NOTICE_PASSWORD_MISSING === $notice ) {
-			if ( '' !== $this->credentials->get( 'password' ) || defined( 'SMTP_PASSWORD' ) ) {
+			// An unreadable password has its own notice in Credentials.
+			if ( '' !== $this->credentials->get( 'password' ) || defined( 'SMTP_PASSWORD' ) || $this->credentials->has_unreadable() ) {
 				delete_option( self::NOTICE_OPTION );
 				return;
 			}

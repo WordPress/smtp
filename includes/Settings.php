@@ -40,6 +40,14 @@ class Settings {
 	private $credentials;
 
 	/**
+	 * Errors of the secrets that could not be saved in this request, keyed by field key.
+	 *
+	 * @since 1.3.0
+	 * @var \WP_Error[]
+	 */
+	private $secret_errors = array();
+
+	/**
 	 * Constructor.
 	 *
 	 * @since 1.2.0
@@ -224,7 +232,14 @@ class Settings {
 				case 'password':
 					// An empty submission keeps the current secret.
 					if ( is_string( $raw ) && '' !== $raw ) {
-						$this->credentials->set( $key, $raw );
+						$result = $this->credentials->set( $key, $raw );
+						self::report_secret_error( $result, $field['label'] ?? $key );
+
+						if ( is_wp_error( $result ) ) {
+							$this->secret_errors[ $key ] = $result;
+						} else {
+							unset( $this->secret_errors[ $key ] );
+						}
 					}
 					break;
 
@@ -247,6 +262,59 @@ class Settings {
 		}
 
 		return $clean;
+	}
+
+	/**
+	 * Returns the storage used for new secrets.
+	 *
+	 * @since 1.3.0
+	 *
+	 * @return string Credentials::STORAGE_SECRETS or Credentials::STORAGE_OPTION.
+	 */
+	public function get_secret_storage(): string {
+		return $this->credentials->get_storage();
+	}
+
+	/**
+	 * Returns why a secret submitted in this request could not be saved.
+	 *
+	 * Settings errors are only shown in the admin, so WP-CLI reads the error here.
+	 *
+	 * @since 1.3.0
+	 *
+	 * @param string $key Field key.
+	 * @return \WP_Error|null The error, or null when the secret was saved or not submitted.
+	 */
+	public function get_secret_error( string $key ) {
+		return $this->secret_errors[ $key ] ?? null;
+	}
+
+	/**
+	 * Shows a settings error when a secret could not be saved.
+	 *
+	 * @since 1.3.0
+	 *
+	 * @param true|\WP_Error $result Result of Credentials::set().
+	 * @param string         $label  Label of the field.
+	 */
+	public static function report_secret_error( $result, string $label ) {
+		// add_settings_error() is only loaded in the admin.
+		if ( ! is_wp_error( $result ) || ! function_exists( 'add_settings_error' ) ) {
+			return;
+		}
+
+		add_settings_error(
+			self::OPTION,
+			'smtp_secret_not_saved',
+			esc_html(
+				sprintf(
+					/* translators: 1: field label, 2: error message */
+					__( '%1$s was not saved: %2$s', 'smtp' ),
+					$label,
+					$result->get_error_message()
+				)
+			)
+		);
 	}
 
 	/**

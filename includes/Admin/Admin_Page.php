@@ -7,6 +7,7 @@
 
 namespace WordPress\SMTP\Admin;
 
+use WordPress\SMTP\Credentials;
 use WordPress\SMTP\Delivery_Tracker;
 use WordPress\SMTP\Error_Hints;
 use WordPress\SMTP\Log_Repository;
@@ -400,6 +401,17 @@ class Admin_Page {
 			<input type="hidden" name="_wp_http_referer" value="<?php echo esc_url( self::get_url( 'settings' ) ); ?>" />
 			<?php
 			do_settings_sections( self::PAGE_SLUG );
+			?>
+			<p class="description">
+				<?php
+				if ( Credentials::STORAGE_SECRETS === $this->settings->get_secret_storage() ) {
+					esc_html_e( 'Passwords are stored encrypted with the WordPress Secrets API.', 'smtp' );
+				} else {
+					esc_html_e( 'Passwords are stored in the database without encryption. They are encrypted with the WordPress Secrets API once it is available on this site.', 'smtp' );
+				}
+				?>
+			</p>
+			<?php
 			submit_button();
 			?>
 		</form>
