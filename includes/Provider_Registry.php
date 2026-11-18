@@ -180,9 +180,10 @@ class Provider_Registry {
 			// The fields and constants are not shared with Generic SMTP, so the credentials of another server are never sent to this one.
 			'fields'    => array(
 				'sendlayer_username' => array(
-					'label'    => __( 'SMTP username', 'smtp' ),
-					'type'     => 'text',
-					'constant' => 'SMTP_SENDLAYER_USER',
+					'label'       => __( 'SMTP username', 'smtp' ),
+					'type'        => 'text',
+					'constant'    => 'SMTP_SENDLAYER_USER',
+					'description' => __( 'Find your SMTP username and password in your SendLayer account, under Settings > SMTP Credentials.', 'smtp' ),
 				),
 				'sendlayer_password' => array(
 					'label'    => __( 'SMTP password', 'smtp' ),
