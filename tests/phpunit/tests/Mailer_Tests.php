@@ -99,6 +99,67 @@ class Mailer_Tests extends WP_UnitTestCase {
 		$this->assertSame( 'secret', $phpmailer->Password );
 	}
 
+	public function test_configure_does_nothing_until_sendlayer_has_its_credentials() {
+		update_option(
+			Settings::OPTION,
+			array(
+				'provider'           => 'sendlayer',
+				'sendlayer_username' => 'user',
+			)
+		);
+
+		$phpmailer = $this->get_phpmailer();
+		$this->mailer->configure( $phpmailer );
+
+		$this->assertSame( 'mail', $phpmailer->Mailer );
+		$this->assertSame( 'localhost', $phpmailer->Host );
+	}
+
+	public function test_configure_does_not_send_the_generic_smtp_credentials_to_sendlayer() {
+		update_option(
+			Settings::OPTION,
+			array(
+				'provider' => 'sendlayer',
+				'host'     => 'smtp.example.com',
+				'auth'     => true,
+				'username' => 'other-user',
+			)
+		);
+		( new Credentials() )->set( 'password', 'other-secret' );
+
+		$phpmailer = $this->get_phpmailer();
+		$this->mailer->configure( $phpmailer );
+
+		$this->assertSame( 'mail', $phpmailer->Mailer );
+		$this->assertSame( 'localhost', $phpmailer->Host );
+		$this->assertSame( '', $phpmailer->Username );
+		$this->assertSame( '', $phpmailer->Password );
+	}
+
+	public function test_configure_applies_the_sendlayer_settings() {
+		update_option(
+			Settings::OPTION,
+			array(
+				'provider'           => 'sendlayer',
+				'sendlayer_username' => 'user',
+			)
+		);
+		( new Credentials() )->set( 'sendlayer_password', 'secret' );
+
+		$phpmailer = $this->get_phpmailer();
+		$this->mailer->configure( $phpmailer );
+		$this->tracker->inspect( $phpmailer );
+
+		$this->assertSame( 'smtp', $phpmailer->Mailer );
+		$this->assertSame( 'smtp.sendlayer.net', $phpmailer->Host );
+		$this->assertSame( 587, $phpmailer->Port );
+		$this->assertSame( 'tls', $phpmailer->SMTPSecure );
+		$this->assertTrue( $phpmailer->SMTPAuth );
+		$this->assertSame( 'user', $phpmailer->Username );
+		$this->assertSame( 'secret', $phpmailer->Password );
+		$this->assertSame( 'sendlayer', $this->tracker->get_provider() );
+	}
+
 	public function test_configure_tells_the_tracker_the_email_is_handled() {
 		$this->configure();
 

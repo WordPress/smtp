@@ -16,14 +16,15 @@ Send WordPress emails through an SMTP server, with an extensible provider API an
 SMTP is a minimal, community-maintained plugin that sends the emails of your site through the SMTP server of your choice.
 
 * **Simple settings:** host, port, encryption, authentication, From email and From name under _Tools > SMTP_.
-* **Constants support:** define `SMTP_HOST`, `SMTP_PORT`, `SMTP_ENCRYPTION`, `SMTP_USER`, `SMTP_PASSWORD` and `SMTP_FROM_EMAIL` in `wp-config.php` to override the saved values. Recommended for production, so credentials stay out of the database.
+* **Providers:** Generic SMTP works with any SMTP server. SendLayer is built in, and only asks for its SMTP username and password.
+* **Constants support:** define `SMTP_HOST`, `SMTP_PORT`, `SMTP_ENCRYPTION`, `SMTP_USER`, `SMTP_PASSWORD` and `SMTP_FROM_EMAIL` in `wp-config.php` to override the saved values. The SendLayer provider uses `SMTP_SENDLAYER_USER` and `SMTP_SENDLAYER_PASSWORD`. Recommended for production, so credentials stay out of the database.
 * **Email log:** every email sent with `wp_mail()` is logged with its recipient, subject, status and error. The message body and attachments are never stored. Entries are deleted after 30 days.
 * **Alerts:** get a Slack message when an email fails to send, so a broken mailer does not go unnoticed. Developers can add more channels.
 * **Test email:** send a test message to yourself and see the connection log and a hint on what to check if something goes wrong. Credentials are redacted.
 * **WP-CLI:** configure the plugin, send a test email and check the status from the command line.
 * **Extensible:** developers can add more providers. See the technical documentation on [GitHub](https://github.com/wordpress/smtp).
 
-The plugin does nothing until a host is configured, so activating it never breaks your site's email.
+The plugin does nothing until the provider is configured, so activating it never breaks your site's email.
 
 == Installation ==
 
@@ -36,7 +37,7 @@ The plugin does nothing until a host is configured, so activating it never break
 
 = Where are my credentials stored? =
 
-Passwords can be defined with the `SMTP_PASSWORD` constant in `wp-config.php`. Otherwise they are stored in the database, in an option that is not loaded on every request.
+Passwords can be defined with the `SMTP_PASSWORD` constant (`SMTP_SENDLAYER_PASSWORD` for the SendLayer provider) in `wp-config.php`. Otherwise they are stored in the database, in an option that is not loaded on every request.
 
 = I was using the previous SMTP plugin. Do I lose my settings? =
 
@@ -57,6 +58,7 @@ SMTP is developed in the open. Bug reports, ideas and pull requests are welcome 
 * Multiple connections: add mailboxes with their own provider, credentials, From address and sending limits, and pick one per email with `wp_smtp_mail()` or the `smtp_connection_for_email` filter. The existing settings become the default connection.
 * Developers can react when an email falls back to the default connection with the `smtp_connection_fallback` action.
 * Developers can add providers that send through an HTTP API instead of SMTP, with the new `send` callback. The email log, alerts and test email work with them too.
+* New provider: SendLayer. Enter the SMTP username and password of your account, the server settings are built in.
 
 = 1.2.0 =
 
