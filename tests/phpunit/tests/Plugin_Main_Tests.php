@@ -81,8 +81,16 @@ class Plugin_Main_Tests extends WP_UnitTestCase {
 		return null;
 	}
 
-	public function test_plugin_creates_the_log_table_on_init() {
+	public function test_plugin_creates_the_log_table_on_init_and_no_longer_on_admin_init() {
+		global $wp_filter;
+
 		$this->assertNotNull( $this->get_init_upgrade_callback() );
+
+		foreach ( isset( $wp_filter['admin_init'] ) ? $wp_filter['admin_init']->callbacks : array() as $callbacks ) {
+			foreach ( $callbacks as $callback ) {
+				$this->assertFalse( is_array( $callback['function'] ) && $callback['function'][0] instanceof Log_Repository, 'Log_Repository is still hooked to admin_init.' );
+			}
+		}
 	}
 
 	public function test_email_sent_after_an_update_in_place_is_logged() {
