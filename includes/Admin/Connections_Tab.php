@@ -225,37 +225,28 @@ class Connections_Tab {
 
 		$links = array();
 		foreach ( $this->connections->get_ids() as $id ) {
-			$links[] = $this->get_nav_link( Connections::DEFAULT_ID === $id ? '' : $id, $this->connections->get_label( $id ), $id === $current );
+			$links[] = array(
+				'url'     => self::get_url( Connections::DEFAULT_ID === $id ? '' : $id ),
+				'label'   => $this->connections->get_label( $id ),
+				'current' => $id === $current,
+			);
 		}
-		$links[] = $this->get_nav_link( self::NEW_CONNECTION, __( 'Add connection', 'smtp' ), self::NEW_CONNECTION === $current );
+		$links[] = array(
+			'url'     => self::get_url( self::NEW_CONNECTION ),
+			'label'   => __( 'Add connection', 'smtp' ),
+			'current' => self::NEW_CONNECTION === $current,
+		);
 
 		?>
 		<ul class="subsubsub">
 			<?php foreach ( $links as $index => $link ) : ?>
-				<li><?php echo wp_kses_post( $link ); ?><?php echo $index < count( $links ) - 1 ? ' |' : ''; ?></li>
+				<li>
+					<a href="<?php echo esc_url( $link['url'] ); ?>"<?php echo $link['current'] ? ' class="current" aria-current="page"' : ''; ?>><?php echo esc_html( $link['label'] ); ?></a><?php echo $index < count( $links ) - 1 ? ' |' : ''; ?>
+				</li>
 			<?php endforeach; ?>
 		</ul>
 		<br class="clear" />
 		<?php
-	}
-
-	/**
-	 * Returns the link to a connection of the navigation.
-	 *
-	 * @since 1.2.0
-	 *
-	 * @param string $connection Connection ID, `new`, or empty for the default connection.
-	 * @param string $label      Link text.
-	 * @param bool   $is_current Whether it is the connection being shown.
-	 * @return string Link HTML.
-	 */
-	private function get_nav_link( string $connection, string $label, bool $is_current ): string {
-		return sprintf(
-			'<a href="%1$s"%2$s>%3$s</a>',
-			esc_url( self::get_url( $connection ) ),
-			$is_current ? ' class="current" aria-current="page"' : '',
-			esc_html( $label )
-		);
 	}
 
 	/**
