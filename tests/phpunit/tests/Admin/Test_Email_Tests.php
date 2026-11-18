@@ -369,4 +369,62 @@ class Test_Email_Tests extends WP_UnitTestCase {
 		$this->assertStringNotContainsString( base64_encode( 'relay-key-123' ), $redacted ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode
 		$this->assertSame( "CLIENT -> SERVER: [redacted]\nkey is [redacted]", $redacted );
 	}
+
+	private function use_provider_with_fields( array $fields ) {
+		add_filter(
+			'smtp_providers',
+			static function ( $providers ) use ( $fields ) {
+				$providers['relay'] = array(
+					'label'     => 'Relay',
+					'fields'    => $fields,
+					'configure' => '__return_null',
+				);
+
+				return $providers;
+			}
+		);
+		update_option( Settings::OPTION, array( 'provider' => 'relay' ) );
+	}
+
+	private function redact( string $log ): string {
+		$method = new ReflectionMethod( Test_Email::class, 'redact' );
+		$method->setAccessible( true );
+
+		return $method->invoke( $this->test_email, $log );
+	}
+
+	public function test_redact_removes_the_auth_plain_form_of_any_password_field() {
+		$this->use_provider_with_fields(
+			array(
+				'username' => array( 'type' => 'text' ),
+				'api_key'  => array( 'type' => 'password' ),
+			)
+		);
+		update_option(
+			Settings::OPTION,
+			array(
+				'provider' => 'relay',
+				'username' => 'relay-user',
+			)
+		);
+		( new Credentials() )->set( 'api_key', 'relay-key-123' );
+
+		$plain = base64_encode( "\0relay-user\0relay-key-123" ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode
+
+		$this->assertSame( 'CLIENT -> SERVER: AUTH PLAIN [redacted]', $this->redact( 'CLIENT -> SERVER: AUTH PLAIN ' . $plain ) );
+	}
+
+	public function test_redact_replaces_a_secret_that_contains_another_as_a_whole() {
+		// The shorter secret comes first, so only the longest-first order replaces the longer one whole.
+		$this->use_provider_with_fields(
+			array(
+				'token'   => array( 'type' => 'password' ),
+				'api_key' => array( 'type' => 'password' ),
+			)
+		);
+		( new Credentials() )->set( 'token', 'abc' );
+		( new Credentials() )->set( 'api_key', 'abc-def-ghi' );
+
+		$this->assertSame( 'key [redacted], token [redacted]', $this->redact( 'key abc-def-ghi, token abc' ) );
+	}
 }
