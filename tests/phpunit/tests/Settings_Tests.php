@@ -404,6 +404,58 @@ class Settings_Tests extends WP_UnitTestCase {
 		$this->assertSame( 65535, $this->settings->sanitize( array( 'port' => '65535' ) )['port'] );
 	}
 
+	public function test_sanitize_reports_a_reset_number_once() {
+		global $wp_settings_errors;
+		$wp_settings_errors = array();
+
+		require_once ABSPATH . 'wp-admin/includes/template.php';
+
+		$this->settings->sanitize( array( 'port' => '99999' ) );
+		$this->settings->sanitize( array( 'port' => '99999' ) );
+
+		$errors = get_settings_errors( Settings::OPTION );
+		$this->assertCount( 1, $errors );
+		$this->assertSame( 'smtp_invalid_port', $errors[0]['code'] );
+		$this->assertStringContainsString( 'between 1 and 65535', $errors[0]['message'] );
+	}
+
+	public function test_sanitize_does_not_report_an_empty_number() {
+		global $wp_settings_errors;
+		$wp_settings_errors = array();
+
+		require_once ABSPATH . 'wp-admin/includes/template.php';
+
+		$this->assertSame( 587, $this->settings->sanitize( array( 'port' => '' ) )['port'] );
+		$this->assertSame( array(), get_settings_errors( Settings::OPTION ) );
+	}
+
+	public function test_max_comes_from_the_field_definition() {
+		add_filter(
+			'smtp_providers',
+			static function ( $providers ) {
+				$providers['smtp']['fields']['port']['max'] = 1000;
+
+				return $providers;
+			}
+		);
+
+		$this->assertSame( 587, $this->settings->sanitize( array( 'port' => '1001' ) )['port'] );
+		$this->assertSame( 1000, $this->settings->sanitize( array( 'port' => '1000' ) )['port'] );
+	}
+
+	public function test_number_fields_without_a_max_accept_any_positive_value() {
+		add_filter(
+			'smtp_providers',
+			static function ( $providers ) {
+				unset( $providers['smtp']['fields']['port']['max'] );
+
+				return $providers;
+			}
+		);
+
+		$this->assertSame( 99999, $this->settings->sanitize( array( 'port' => '99999' ) )['port'] );
+	}
+
 	public function test_sanitize_falls_back_to_the_current_provider_when_unknown() {
 		$clean = $this->settings->sanitize( array( 'provider' => 'unknown' ) );
 

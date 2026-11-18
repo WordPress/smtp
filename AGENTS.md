@@ -72,7 +72,7 @@ smtp/
 A provider is an array registered through the `smtp_providers` filter:
 
 - `label` (string): human readable name.
-- `fields` (array): settings fields keyed by field key. Each field accepts `label`, `type` (`text`, `number`, `email`, `password`, `select`, `checkbox`), `default`, `options`, `description` and `constant`.
+- `fields` (array): settings fields keyed by field key. Each field accepts `label`, `type` (`text`, `number`, `email`, `password`, `select`, `checkbox`), `default`, `options`, `description`, `constant` and `max` (highest accepted value of a `number` field, shared by the settings screen, the CLI and the HTML input).
 - `required` (string[]): field keys that must have a value before the provider is used.
 - `required_if` (array): `field => condition field` pairs. The field must have a value when the condition field is enabled. Generic SMTP uses it for `username` and `password` when `auth` is on.
 - `configure` (callable): receives the `PHPMailer` instance and the resolved field values.
