@@ -74,6 +74,7 @@ Each field accepts:
 | `options` | Value => label pairs, for `select`. |
 | `description` | Help text. |
 | `constant` | Name of a constant that overrides the value and locks the field. |
+| `max` | Highest accepted value of a `number` field. Higher values are rejected by `wp smtp settings set` and reset to the default on the settings screen, with a notice. |
 
 Fields of type `password` are stored apart from the other settings, are never printed back into the page, and are redacted from the connection log of the test email.
 
