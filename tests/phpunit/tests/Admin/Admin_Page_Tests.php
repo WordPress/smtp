@@ -278,6 +278,7 @@ class Admin_Page_Tests extends WP_UnitTestCase {
 
 		$this->assertStringContainsString( 'SendLayer', $html );
 		$this->assertStringContainsString( 'sendlayer-user', $html );
+		$this->assertStringContainsString( 'under Settings &gt; SMTP Credentials.', $html );
 		$this->assertStringNotContainsString( 'top-secret-password', $html );
 		$this->assertStringContainsString( 'A password is saved. Leave empty to keep it.', $html );
 	}
