@@ -10,6 +10,7 @@ use WordPress\SMTP\CLI\Command;
 use WordPress\SMTP\CLI\Settings_Command;
 use WordPress\SMTP\Credentials;
 use WordPress\SMTP\Delivery_Tracker;
+use WordPress\SMTP\Log_Repository;
 use WordPress\SMTP\Plugin_Main;
 use WordPress\SMTP\Provider_Registry;
 use WordPress\SMTP\Settings;
@@ -62,6 +63,63 @@ class Plugin_Main_Tests extends WP_UnitTestCase {
 
 		$this->assertInstanceOf( Command::class, WP_CLI::$commands['smtp'] );
 		$this->assertInstanceOf( Settings_Command::class, WP_CLI::$commands['smtp settings'] );
+	}
+
+	/**
+	 * Returns the Log_Repository callback registered on `init` at priority 0, if any.
+	 */
+	private function get_init_upgrade_callback(): ?callable {
+		global $wp_filter;
+
+		$callbacks = isset( $wp_filter['init'][0] ) ? $wp_filter['init'][0] : array();
+		foreach ( $callbacks as $callback ) {
+			if ( is_array( $callback['function'] ) && $callback['function'][0] instanceof Log_Repository ) {
+				return $callback['function'];
+			}
+		}
+
+		return null;
+	}
+
+	public function test_plugin_creates_the_log_table_on_init_and_no_longer_on_admin_init() {
+		global $wp_filter;
+
+		$this->assertNotNull( $this->get_init_upgrade_callback() );
+
+		foreach ( isset( $wp_filter['admin_init'] ) ? $wp_filter['admin_init']->callbacks : array() as $callbacks ) {
+			foreach ( $callbacks as $callback ) {
+				$this->assertFalse( is_array( $callback['function'] ) && $callback['function'][0] instanceof Log_Repository, 'Log_Repository is still hooked to admin_init.' );
+			}
+		}
+	}
+
+	public function test_email_sent_after_an_update_in_place_is_logged() {
+		global $wpdb;
+
+		// Updating from the 1.x plugin runs no activation hook, so neither the table nor the schema version exists.
+		$table = ( new Log_Repository() )->get_table_name();
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$wpdb->query( "DROP TABLE IF EXISTS {$table}" );
+		delete_option( Log_Repository::DB_VERSION_OPTION );
+
+		// A front-end request or a cron run: init fires, admin_init does not.
+		$callback = $this->get_init_upgrade_callback();
+		$this->assertNotNull( $callback );
+		call_user_func( $callback );
+
+		reset_phpmailer_instance();
+		add_filter(
+			'wp_mail_from',
+			static function () {
+				return 'wordpress@example.org';
+			}
+		);
+
+		wp_mail( 'to@example.org', 'Order received', 'Body' );
+
+		$entries = $this->get_logged_entries();
+		$this->assertCount( 1, $entries );
+		$this->assertSame( 'Order received', $entries[0]['subject'] );
 	}
 
 	public function test_schedule_purge_schedules_a_daily_event() {

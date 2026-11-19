@@ -98,6 +98,7 @@ class Settings {
 					'options'     => array(),
 					'description' => '',
 					'constant'    => '',
+					'max'         => 0,
 				)
 			);
 		}
@@ -233,8 +234,15 @@ class Settings {
 					break;
 
 				case 'number':
-					$number        = absint( $raw );
-					$clean[ $key ] = $number > 0 ? $number : $field['default'];
+					$number = absint( $raw );
+					$max    = (int) $field['max'];
+					$valid  = $number > 0 && ( $max <= 0 || $number <= $max );
+
+					$clean[ $key ] = $valid ? $number : $field['default'];
+
+					if ( ! $valid && null !== $raw && '' !== $raw ) {
+						$this->report_reset( $key, $field );
+					}
 					break;
 
 				case 'email':
@@ -373,6 +381,38 @@ class Settings {
 			default:
 				return is_scalar( $value ) ? (string) $value : '';
 		}
+	}
+
+	/**
+	 * Tells the admin that an invalid number was replaced by its default.
+	 *
+	 * The settings screen shows it after saving. Settings::sanitize() can run twice when the option
+	 * is first created, so the same message is only added once.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @param string $key   Field key.
+	 * @param array  $field Normalized field.
+	 */
+	private function report_reset( string $key, array $field ) {
+		if ( ! function_exists( 'add_settings_error' ) ) {
+			return;
+		}
+
+		$code = 'smtp_invalid_' . $key;
+		foreach ( get_settings_errors( self::OPTION ) as $error ) {
+			if ( $code === $error['code'] ) {
+				return;
+			}
+		}
+
+		$message = (int) $field['max'] > 0
+			/* translators: 1: field label, 2: highest allowed number, 3: default value */
+			? sprintf( __( '%1$s must be a number between 1 and %2$d, so it was reset to %3$s.', 'smtp' ), $field['label'], (int) $field['max'], (string) $field['default'] )
+			/* translators: 1: field label, 2: default value */
+			: sprintf( __( '%1$s must be a positive number, so it was reset to %2$s.', 'smtp' ), $field['label'], (string) $field['default'] );
+
+		add_settings_error( self::OPTION, $code, $message );
 	}
 
 	/**

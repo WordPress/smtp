@@ -197,7 +197,7 @@ class Settings_Command {
 				break;
 
 			case 'number':
-				$valid = ctype_digit( $value ) && (int) $value > 0 && ( 'port' !== $key || (int) $value <= 65535 );
+				$valid = ctype_digit( $value ) && (int) $value > 0 && ( (int) $field['max'] <= 0 || (int) $value <= (int) $field['max'] );
 				break;
 
 			case 'email':

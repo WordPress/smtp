@@ -186,4 +186,61 @@ class Command_Tests extends WP_UnitTestCase {
 
 		$this->assertSame( array( 'CLIENT -> SERVER: [redacted]' ), WP_CLI::$logs );
 	}
+
+	private function fail_with_connection_log( string $message ) {
+		// No recipients make PHPMailer throw, so wp_mail() fails the way a rejected login does.
+		add_action(
+			'phpmailer_init',
+			static function ( $phpmailer ) {
+				$phpmailer->clearAllRecipients();
+			}
+		);
+		add_action(
+			'wp_mail_failed',
+			static function () use ( $message ) {
+				global $phpmailer;
+
+				call_user_func( $phpmailer->Debugoutput, $message );
+			},
+			1
+		);
+	}
+
+	public function test_test_shows_a_hint_when_the_email_cannot_be_sent() {
+		$this->fail_with_connection_log( 'SMTP ERROR: AUTH command failed: 530 5.7.0 Must issue a STARTTLS command first.' );
+
+		try {
+			$this->command->test( array( 'someone@example.com' ), array() );
+			$this->fail( 'The command should exit with an error.' );
+		} catch ( RuntimeException $e ) {
+			$this->assertStringContainsString( 'only accepts a login over an encrypted connection', $e->getMessage() );
+		}
+
+		// The hint does not need --connection-log, and the log stays hidden without it.
+		$this->assertSame( array(), WP_CLI::$logs );
+	}
+
+	public function test_test_shows_no_hint_for_an_unknown_problem() {
+		$this->fail_with_connection_log( 'SERVER -> CLIENT: 421 Something unusual' );
+
+		try {
+			$this->command->test( array( 'someone@example.com' ), array() );
+			$this->fail( 'The command should exit with an error.' );
+		} catch ( RuntimeException $e ) {
+			$this->assertStringNotContainsString( "\n", $e->getMessage() );
+		}
+	}
+
+	public function test_test_shows_the_connection_log_and_the_hint_together() {
+		$this->fail_with_connection_log( 'SMTP ERROR: AUTH command failed: 530 5.7.0 Must issue a STARTTLS command first.' );
+
+		try {
+			$this->command->test( array( 'someone@example.com' ), array( 'connection-log' => true ) );
+			$this->fail( 'The command should exit with an error.' );
+		} catch ( RuntimeException $e ) {
+			$this->assertStringContainsString( 'only accepts a login over an encrypted connection', $e->getMessage() );
+		}
+
+		$this->assertSame( array( 'SMTP ERROR: AUTH command failed: 530 5.7.0 Must issue a STARTTLS command first.' ), WP_CLI::$logs );
+	}
 }
