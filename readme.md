@@ -1,5 +1,7 @@
 # SMTP
 
+[![codecov](https://codecov.io/gh/WordPress/smtp/graph/badge.svg)](https://codecov.io/gh/WordPress/smtp)
+
 Send WordPress emails through an SMTP server, with an extensible provider API and a simple email log.
 
 This is the technical documentation for developers. The user-facing description lives in [`readme.txt`](readme.txt).
