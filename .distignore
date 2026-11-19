@@ -21,3 +21,5 @@ readme.md
 tests
 .worktrees
 .DS_Store
+phpstan.neon.dist
+phpstan-baseline.neon
