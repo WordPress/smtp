@@ -255,6 +255,35 @@ class Admin_Page_Tests extends WP_UnitTestCase {
 
 		$this->assertStringContainsString( 'SMTP_TESTS_ADMIN_LOCKED', $html );
 		$this->assertMatchesRegularExpression( '/id="smtp-host"[^>]*disabled/s', $html );
+		$this->assertMatchesRegularExpression( '/id="smtp-host"[^>]*aria-describedby="smtp-host-description"/s', $html );
+		$this->assertMatchesRegularExpression( '/id="smtp-host-description"[^>]*>\s*Defined by the/s', $html );
+	}
+
+	public function test_the_saved_password_note_is_linked_to_the_field() {
+		( new Credentials() )->set( 'password', 'top-secret-password' );
+		$this->admin_page->register_settings();
+
+		$html = $this->render( 'settings' );
+
+		$this->assertMatchesRegularExpression( '/id="smtp-password"[^>]*aria-describedby="smtp-password-description"/s', $html );
+		$this->assertMatchesRegularExpression( '/id="smtp-password-description"[^>]*>A password is saved\./', $html );
+		$this->assertDoesNotMatchRegularExpression( '/id="smtp-password"[^>]*placeholder=/s', $html );
+	}
+
+	public function test_a_field_without_a_description_is_not_described() {
+		$this->admin_page->register_settings();
+
+		$html = $this->render( 'settings' );
+
+		$this->assertDoesNotMatchRegularExpression( '/id="smtp-password"[^>]*aria-describedby/s', $html );
+		$this->assertStringNotContainsString( 'id="smtp-password-description"', $html );
+	}
+
+	public function test_only_the_current_tab_is_marked_as_the_current_page() {
+		$html = $this->render( 'test' );
+
+		$this->assertSame( 1, substr_count( $html, 'aria-current="page"' ) );
+		$this->assertMatchesRegularExpression( '/tab=test"\s+class="nav-tab nav-tab-active"\s+aria-current="page"/', $html );
 	}
 
 	public function test_render_page_shows_the_log_tab() {

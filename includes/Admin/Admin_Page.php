@@ -215,11 +215,12 @@ class Admin_Page {
 		<div class="wrap">
 			<h1><?php echo esc_html( get_admin_page_title() ); ?></h1>
 
-			<nav class="nav-tab-wrapper">
+			<nav class="nav-tab-wrapper" aria-label="<?php esc_attr_e( 'Secondary menu', 'smtp' ); ?>">
 				<?php foreach ( $tabs as $slug => $label ) : ?>
 					<a
 						href="<?php echo esc_url( self::get_url( $slug ) ); ?>"
 						class="nav-tab<?php echo $slug === $current ? ' nav-tab-active' : ''; ?>"
+						<?php echo $slug === $current ? 'aria-current="page"' : ''; ?>
 					>
 						<?php echo esc_html( $label ); ?>
 					</a>
@@ -278,14 +279,14 @@ class Admin_Page {
 	public function render_provider_field() {
 		$current = $this->settings->get_provider_slug();
 		?>
-		<select id="smtp-provider" name="<?php echo esc_attr( Settings::OPTION ); ?>[provider]">
+		<select id="smtp-provider" name="<?php echo esc_attr( Settings::OPTION ); ?>[provider]" aria-describedby="smtp-provider-description">
 			<?php foreach ( $this->registry->get_all() as $slug => $provider ) : ?>
 				<option value="<?php echo esc_attr( $slug ); ?>" <?php selected( $current, $slug ); ?>>
 					<?php echo esc_html( $provider['label'] ); ?>
 				</option>
 			<?php endforeach; ?>
 		</select>
-		<p class="description">
+		<p class="description" id="smtp-provider-description">
 			<?php esc_html_e( 'After changing the provider, save the settings to see its fields.', 'smtp' ); ?>
 		</p>
 		<?php
@@ -306,11 +307,24 @@ class Admin_Page {
 		$locked = $this->settings->is_locked( $field );
 		$value  = $this->settings->get( $key );
 
+		if ( 'checkbox' === $field['type'] ) {
+			// The description is printed inside the label of a checkbox.
+			$has_description = $locked;
+		} elseif ( 'password' === $field['type'] && '' !== $value && ! $locked ) {
+			$field['description'] = trim( $field['description'] . ' ' . __( 'A password is saved. Leave empty to keep it.', 'smtp' ) );
+			$has_description      = true;
+		} else {
+			$has_description = $locked || '' !== $field['description'];
+		}
+
+		$description_id = $id . '-description';
+		$describedby    = $has_description ? ' aria-describedby="' . esc_attr( $description_id ) . '"' : '';
+
 		switch ( $field['type'] ) {
 			case 'checkbox':
 				?>
 				<label for="<?php echo esc_attr( $id ); ?>">
-					<input type="checkbox" id="<?php echo esc_attr( $id ); ?>" name="<?php echo esc_attr( $name ); ?>" value="1" <?php checked( (bool) $value ); ?> <?php disabled( $locked ); ?> />
+					<input type="checkbox" id="<?php echo esc_attr( $id ); ?>" name="<?php echo esc_attr( $name ); ?>" value="1" <?php checked( (bool) $value ); ?> <?php disabled( $locked ); ?><?php echo $describedby; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped above. ?> />
 					<?php echo esc_html( $field['description'] ); ?>
 				</label>
 				<?php
@@ -319,7 +333,7 @@ class Admin_Page {
 
 			case 'select':
 				?>
-				<select id="<?php echo esc_attr( $id ); ?>" name="<?php echo esc_attr( $name ); ?>" <?php disabled( $locked ); ?>>
+				<select id="<?php echo esc_attr( $id ); ?>" name="<?php echo esc_attr( $name ); ?>" <?php disabled( $locked ); ?><?php echo $describedby; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped above. ?>>
 					<?php foreach ( $field['options'] as $option_value => $option_label ) : ?>
 						<option value="<?php echo esc_attr( $option_value ); ?>" <?php selected( $value, (string) $option_value ); ?>>
 							<?php echo esc_html( $option_label ); ?>
@@ -339,13 +353,10 @@ class Admin_Page {
 					name="<?php echo esc_attr( $name ); ?>"
 					value=""
 					autocomplete="new-password"
-					placeholder="<?php echo '' !== $value ? esc_attr( str_repeat( '•', 8 ) ) : ''; ?>"
 					<?php disabled( $locked ); ?>
+					<?php echo $describedby; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped above. ?>
 				/>
 				<?php
-				if ( '' !== $value && ! $locked ) {
-					$field['description'] = __( 'A password is saved. Leave empty to keep it.', 'smtp' );
-				}
 				break;
 
 			default:
@@ -364,13 +375,14 @@ class Admin_Page {
 						<?php endif; ?>
 					<?php endif; ?>
 					<?php disabled( $locked ); ?>
+					<?php echo $describedby; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped above. ?>
 				/>
 				<?php
 		}
 
 		if ( $locked ) {
 			?>
-			<p class="description">
+			<p class="description" id="<?php echo esc_attr( $description_id ); ?>">
 				<?php
 				echo wp_kses(
 					sprintf(
@@ -383,9 +395,9 @@ class Admin_Page {
 				?>
 			</p>
 			<?php
-		} elseif ( '' !== $field['description'] ) {
+		} elseif ( $has_description ) {
 			?>
-			<p class="description"><?php echo esc_html( $field['description'] ); ?></p>
+			<p class="description" id="<?php echo esc_attr( $description_id ); ?>"><?php echo esc_html( $field['description'] ); ?></p>
 			<?php
 		}
 	}
@@ -521,8 +533,9 @@ class Admin_Page {
 							name="to"
 							value="<?php echo esc_attr( $result ? $result['to'] : $user->user_email ); ?>"
 							required
+							aria-describedby="smtp-test-to-description"
 						/>
-						<p class="description"><?php esc_html_e( 'The address that will receive the test email.', 'smtp' ); ?></p>
+						<p class="description" id="smtp-test-to-description"><?php esc_html_e( 'The address that will receive the test email.', 'smtp' ); ?></p>
 					</td>
 				</tr>
 			</table>
