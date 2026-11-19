@@ -35,11 +35,12 @@ jobs:
             // The build ran untrusted PR code; the run's head SHA is the only trusted value.
             const trustedSha = context.payload.workflow_run.head_sha;
 
-            // Find the PR from the trusted head SHA, not from the artifact name.
+            // Narrow the list to the head owner and branch, then match the trusted head SHA.
             const pulls = await github.paginate(github.rest.pulls.list, {
               owner: context.repo.owner,
               repo: context.repo.repo,
               state: 'open',
+              head: `${context.payload.workflow_run.head_repository.owner.login}:${context.payload.workflow_run.head_branch}`,
               per_page: 100,
             });
             const pr = pulls.find(p => p.head.sha === trustedSha);
