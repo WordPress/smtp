@@ -205,7 +205,7 @@ class Alerts_Tab {
 					<tr>
 						<th scope="row"><label for="smtp-alert-channel"><?php esc_html_e( 'Send failure alerts via', 'smtp' ); ?></label></th>
 						<td>
-							<select id="smtp-alert-channel" name="<?php echo esc_attr( Alert_Settings::OPTION ); ?>[channel]">
+							<select id="smtp-alert-channel" name="<?php echo esc_attr( Alert_Settings::OPTION ); ?>[channel]" aria-describedby="smtp-alert-channel-description">
 								<option value="" <?php selected( $selected, '' ); ?>><?php esc_html_e( 'None', 'smtp' ); ?></option>
 								<?php foreach ( $channels as $id => $channel ) : ?>
 									<option value="<?php echo esc_attr( $id ); ?>" <?php selected( $selected, $id ); ?>>
@@ -213,7 +213,7 @@ class Alerts_Tab {
 									</option>
 								<?php endforeach; ?>
 							</select>
-							<p class="description">
+							<p class="description" id="smtp-alert-channel-description">
 								<?php esc_html_e( 'To avoid flooding the channel, at most one alert is sent every 15 minutes. Failures in between are counted in the next alert.', 'smtp' ); ?>
 							</p>
 						</td>
@@ -313,6 +313,11 @@ class Alerts_Tab {
 				$type        = in_array( $field['type'] ?? '', array( 'url', 'password' ), true ) ? $field['type'] : 'text';
 				$value       = $values[ $key ] ?? '';
 				$description = (string) ( $field['description'] ?? '' );
+				if ( 'password' === $type && '' !== $value ) {
+					$description = trim( $description . ' ' . __( 'A value is already saved. Leave the field empty to keep it.', 'smtp' ) );
+				}
+				$description_id = $field_id . '-description';
+				$describedby    = '' !== $description ? ' aria-describedby="' . esc_attr( $description_id ) . '"' : '';
 				?>
 				<tr>
 					<th scope="row"><label for="<?php echo esc_attr( $field_id ); ?>"><?php echo esc_html( (string) ( $field['label'] ?? $key ) ); ?></label></th>
@@ -326,13 +331,8 @@ class Alerts_Tab {
 								name="<?php echo esc_attr( $name . '[' . $key . ']' ); ?>"
 								value=""
 								autocomplete="new-password"
-								placeholder="<?php echo '' !== $value ? esc_attr( str_repeat( '•', 8 ) ) : ''; ?>"
+								<?php echo $describedby; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped above. ?>
 							/>
-							<?php
-							if ( '' !== $value ) {
-								$description = trim( $description . ' ' . __( 'A value is already saved. Leave the field empty to keep it.', 'smtp' ) );
-							}
-							?>
 						<?php else : ?>
 							<input
 								type="<?php echo esc_attr( $type ); ?>"
@@ -340,10 +340,11 @@ class Alerts_Tab {
 								id="<?php echo esc_attr( $field_id ); ?>"
 								name="<?php echo esc_attr( $name . '[' . $key . ']' ); ?>"
 								value="<?php echo esc_attr( $value ); ?>"
+								<?php echo $describedby; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped above. ?>
 							/>
 						<?php endif; ?>
 						<?php if ( '' !== $description ) : ?>
-							<p class="description"><?php echo esc_html( $description ); ?></p>
+							<p class="description" id="<?php echo esc_attr( $description_id ); ?>"><?php echo esc_html( $description ); ?></p>
 						<?php endif; ?>
 					</td>
 				</tr>

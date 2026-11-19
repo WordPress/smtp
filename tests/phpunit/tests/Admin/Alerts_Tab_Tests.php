@@ -156,6 +156,19 @@ class Alerts_Tab_Tests extends WP_UnitTestCase {
 		$this->assertStringContainsString( 'Send test alert to Slack', $html );
 	}
 
+	public function test_the_saved_value_note_is_linked_to_the_field() {
+		$this->as_admin();
+		$this->configure_slack();
+
+		$html = $this->render();
+
+		$this->assertMatchesRegularExpression( '/id="smtp-alert-slack-webhook_url"[^>]*aria-describedby="smtp-alert-slack-webhook_url-description"/s', $html );
+		$this->assertMatchesRegularExpression( '/id="smtp-alert-slack-webhook_url-description"[^>]*>[^<]*A value is already saved\./', $html );
+		$this->assertDoesNotMatchRegularExpression( '/id="smtp-alert-slack-webhook_url"[^>]*placeholder=/s', $html );
+		$this->assertMatchesRegularExpression( '/id="smtp-alert-channel"[^>]*aria-describedby="smtp-alert-channel-description"/', $html );
+		$this->assertStringContainsString( 'id="smtp-alert-channel-description"', $html );
+	}
+
 	public function test_a_selected_unconfigured_channel_shows_a_warning() {
 		$this->as_admin();
 		update_option( Alert_Settings::OPTION, array( 'channel' => 'slack' ) );
