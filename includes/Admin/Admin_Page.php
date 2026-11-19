@@ -513,9 +513,8 @@ class Admin_Page {
 				</div>
 			<?php endif; ?>
 			<?php if ( '' !== $result['debug'] ) : ?>
-				<h2 id="smtp-connection-log"><?php esc_html_e( 'Connection log', 'smtp' ); ?></h2>
-				<?php // Focusable so the log can be scrolled with the keyboard. ?>
-				<pre tabindex="0" role="region" aria-labelledby="smtp-connection-log" style="max-width: 100%; overflow: auto; padding: 1em; background: #fff; border: 1px solid #c3c4c7;"><?php echo esc_html( $result['debug'] ); ?></pre>
+				<h2><?php esc_html_e( 'Connection log', 'smtp' ); ?></h2>
+				<pre style="max-width: 100%; overflow: auto; padding: 1em; background: #fff; border: 1px solid #c3c4c7;"><?php echo esc_html( $result['debug'] ); ?></pre>
 			<?php endif; ?>
 			<?php
 		}
