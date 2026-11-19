@@ -134,7 +134,7 @@ jobs:
         run: |
           BRANCH="${WP_BRANCH##*#}"
           BRANCH="${BRANCH%-branch}"
-          PHPUNIT_DIR="$(npx wp-env --config=.wp-env.tests.json install-path)/tests-WordPress-PHPUnit"
+          PHPUNIT_DIR="$(npx wp-env --config=.wp-env.tests.json status --json | jq -r .installPath)/tests-WordPress-PHPUnit"
           git -C "$PHPUNIT_DIR" fetch origin "$BRANCH" --depth 1
           git -C "$PHPUNIT_DIR" checkout FETCH_HEAD
 
