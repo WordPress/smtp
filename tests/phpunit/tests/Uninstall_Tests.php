@@ -37,6 +37,7 @@ class Uninstall_Tests extends WP_UnitTestCase {
 		update_option( Migration::LEGACY_OPTION, array( 'host' => 'smtp.example.com' ) );
 		update_option( Migration::DONE_OPTION, '1' );
 		update_option( Migration::NOTICE_OPTION, Migration::NOTICE_MIGRATED );
+		set_transient( Log_Repository::UPGRADE_LOCK, '1', HOUR_IN_SECONDS );
 		( new Log_Repository() )->insert(
 			array(
 				'recipient' => 'to@example.org',
@@ -70,6 +71,7 @@ class Uninstall_Tests extends WP_UnitTestCase {
 		$this->assertFalse( get_option( Migration::LEGACY_OPTION ) );
 		$this->assertFalse( get_option( Migration::DONE_OPTION ) );
 		$this->assertFalse( get_option( Migration::NOTICE_OPTION ) );
+		$this->assertFalse( get_transient( Log_Repository::UPGRADE_LOCK ) );
 		$this->assertFalse( wp_next_scheduled( Plugin_Main::PURGE_HOOK ) );
 		$this->assertSame( '', get_user_meta( $user_id, 'smtp_failures_dismissed', true ) );
 
@@ -93,6 +95,7 @@ class Uninstall_Tests extends WP_UnitTestCase {
 			( new Credentials() )->set( 'password', 'secret' );
 			update_option( Alert_Settings::OPTION, array( 'channel' => 'slack' ) );
 			update_option( Migration::LEGACY_OPTION, array( 'host' => 'smtp.example.com' ) );
+			set_transient( Log_Repository::UPGRADE_LOCK, '1', HOUR_IN_SECONDS );
 			wp_schedule_event( time() + DAY_IN_SECONDS, 'daily', Plugin_Main::PURGE_HOOK );
 			$prefixes[] = $wpdb->prefix;
 			restore_current_blog();
@@ -119,6 +122,7 @@ class Uninstall_Tests extends WP_UnitTestCase {
 			$this->assertFalse( get_option( Log_Repository::DB_VERSION_OPTION ) );
 			$this->assertFalse( get_option( Alert_Settings::OPTION ) );
 			$this->assertFalse( get_option( Migration::LEGACY_OPTION ) );
+			$this->assertFalse( get_transient( Log_Repository::UPGRADE_LOCK ) );
 			$this->assertFalse( wp_next_scheduled( Plugin_Main::PURGE_HOOK ) );
 			restore_current_blog();
 

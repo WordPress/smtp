@@ -22,6 +22,7 @@ $smtp_uninstall_site = static function () {
 	delete_option( 'smtp_db_version' );
 	delete_option( 'smtp_alert_settings' );
 	delete_option( 'smtp_alert_state' );
+	delete_transient( 'smtp_db_upgrade_lock' );
 
 	// Data of the legacy plugin that this one replaces, and the import bookkeeping.
 	delete_option( 'smtp_options' );
