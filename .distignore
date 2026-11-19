@@ -18,6 +18,7 @@ package.json
 phpcs.xml.dist
 phpunit.xml.dist
 readme.md
+SECURITY.md
 tests
 .worktrees
 .DS_Store
