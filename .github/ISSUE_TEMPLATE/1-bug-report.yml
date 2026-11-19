@@ -1,0 +1,147 @@
+name: Bug report
+description: Report a bug in the SMTP plugin.
+labels: ['[Type] Bug']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug!
+
+        - **Security issue?** Don't report it here. Follow [SECURITY.md](https://github.com/WordPress/smtp/security/policy) instead.
+        - **Need help setting up your email?** Please ask in the [support forum](https://wordpress.org/support/plugin/smtp/). This tracker is for bugs in the plugin.
+        - **Never post passwords, API keys or tokens.** The plugin hides them in its own output, but check everything before you submit.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What happens, and what did you expect to happen instead?
+      placeholder: When I send a test email to '...', I expect '...', but '...' happens instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: The steps needed to see the bug, starting from a site with the plugin active.
+      placeholder: |
+        1. Go to Tools > SMTP > Settings.
+        2. Set '...' to '...'.
+        3. Send a test email from the Test tab.
+        4. See error.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Where in the plugin does the bug happen?
+      options:
+        - Settings
+        - Sending (emails not delivered, wrong sender, wrong content)
+        - Test email
+        - Email log
+        - Alerts
+        - WP-CLI
+        - Privacy (export or erase)
+        - Migration from the old SMTP plugin
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: provider
+    attributes:
+      label: Email provider and host
+      description: Which service or server sends your email? Don't include usernames or passwords.
+      placeholder: e.g. Microsoft 365 (smtp.office365.com, port 587, TLS), Gmail with an app password, my host's mail server
+    validations:
+      required: false
+
+  - type: textarea
+    id: error
+    attributes:
+      label: Error message and hint
+      description: The error and the hint shown on the Test tab or in the email log, if there is one.
+      render: text
+    validations:
+      required: false
+
+  - type: textarea
+    id: status
+    attributes:
+      label: Output of `wp smtp status`
+      description: If you can use WP-CLI, run `wp smtp status` and paste the result. Passwords only show as "set" or "not set", but your username and server do appear; remove them if you don't want to share them.
+      render: shell
+    validations:
+      required: false
+
+  - type: textarea
+    id: connection-log
+    attributes:
+      label: Connection log
+      description: |
+        From the Test tab, after sending a test email. Passwords are removed automatically; remove anything else you don't want to share, such as usernames or server names.
+      render: text
+    validations:
+      required: false
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots, screen recording, code snippet
+      description: |
+        If possible, add a screenshot or recording that shows the bug. You can attach files by dragging them into this field.
+        If the bug involves a filter or the provider API, add a short code snippet that reproduces it.
+    validations:
+      required: false
+
+  - type: input
+    id: plugin-version
+    attributes:
+      label: SMTP plugin version
+      placeholder: e.g. 1.2.0
+    validations:
+      required: true
+
+  - type: input
+    id: wp-version
+    attributes:
+      label: WordPress version
+      placeholder: e.g. 7.1.4
+    validations:
+      required: true
+
+  - type: input
+    id: php-version
+    attributes:
+      label: PHP version
+      placeholder: e.g. 8.3
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Other environment details
+      description: Hosting type, multisite or not, and any other plugins that send, log or change email.
+      placeholder: |
+        - Hosting: shared / managed / VPS / local
+        - Multisite: yes / no
+        - Other email plugins: ...
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched the [existing issues](https://github.com/WordPress/smtp/issues) and this isn't a duplicate.
+          required: true
+        - label: I tested with other plugins that send, log or change email deactivated.
+          required: true
+        - label: I removed passwords, API keys and tokens from everything above.
+          required: true

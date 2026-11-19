@@ -20,6 +20,9 @@ phpunit.xml.dist
 phpunit-multisite.xml
 .phpunit.result.cache.multisite
 readme.md
+SECURITY.md
 tests
 .worktrees
 .DS_Store
+phpstan.neon.dist
+phpstan-baseline.neon
