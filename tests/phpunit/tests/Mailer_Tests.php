@@ -12,10 +12,12 @@ use WordPress\SMTP\Provider_Registry;
 use WordPress\SMTP\Settings;
 use WordPress\SMTP\Test_Utils\Traits\With_Log_Table;
 use WordPress\SMTP\Test_Utils\Traits\With_PHPMailer;
+use WordPress\SMTP\Test_Utils\Traits\With_Settings;
 
 class Mailer_Tests extends WP_UnitTestCase {
 	use With_Log_Table;
 	use With_PHPMailer;
+	use With_Settings;
 
 	/**
 	 * @var Mailer
@@ -83,7 +85,7 @@ class Mailer_Tests extends WP_UnitTestCase {
 				'username'   => 'user',
 			)
 		);
-		( new Credentials() )->set( 'password', 'secret' );
+		( new Credentials() )->set( $this->main_secret( 'password' ), 'secret' );
 
 		$phpmailer = $this->get_phpmailer();
 		$this->mailer->configure( $phpmailer );
@@ -375,7 +377,7 @@ class Mailer_Tests extends WP_UnitTestCase {
 	}
 
 	private function settings_update( array $values ) {
-		update_option( Settings::OPTION, array_merge( get_option( Settings::OPTION ), $values ) );
+		update_option( Settings::OPTION, array_merge( $this->get_saved_settings(), $values ) );
 	}
 
 	public function test_return_path_is_not_set_until_configured() {

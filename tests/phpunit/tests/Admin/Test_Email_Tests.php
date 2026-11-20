@@ -12,9 +12,11 @@ use WordPress\SMTP\Mailer;
 use WordPress\SMTP\Provider_Registry;
 use WordPress\SMTP\Settings;
 use WordPress\SMTP\Test_Utils\Traits\With_Log_Table;
+use WordPress\SMTP\Test_Utils\Traits\With_Settings;
 
 class Test_Email_Tests extends WP_UnitTestCase {
 	use With_Log_Table;
+	use With_Settings;
 
 	/**
 	 * @var Test_Email
@@ -321,7 +323,7 @@ class Test_Email_Tests extends WP_UnitTestCase {
 				'username' => 'user',
 			)
 		);
-		( new Credentials() )->set( 'password', 'hunter2' );
+		( new Credentials() )->set( $this->main_secret( 'password' ), 'hunter2' );
 
 		$log = implode(
 			"\n",
@@ -371,7 +373,7 @@ class Test_Email_Tests extends WP_UnitTestCase {
 			}
 		);
 		update_option( Settings::OPTION, array( 'provider' => 'relay' ) );
-		( new Credentials() )->set( 'api_key', 'relay-key-123' );
+		( new Credentials() )->set( $this->main_secret( 'api_key' ), 'relay-key-123' );
 
 		$log = implode(
 			"\n",
@@ -427,7 +429,7 @@ class Test_Email_Tests extends WP_UnitTestCase {
 				'username' => 'relay-user',
 			)
 		);
-		( new Credentials() )->set( 'api_key', 'relay-key-123' );
+		( new Credentials() )->set( $this->main_secret( 'api_key' ), 'relay-key-123' );
 
 		$plain = base64_encode( "\0relay-user\0relay-key-123" ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode
 
@@ -442,8 +444,8 @@ class Test_Email_Tests extends WP_UnitTestCase {
 				'api_key' => array( 'type' => 'password' ),
 			)
 		);
-		( new Credentials() )->set( 'token', 'abc' );
-		( new Credentials() )->set( 'api_key', 'abc-def-ghi' );
+		( new Credentials() )->set( $this->main_secret( 'token' ), 'abc' );
+		( new Credentials() )->set( $this->main_secret( 'api_key' ), 'abc-def-ghi' );
 
 		$this->assertSame( 'key [redacted], token [redacted]', $this->redact( 'key abc-def-ghi, token abc' ) );
 	}

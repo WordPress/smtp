@@ -16,9 +16,11 @@ use WordPress\SMTP\Log_Repository;
 use WordPress\SMTP\Provider_Registry;
 use WordPress\SMTP\Settings;
 use WordPress\SMTP\Test_Utils\Traits\With_Log_Table;
+use WordPress\SMTP\Test_Utils\Traits\With_Settings;
 
 class Admin_Page_Tests extends WP_UnitTestCase {
 	use With_Log_Table;
+	use With_Settings;
 
 	/**
 	 * @var Admin_Page
@@ -116,7 +118,7 @@ class Admin_Page_Tests extends WP_UnitTestCase {
 			array()
 		);
 
-		$this->assertSame( 25, $clean['port'] );
+		$this->assertSame( 25, $this->flatten_settings( $clean )['port'] );
 	}
 
 	public function test_render_page_shows_the_settings_tab_by_default() {
@@ -218,7 +220,7 @@ class Admin_Page_Tests extends WP_UnitTestCase {
 	}
 
 	public function test_the_saved_password_is_never_printed() {
-		( new Credentials() )->set( 'password', 'top-secret-password' );
+		( new Credentials() )->set( $this->main_secret( 'password' ), 'top-secret-password' );
 		$this->admin_page->register_settings();
 
 		$html = $this->render();

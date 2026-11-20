@@ -134,11 +134,11 @@ class Migration {
 			return false;
 		}
 
-		update_option( Settings::OPTION, $settings );
+		update_option( Settings::OPTION, Settings::to_v2( $settings ) );
 
 		$password = $this->get_password( $legacy );
 		if ( '' !== $password ) {
-			$this->credentials->set( 'password', $password );
+			$this->credentials->set( Settings::get_secret_key( Settings::MAIN, 'password' ), $password );
 			update_option( self::NOTICE_OPTION, self::NOTICE_MIGRATED );
 		} elseif ( $settings['auth'] ) {
 			update_option( self::NOTICE_OPTION, self::NOTICE_PASSWORD_MISSING );
@@ -168,7 +168,7 @@ class Migration {
 		$on_settings_page = isset( $_GET['page'], $_GET['tab'] ) && 'smtp' === sanitize_key( wp_unslash( $_GET['page'] ) ) && 'settings' === sanitize_key( wp_unslash( $_GET['tab'] ) );
 
 		if ( self::NOTICE_PASSWORD_MISSING === $notice ) {
-			if ( '' !== $this->credentials->get( 'password' ) || defined( 'SMTP_PASSWORD' ) ) {
+			if ( '' !== $this->credentials->get( Settings::get_secret_key( Settings::MAIN, 'password' ) ) || defined( 'SMTP_PASSWORD' ) ) {
 				delete_option( self::NOTICE_OPTION );
 				return;
 			}
@@ -220,7 +220,7 @@ class Migration {
 	 * @since 1.2.0
 	 *
 	 * @param array $legacy Legacy options.
-	 * @return array|null Settings, or null when the legacy plugin was never configured.
+	 * @return array|null Settings in the version 1 format, or null when the legacy plugin was never configured.
 	 */
 	private function map_settings( array $legacy ): ?array {
 		$host     = isset( $legacy['host'] ) && is_string( $legacy['host'] ) ? $legacy['host'] : '';

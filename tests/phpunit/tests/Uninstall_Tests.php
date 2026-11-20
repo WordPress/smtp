@@ -13,9 +13,11 @@ use WordPress\SMTP\Migration;
 use WordPress\SMTP\Plugin_Main;
 use WordPress\SMTP\Settings;
 use WordPress\SMTP\Test_Utils\Traits\With_Log_Table;
+use WordPress\SMTP\Test_Utils\Traits\With_Settings;
 
 class Uninstall_Tests extends WP_UnitTestCase {
 	use With_Log_Table;
+	use With_Settings;
 
 	private function run_uninstall() {
 		if ( ! defined( 'WP_UNINSTALL_PLUGIN' ) ) {
@@ -30,7 +32,8 @@ class Uninstall_Tests extends WP_UnitTestCase {
 
 		$this->create_log_table();
 		update_option( Settings::OPTION, array( 'host' => 'smtp.example.com' ) );
-		( new Credentials() )->set( 'password', 'secret' );
+		update_option( Settings::V1_OPTION, array( 'host' => 'smtp.example.com' ) );
+		( new Credentials() )->set( $this->main_secret( 'password' ), 'secret' );
 		( new Credentials() )->set( Alert_Settings::get_secret_key( 'slack', 'webhook_url' ), 'https://hooks.slack.com/services/secret' );
 		update_option( Alert_Settings::OPTION, array( 'channel' => 'slack' ) );
 		update_option( Alert_Dispatcher::STATE_OPTION, array( 'slack' => array( 'last_sent' => time() ) ) );
@@ -63,6 +66,7 @@ class Uninstall_Tests extends WP_UnitTestCase {
 		$this->run_uninstall();
 
 		$this->assertFalse( get_option( Settings::OPTION ) );
+		$this->assertFalse( get_option( Settings::V1_OPTION ) );
 		$this->assertFalse( get_option( Credentials::OPTION ) );
 		$this->assertFalse( get_option( Log_Repository::DB_VERSION_OPTION ) );
 		$this->assertFalse( get_option( Alert_Settings::OPTION ) );

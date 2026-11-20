@@ -83,6 +83,10 @@ A provider is an array registered through the `smtp_providers` filter:
 
 - A field value resolves in this order: constant, secret (for `password` fields) or saved option, field default. See `Settings::resolve()`.
 - Options: `smtp_settings` (everything except secrets) and `smtp_credentials` (secrets, not autoloaded).
+- `smtp_settings` uses format version 2: `version`, `general` (From, Reply-To, etc.), `connections` (keyed by ID, each with its `provider` and `values` keyed by provider slug) and `primary`. Only `Settings` reads or writes this shape. The UI, the CLI and the mailer use the `main` connection (`Settings::MAIN`).
+- A connection keeps the values of every provider, so switching provider and back loses nothing. The settings form posts the fields of the provider it shows; a new provider shows its fields after saving.
+- Secrets are keyed by connection and field (`main_password`, see `Settings::get_secret_key()`). Constants apply to the `main` connection only.
+- `Settings::maybe_upgrade()` converts the flat version 1 settings once (on `init`, priority 0), copies the secrets to their new keys and keeps the old settings in `smtp_settings_v1` and the old secret keys, so a rollback can be done by hand. Remove both in a later release.
 - **Never read or write secrets outside `Credentials`.** WordPress 7.2 is expected to add a credentials encryption API, and `Credentials` is the single place that will change.
 - **Never print a saved secret into HTML.** Password fields render empty with a placeholder, and an empty submission keeps the current secret.
 - The plugin must do nothing until the active provider has its `required` and `required_if` fields (`Settings::is_configured()`), so activating it never breaks a site's email.
@@ -181,7 +185,7 @@ npm run test-php -- --filter Settings_Tests::test_sanitize_is_idempotent
 ## Tests
 
 - `tests/phpunit/tests/` — all PHPUnit test classes, one per class in `includes/` and named `<Class>_Tests` (for example `Settings_Tests`, `Admin/Admin_Page_Tests`). Files end in `_Tests.php`, which is what `phpunit.xml.dist` picks up.
-- `tests/phpunit/utils/` — shared helpers, as traits (`With_Log_Table`, `With_PHPMailer`), and `Alerts\Fake_Channel`, an alert channel that records what it receives.
+- `tests/phpunit/utils/` — shared helpers, as traits (`With_Log_Table`, `With_PHPMailer`, `With_Settings` to read the saved settings as one flat array), and `Alerts\Fake_Channel`, an alert channel that records what it receives.
 - `tests/phpunit/utils/` — shared helpers, as traits (`With_Log_Table`, `With_PHPMailer`), and `wp-cli-stub.php`, a stand-in for WP-CLI, which is not loaded in the test stack.
 - `tests/phpunit/bootstrap.php` — loads the Composer autoloader and the WordPress test suite, and forces the plugin to be active.
 - Test classes extend `WP_UnitTestCase` and use `set_up()` / `tear_down()`.
