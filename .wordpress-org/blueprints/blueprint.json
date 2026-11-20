@@ -1,0 +1,20 @@
+{
+	"$schema": "https://playground.wordpress.net/blueprint-schema.json",
+	"landingPage": "/wp-admin/tools.php?page=smtp",
+	"preferredVersions": {
+		"php": "8.3",
+		"wp": "latest"
+	},
+	"plugins": [
+		{
+			"resource": "wordpress.org/plugins",
+			"slug": "smtp"
+		}
+	],
+	"steps": [
+		{
+			"step": "login",
+			"username": "admin"
+		}
+	]
+}
