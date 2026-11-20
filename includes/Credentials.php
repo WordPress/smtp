@@ -61,4 +61,21 @@ class Credentials {
 		// Not autoloaded: secrets are only needed when sending mail or saving settings.
 		update_option( self::OPTION, $secrets, false );
 	}
+
+	/**
+	 * Returns the keys of the stored secrets.
+	 *
+	 * @since 1.3.0
+	 *
+	 * @return string[] Secret keys.
+	 */
+	public function get_keys(): array {
+		$secrets = get_option( self::OPTION, array() );
+
+		if ( ! is_array( $secrets ) ) {
+			return array();
+		}
+
+		return array_map( 'strval', array_keys( array_filter( $secrets, 'is_string' ) ) );
+	}
 }

@@ -16,9 +16,11 @@ use WordPress\SMTP\Log_Repository;
 use WordPress\SMTP\Provider_Registry;
 use WordPress\SMTP\Settings;
 use WordPress\SMTP\Test_Utils\Traits\With_Log_Table;
+use WordPress\SMTP\Test_Utils\Traits\With_Settings;
 
 class Admin_Page_Tests extends WP_UnitTestCase {
 	use With_Log_Table;
+	use With_Settings;
 
 	/**
 	 * @var Admin_Page
@@ -98,7 +100,7 @@ class Admin_Page_Tests extends WP_UnitTestCase {
 		$fields = array_keys( $GLOBALS['wp_settings_fields'][ Admin_Page::PAGE_SLUG ]['smtp_main'] );
 
 		$this->assertSame(
-			array( 'provider', 'host', 'port', 'encryption', 'auth', 'username', 'password', 'from_email', 'from_name', 'force_from' ),
+			array( 'provider', 'host', 'port', 'encryption', 'auth', 'username', 'password', 'from_email', 'from_name', 'force_from_email', 'force_from_name', 'return_path', 'reply_to', 'force_reply_to', 'reply_to_sender' ),
 			$fields
 		);
 	}
@@ -116,7 +118,7 @@ class Admin_Page_Tests extends WP_UnitTestCase {
 			array()
 		);
 
-		$this->assertSame( 25, $clean['port'] );
+		$this->assertSame( 25, $this->flatten_settings( $clean )['port'] );
 	}
 
 	public function test_render_page_shows_the_settings_tab_by_default() {
@@ -218,7 +220,7 @@ class Admin_Page_Tests extends WP_UnitTestCase {
 	}
 
 	public function test_the_saved_password_is_never_printed() {
-		( new Credentials() )->set( 'password', 'top-secret-password' );
+		( new Credentials() )->set( $this->main_secret( 'password' ), 'top-secret-password' );
 		$this->admin_page->register_settings();
 
 		$html = $this->render();
@@ -417,6 +419,45 @@ class Admin_Page_Tests extends WP_UnitTestCase {
 		);
 
 		$this->assertStringContainsString( 'The test email was delivered by another plugin', $this->render( 'test' ) );
+	}
+
+	public function test_the_test_tab_shows_the_resulting_sender_escaped() {
+		set_transient(
+			'smtp_send_test_' . get_current_user_id(),
+			array(
+				'success'     => true,
+				'to'          => 'to@example.org',
+				'error'       => '',
+				'debug'       => '',
+				'provider'    => 'smtp',
+				'from'        => 'team@example.com<script>',
+				'reply_to'    => '',
+				'return_path' => '',
+			),
+			60
+		);
+
+		$html = $this->render( 'test' );
+
+		$this->assertStringContainsString( 'team@example.com&lt;script&gt;', $html );
+		$this->assertStringNotContainsString( '<script>', $html );
+		$this->assertStringContainsString( 'Same as From', $html );
+	}
+
+	public function test_the_test_tab_handles_a_result_without_the_sender() {
+		set_transient(
+			'smtp_send_test_' . get_current_user_id(),
+			array(
+				'success'  => true,
+				'to'       => 'to@example.org',
+				'error'    => '',
+				'debug'    => '',
+				'provider' => 'smtp',
+			),
+			60
+		);
+
+		$this->assertStringNotContainsString( 'Return-Path', $this->render( 'test' ) );
 	}
 
 	private function create_page_with_alerts(): Admin_Page {

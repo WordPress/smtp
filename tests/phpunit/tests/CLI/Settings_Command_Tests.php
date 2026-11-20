@@ -9,10 +9,13 @@ use WordPress\SMTP\CLI\Settings_Command;
 use WordPress\SMTP\Credentials;
 use WordPress\SMTP\Provider_Registry;
 use WordPress\SMTP\Settings;
+use WordPress\SMTP\Test_Utils\Traits\With_Settings;
 
 require_once TESTS_PLUGIN_DIR . '/tests/phpunit/utils/wp-cli-stub.php';
 
 class Settings_Command_Tests extends WP_UnitTestCase {
+
+	use With_Settings;
 
 	/**
 	 * @var Credentials
@@ -107,14 +110,14 @@ class Settings_Command_Tests extends WP_UnitTestCase {
 	}
 
 	public function test_set_keeps_the_other_settings() {
-		$this->run_set( array( 'host=smtp.example.com', 'port=2525', 'username=me', 'auth=no', 'force_from=yes' ) );
+		$this->run_set( array( 'host=smtp.example.com', 'port=2525', 'username=me', 'auth=no', 'force_from_email=yes' ) );
 		$this->run_set( array( 'host=other.example.com' ) );
 
 		$this->assertSame( 'other.example.com', $this->settings->get( 'host' ) );
 		$this->assertSame( 2525, $this->settings->get( 'port' ) );
 		$this->assertSame( 'me', $this->settings->get( 'username' ) );
 		$this->assertFalse( $this->settings->get( 'auth' ) );
-		$this->assertTrue( $this->settings->get( 'force_from' ) );
+		$this->assertTrue( $this->settings->get( 'force_from_email' ) );
 	}
 
 	public function test_set_keeps_an_equals_sign_in_the_value() {
@@ -145,16 +148,16 @@ class Settings_Command_Tests extends WP_UnitTestCase {
 	public function test_set_reads_the_password_from_stdin() {
 		$this->run_set( array( 'password=-' ), "s3cret-value\n" );
 
-		$this->assertSame( 's3cret-value', $this->credentials->get( 'password' ) );
-		$this->assertArrayNotHasKey( 'password', get_option( Settings::OPTION ) );
+		$this->assertSame( 's3cret-value', $this->credentials->get( $this->main_secret( 'password' ) ) );
+		$this->assertArrayNotHasKey( 'password', $this->get_saved_settings() );
 	}
 
 	public function test_set_keeps_the_password_when_it_is_not_passed() {
-		$this->credentials->set( 'password', 's3cret-value' );
+		$this->credentials->set( $this->main_secret( 'password' ), 's3cret-value' );
 
 		$this->run_set( array( 'host=smtp.example.com' ) );
 
-		$this->assertSame( 's3cret-value', $this->credentials->get( 'password' ) );
+		$this->assertSame( 's3cret-value', $this->credentials->get( $this->main_secret( 'password' ) ) );
 	}
 
 	public function test_set_never_prints_the_password() {
@@ -167,7 +170,7 @@ class Settings_Command_Tests extends WP_UnitTestCase {
 
 	public function test_set_rejects_a_password_as_an_argument() {
 		$this->assert_set_fails( array( 'host=smtp.example.com', 'password=s3cret-value' ), 'cannot be passed as arguments' );
-		$this->assertSame( '', $this->credentials->get( 'password' ) );
+		$this->assertSame( '', $this->credentials->get( $this->main_secret( 'password' ) ) );
 	}
 
 	public function test_set_rejects_an_empty_stdin() {
@@ -178,7 +181,7 @@ class Settings_Command_Tests extends WP_UnitTestCase {
 		$this->add_provider_with_two_secrets();
 
 		$this->assert_set_fails( array( 'provider=two', 'key_a=-', 'key_b=-' ), 'Only one password', 's3cret-value' );
-		$this->assertSame( '', $this->credentials->get( 'key_a' ) );
+		$this->assertSame( '', $this->credentials->get( $this->main_secret( 'key_a' ) ) );
 	}
 
 	public function test_set_rejects_an_argument_without_a_value() {
@@ -251,6 +254,6 @@ class Settings_Command_Tests extends WP_UnitTestCase {
 		$this->run_set( array( 'provider=two', 'key_a=-' ), 's3cret-value' );
 
 		$this->assertSame( 'two', $this->settings->get_provider_slug() );
-		$this->assertSame( 's3cret-value', $this->credentials->get( 'key_a' ) );
+		$this->assertSame( 's3cret-value', $this->credentials->get( $this->main_secret( 'key_a' ) ) );
 	}
 }

@@ -12,6 +12,7 @@ if ( ! defined( 'WP_UNINSTALL_PLUGIN' ) ) {
 global $wpdb;
 
 delete_option( 'smtp_settings' );
+delete_option( 'smtp_settings_v1' );
 delete_option( 'smtp_credentials' );
 delete_option( 'smtp_db_version' );
 delete_option( 'smtp_alert_settings' );

@@ -64,4 +64,17 @@ class Credentials_Tests extends WP_UnitTestCase {
 
 		$this->assertArrayNotHasKey( Credentials::OPTION, wp_load_alloptions( true ) );
 	}
+
+	public function test_get_keys_lists_the_stored_secrets() {
+		$this->credentials->set( 'password', 'one' );
+		$this->credentials->set( 'api_key', 'two' );
+
+		$this->assertSame( array( 'password', 'api_key' ), $this->credentials->get_keys() );
+	}
+
+	public function test_get_keys_survives_a_corrupted_option() {
+		update_option( Credentials::OPTION, 'not-an-array' );
+
+		$this->assertSame( array(), $this->credentials->get_keys() );
+	}
 }

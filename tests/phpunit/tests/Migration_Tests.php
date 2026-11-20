@@ -14,10 +14,12 @@ use WordPress\SMTP\Provider_Registry;
 use WordPress\SMTP\Settings;
 use WordPress\SMTP\Test_Utils\Traits\With_Log_Table;
 use WordPress\SMTP\Test_Utils\Traits\With_PHPMailer;
+use WordPress\SMTP\Test_Utils\Traits\With_Settings;
 
 class Migration_Tests extends WP_UnitTestCase {
 	use With_Log_Table;
 	use With_PHPMailer;
+	use With_Settings;
 
 	/**
 	 * @var Credentials
@@ -93,7 +95,7 @@ class Migration_Tests extends WP_UnitTestCase {
 
 		$this->assertTrue( $this->migration()->maybe_migrate() );
 
-		$settings = get_option( Settings::OPTION );
+		$settings = $this->get_saved_settings();
 
 		$this->assertSame( 'smtp', $settings['provider'] );
 		$this->assertSame( 'smtp.gmail.com', $settings['host'] );
@@ -101,6 +103,21 @@ class Migration_Tests extends WP_UnitTestCase {
 		$this->assertSame( 'ssl', $settings['encryption'] );
 		$this->assertTrue( $settings['auth'] );
 		$this->assertSame( 'me@gmail.com', $settings['username'] );
+	}
+
+	public function test_the_legacy_settings_are_imported_in_the_version_2_format() {
+		update_option( Migration::LEGACY_OPTION, $this->legacy() );
+
+		$this->migration()->maybe_migrate();
+
+		$stored = get_option( Settings::OPTION );
+		$this->assertSame( Settings::VERSION, $stored['version'] );
+		$this->assertSame( 'smtp', $stored['connections'][ Settings::MAIN ]['provider'] );
+		$this->assertSame( 'smtp.gmail.com', $stored['connections'][ Settings::MAIN ]['values']['smtp']['host'] );
+		$this->assertArrayHasKey( 'from_email', $stored['general'] );
+		$this->assertArrayNotHasKey( 'host', $stored );
+		$this->assertFalse( get_option( Settings::V1_OPTION ) );
+		$this->assertSame( '', $this->credentials->get( 'password' ), 'The secret is stored for the main connection only.' );
 	}
 
 	public function test_the_password_is_decrypted_and_stored_as_a_secret() {
@@ -116,8 +133,8 @@ class Migration_Tests extends WP_UnitTestCase {
 		)->maybe_migrate();
 
 		$this->assertSame( 'encrypted-value', $received );
-		$this->assertSame( 'my-password', $this->credentials->get( 'password' ) );
-		$this->assertArrayNotHasKey( 'password', get_option( Settings::OPTION ) );
+		$this->assertSame( 'my-password', $this->credentials->get( $this->main_secret( 'password' ) ) );
+		$this->assertArrayNotHasKey( 'password', $this->get_saved_settings() );
 	}
 
 	public function test_the_imported_settings_make_the_plugin_ready_to_send() {
@@ -137,23 +154,25 @@ class Migration_Tests extends WP_UnitTestCase {
 		$this->migration()->maybe_migrate();
 
 		$admin    = get_userdata( 1 );
-		$settings = get_option( Settings::OPTION );
+		$settings = $this->get_saved_settings();
 
 		$this->assertSame( $admin->user_email, $settings['from_email'] );
 		$this->assertSame( $admin->display_name, $settings['from_name'] );
-		$this->assertTrue( $settings['force_from'] );
+		$this->assertTrue( $settings['force_from_email'] );
+		$this->assertTrue( $settings['force_from_name'] );
+		$this->assertFalse( $settings['return_path'] );
 	}
 
 	public function test_encryption_none_and_unknown_values() {
 		update_option( Migration::LEGACY_OPTION, $this->legacy( array( 'smtp_secure' => '' ) ) );
 		$this->migration()->maybe_migrate();
-		$this->assertSame( 'none', get_option( Settings::OPTION )['encryption'] );
+		$this->assertSame( 'none', $this->get_saved_settings()['encryption'] );
 
 		delete_option( Migration::DONE_OPTION );
 		delete_option( Settings::OPTION );
 		update_option( Migration::LEGACY_OPTION, $this->legacy( array( 'smtp_secure' => 'starttls' ) ) );
 		$this->migration()->maybe_migrate();
-		$this->assertSame( 'none', get_option( Settings::OPTION )['encryption'] );
+		$this->assertSame( 'none', $this->get_saved_settings()['encryption'] );
 	}
 
 	public function test_tls_is_kept() {
@@ -161,7 +180,7 @@ class Migration_Tests extends WP_UnitTestCase {
 
 		$this->migration()->maybe_migrate();
 
-		$this->assertSame( 'tls', get_option( Settings::OPTION )['encryption'] );
+		$this->assertSame( 'tls', $this->get_saved_settings()['encryption'] );
 	}
 
 	public function test_an_invalid_port_falls_back_to_the_legacy_default() {
@@ -169,7 +188,7 @@ class Migration_Tests extends WP_UnitTestCase {
 
 		$this->migration()->maybe_migrate();
 
-		$this->assertSame( 25, get_option( Settings::OPTION )['port'] );
+		$this->assertSame( 25, $this->get_saved_settings()['port'] );
 	}
 
 	public function test_a_scheme_is_removed_from_the_host() {
@@ -177,7 +196,7 @@ class Migration_Tests extends WP_UnitTestCase {
 
 		$this->migration()->maybe_migrate();
 
-		$this->assertSame( 'smtp.example.com', get_option( Settings::OPTION )['host'] );
+		$this->assertSame( 'smtp.example.com', $this->get_saved_settings()['host'] );
 	}
 
 	public function test_without_a_username_authentication_is_disabled() {
@@ -193,7 +212,7 @@ class Migration_Tests extends WP_UnitTestCase {
 
 		$this->migration()->maybe_migrate();
 
-		$settings = get_option( Settings::OPTION );
+		$settings = $this->get_saved_settings();
 
 		$this->assertFalse( $settings['auth'] );
 		$this->assertSame( '', $settings['username'] );
@@ -275,7 +294,7 @@ class Migration_Tests extends WP_UnitTestCase {
 			)->maybe_migrate()
 		);
 
-		$this->assertSame( '', $this->credentials->get( 'password' ) );
+		$this->assertSame( '', $this->credentials->get( $this->main_secret( 'password' ) ) );
 		$this->assertSame( Migration::NOTICE_PASSWORD_MISSING, get_option( Migration::NOTICE_OPTION ) );
 	}
 
@@ -290,7 +309,7 @@ class Migration_Tests extends WP_UnitTestCase {
 
 		( new Mailer( $settings, $registry, new Delivery_Tracker( $settings ) ) )->configure( $phpmailer );
 
-		$this->assertTrue( get_option( Settings::OPTION )['auth'] );
+		$this->assertTrue( $this->get_saved_settings()['auth'] );
 		$this->assertFalse( $settings->is_configured() );
 		$this->assertSame( 'mail', $phpmailer->Mailer );
 		$this->assertSame( 'localhost', $phpmailer->Host );
@@ -301,7 +320,7 @@ class Migration_Tests extends WP_UnitTestCase {
 
 		$this->migration( '__return_false' )->maybe_migrate();
 
-		$this->assertSame( '', $this->credentials->get( 'password' ) );
+		$this->assertSame( '', $this->credentials->get( $this->main_secret( 'password' ) ) );
 	}
 
 	public function test_mcrypt_decryption_is_skipped_when_the_extension_is_missing() {
@@ -317,7 +336,7 @@ class Migration_Tests extends WP_UnitTestCase {
 
 		Plugin_Main::activate();
 
-		$this->assertSame( 'smtp.gmail.com', get_option( Settings::OPTION )['host'] );
+		$this->assertSame( 'smtp.gmail.com', $this->get_saved_settings()['host'] );
 	}
 
 	public function test_the_migrated_notice_links_to_the_settings() {
@@ -372,7 +391,7 @@ class Migration_Tests extends WP_UnitTestCase {
 		$this->assertStringContainsString( 'notice-warning', $html );
 		$this->assertStringContainsString( 'password could not be', $html );
 
-		$this->credentials->set( 'password', 'new-password' );
+		$this->credentials->set( $this->main_secret( 'password' ), 'new-password' );
 
 		$this->assertSame( '', $this->render_notice( $this->migration() ) );
 		$this->assertFalse( get_option( Migration::NOTICE_OPTION ) );

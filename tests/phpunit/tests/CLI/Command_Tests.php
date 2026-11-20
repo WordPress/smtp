@@ -12,11 +12,13 @@ use WordPress\SMTP\Delivery_Tracker;
 use WordPress\SMTP\Provider_Registry;
 use WordPress\SMTP\Settings;
 use WordPress\SMTP\Test_Utils\Traits\With_Log_Table;
+use WordPress\SMTP\Test_Utils\Traits\With_Settings;
 
 require_once TESTS_PLUGIN_DIR . '/tests/phpunit/utils/wp-cli-stub.php';
 
 class Command_Tests extends WP_UnitTestCase {
 	use With_Log_Table;
+	use With_Settings;
 
 	/**
 	 * @var Credentials
@@ -96,7 +98,7 @@ class Command_Tests extends WP_UnitTestCase {
 	}
 
 	public function test_status_never_prints_the_password() {
-		$this->credentials->set( 'password', 's3cret-value' );
+		$this->credentials->set( $this->main_secret( 'password' ), 's3cret-value' );
 
 		$rows = $this->get_status_rows();
 
@@ -179,7 +181,7 @@ class Command_Tests extends WP_UnitTestCase {
 	}
 
 	public function test_test_removes_the_password_from_the_connection_log() {
-		$this->credentials->set( 'password', 's3cret-value' );
+		$this->credentials->set( $this->main_secret( 'password' ), 's3cret-value' );
 		$this->write_to_connection_log( 'CLIENT -> SERVER: ' . base64_encode( 's3cret-value' ) ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode
 
 		$this->command->test( array( 'someone@example.com' ), array( 'connection-log' => true ) );
