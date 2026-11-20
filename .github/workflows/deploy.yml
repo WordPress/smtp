@@ -5,26 +5,32 @@ on:
   release:
     types: [published]
 
-permissions:
-  contents: write
+# Disable permissions for all available scopes by default.
+# Any needed permissions are set at the job level.
+permissions: {}
 
 jobs:
   deploy:
     name: Deploy to WordPress.org
     if: ${{ ! github.event.release.prerelease }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: write # Required to upload the zip to the GitHub release.
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Install PHP dependencies
-        uses: ramsey/composer-install@v3
+        uses: ramsey/composer-install@65e4f84970763564f46a70b8a54b90d033b3bdda # 4.0.0
         with:
           composer-options: '--prefer-dist --no-dev'
 
       - name: WordPress Plugin Deploy
         id: deploy
-        uses: 10up/action-wordpress-plugin-deploy@stable
+        uses: 10up/action-wordpress-plugin-deploy@54bd289b8525fd23a5c365ec369185f2966529c2 # 2.3.0
         with:
           generate-zip: true
         env:
