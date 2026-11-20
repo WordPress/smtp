@@ -500,6 +500,25 @@ class Admin_Page {
 					<p><?php esc_html_e( 'The test email was delivered by another plugin, so it does not test the settings of this plugin.', 'smtp' ); ?></p>
 				</div>
 			<?php endif; ?>
+			<?php if ( ! empty( $result['from'] ) ) : ?>
+				<h2><?php esc_html_e( 'Sender', 'smtp' ); ?></h2>
+				<table class="widefat striped" role="presentation" style="max-width: 40em;">
+					<tbody>
+						<tr>
+							<th scope="row"><?php esc_html_e( 'From', 'smtp' ); ?></th>
+							<td><?php echo esc_html( $result['from'] ); ?></td>
+						</tr>
+						<tr>
+							<th scope="row"><?php esc_html_e( 'Reply-To', 'smtp' ); ?></th>
+							<td><?php echo '' !== $result['reply_to'] ? esc_html( $result['reply_to'] ) : esc_html__( 'None', 'smtp' ); ?></td>
+						</tr>
+						<tr>
+							<th scope="row"><?php esc_html_e( 'Return-Path', 'smtp' ); ?></th>
+							<td><?php echo '' !== $result['return_path'] ? esc_html( $result['return_path'] ) : esc_html__( 'Same as From', 'smtp' ); ?></td>
+						</tr>
+					</tbody>
+				</table>
+			<?php endif; ?>
 			<?php if ( '' !== $result['debug'] ) : ?>
 				<h2><?php esc_html_e( 'Connection log', 'smtp' ); ?></h2>
 				<pre style="max-width: 100%; overflow: auto; padding: 1em; background: #fff; border: 1px solid #c3c4c7;"><?php echo esc_html( $result['debug'] ); ?></pre>

@@ -6,8 +6,8 @@ This file provides context for AI coding agents (Claude Code, OpenAI Codex, Gemi
 
 **SMTP** is a minimal, community-maintained WordPress plugin that sends the emails of a site through an SMTP server. It is designed to follow WordPress.org canonical plugin conventions (slug and text domain `smtp`, owned by `wordpressdotorg`).
 
-- Settings under _Tools > SMTP_: provider, host, port, encryption, authentication, From email, From name and "Force from".
-- Credentials can be defined as constants in `wp-config.php` (`SMTP_HOST`, `SMTP_PORT`, `SMTP_ENCRYPTION`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM_EMAIL`). A constant overrides the saved value and locks the field.
+- Settings under _Tools > SMTP_: provider, host, port, encryption, authentication, From email and name (each can be forced), Return-Path and Reply-To.
+- Credentials can be defined as constants in `wp-config.php` (`SMTP_HOST`, `SMTP_PORT`, `SMTP_ENCRYPTION`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM_EMAIL`, `SMTP_FROM_NAME`, `SMTP_FORCE_FROM_EMAIL`, `SMTP_FORCE_FROM_NAME`, `SMTP_RETURN_PATH`, `SMTP_REPLY_TO`, `SMTP_FORCE_REPLY_TO`). A constant overrides the saved value and locks the field.
 - Extensible through the `smtp_providers` filter. Generic SMTP is registered through the same filter.
 - Metadata-only email log (no message body, no attachments) with automatic retention.
 - A test email tab that shows the connection log with credentials redacted.
@@ -86,6 +86,12 @@ A provider is an array registered through the `smtp_providers` filter:
 - **Never read or write secrets outside `Credentials`.** WordPress 7.2 is expected to add a credentials encryption API, and `Credentials` is the single place that will change.
 - **Never print a saved secret into HTML.** Password fields render empty with a placeholder, and an empty submission keeps the current secret.
 - The plugin must do nothing until the active provider has its `required` and `required_if` fields (`Settings::is_configured()`), so activating it never breaks a site's email.
+
+### Sender
+
+- `force_from_email` and `force_from_name` force each part of the From separately. `Settings::maybe_upgrade()` turns the `force_from` setting of 1.2 into both, once.
+- `return_path` sets `$phpmailer->Sender` to the From email. On by default for new sites; sites upgraded from 1.2 or imported from the legacy plugin keep it off.
+- Reply-To order, highest first: forced Reply-To (`force_reply_to` with `reply_to`), the Reply-To of the email, the original sender (`reply_to_sender`, only when Force From email replaced it), the default Reply-To (`reply_to`). See `Mailer::apply_sender()`.
 
 ### Legacy plugin migration
 

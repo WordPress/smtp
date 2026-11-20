@@ -83,6 +83,7 @@ class Plugin_Main {
 		// Sites updating from the 1.x plugin never run the activation hook, and cron or front-end
 		// requests send mail without admin_init. Priority 0 creates the table before most mail is sent.
 		add_action( 'init', array( $repository, 'maybe_upgrade' ), 0 );
+		add_action( 'init', array( $settings, 'maybe_upgrade' ), 0 );
 		add_action( 'init', array( $this, 'schedule_purge' ) );
 
 		if ( is_admin() ) {

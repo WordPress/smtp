@@ -98,7 +98,7 @@ class Admin_Page_Tests extends WP_UnitTestCase {
 		$fields = array_keys( $GLOBALS['wp_settings_fields'][ Admin_Page::PAGE_SLUG ]['smtp_main'] );
 
 		$this->assertSame(
-			array( 'provider', 'host', 'port', 'encryption', 'auth', 'username', 'password', 'from_email', 'from_name', 'force_from' ),
+			array( 'provider', 'host', 'port', 'encryption', 'auth', 'username', 'password', 'from_email', 'from_name', 'force_from_email', 'force_from_name', 'return_path', 'reply_to', 'force_reply_to', 'reply_to_sender' ),
 			$fields
 		);
 	}
@@ -417,6 +417,45 @@ class Admin_Page_Tests extends WP_UnitTestCase {
 		);
 
 		$this->assertStringContainsString( 'The test email was delivered by another plugin', $this->render( 'test' ) );
+	}
+
+	public function test_the_test_tab_shows_the_resulting_sender_escaped() {
+		set_transient(
+			'smtp_send_test_' . get_current_user_id(),
+			array(
+				'success'     => true,
+				'to'          => 'to@example.org',
+				'error'       => '',
+				'debug'       => '',
+				'provider'    => 'smtp',
+				'from'        => 'team@example.com<script>',
+				'reply_to'    => '',
+				'return_path' => '',
+			),
+			60
+		);
+
+		$html = $this->render( 'test' );
+
+		$this->assertStringContainsString( 'team@example.com&lt;script&gt;', $html );
+		$this->assertStringNotContainsString( '<script>', $html );
+		$this->assertStringContainsString( 'Same as From', $html );
+	}
+
+	public function test_the_test_tab_handles_a_result_without_the_sender() {
+		set_transient(
+			'smtp_send_test_' . get_current_user_id(),
+			array(
+				'success'  => true,
+				'to'       => 'to@example.org',
+				'error'    => '',
+				'debug'    => '',
+				'provider' => 'smtp',
+			),
+			60
+		);
+
+		$this->assertStringNotContainsString( 'Return-Path', $this->render( 'test' ) );
 	}
 
 	private function create_page_with_alerts(): Admin_Page {

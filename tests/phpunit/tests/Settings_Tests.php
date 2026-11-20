@@ -79,7 +79,7 @@ class Settings_Tests extends WP_UnitTestCase {
 		$keys = array_keys( $this->settings->get_fields() );
 
 		$this->assertSame(
-			array( 'host', 'port', 'encryption', 'auth', 'username', 'password', 'from_email', 'from_name', 'force_from' ),
+			array( 'host', 'port', 'encryption', 'auth', 'username', 'password', 'from_email', 'from_name', 'force_from_email', 'force_from_name', 'return_path', 'reply_to', 'force_reply_to', 'reply_to_sender' ),
 			$keys
 		);
 	}
@@ -90,12 +90,12 @@ class Settings_Tests extends WP_UnitTestCase {
 		$this->assertSame( 'text', $field['type'] );
 		$this->assertSame( '', $field['default'] );
 		$this->assertSame( array(), $field['options'] );
-		$this->assertSame( '', $field['constant'] );
+		$this->assertSame( 'SMTP_FROM_NAME', $field['constant'] );
 	}
 
 	public function test_fields_of_an_unknown_provider_are_only_the_general_ones() {
 		$this->assertSame(
-			array( 'from_email', 'from_name', 'force_from' ),
+			array( 'from_email', 'from_name', 'force_from_email', 'force_from_name', 'return_path', 'reply_to', 'force_reply_to', 'reply_to_sender' ),
 			array_keys( $this->settings->get_fields( 'unknown' ) )
 		);
 	}
@@ -105,23 +105,28 @@ class Settings_Tests extends WP_UnitTestCase {
 		$this->assertSame( 587, $this->settings->get( 'port' ) );
 		$this->assertSame( 'tls', $this->settings->get( 'encryption' ) );
 		$this->assertTrue( $this->settings->get( 'auth' ) );
-		$this->assertFalse( $this->settings->get( 'force_from' ) );
+		$this->assertFalse( $this->settings->get( 'force_from_email' ) );
+		$this->assertFalse( $this->settings->get( 'force_from_name' ) );
+		$this->assertTrue( $this->settings->get( 'return_path' ) );
+		$this->assertSame( '', $this->settings->get( 'reply_to' ) );
+		$this->assertFalse( $this->settings->get( 'force_reply_to' ) );
+		$this->assertFalse( $this->settings->get( 'reply_to_sender' ) );
 	}
 
 	public function test_get_returns_saved_values_cast_to_the_field_type() {
 		$this->save(
 			array(
-				'host'       => 'smtp.example.com',
-				'port'       => '2525',
-				'auth'       => 0,
-				'force_from' => 1,
+				'host'             => 'smtp.example.com',
+				'port'             => '2525',
+				'auth'             => 0,
+				'force_from_email' => 1,
 			)
 		);
 
 		$this->assertSame( 'smtp.example.com', $this->settings->get( 'host' ) );
 		$this->assertSame( 2525, $this->settings->get( 'port' ) );
 		$this->assertFalse( $this->settings->get( 'auth' ) );
-		$this->assertTrue( $this->settings->get( 'force_from' ) );
+		$this->assertTrue( $this->settings->get( 'force_from_email' ) );
 	}
 
 	public function test_get_reads_secrets_from_the_credentials_storage() {
@@ -356,15 +361,15 @@ class Settings_Tests extends WP_UnitTestCase {
 	public function test_sanitize_cleans_every_field_type() {
 		$clean = $this->settings->sanitize(
 			array(
-				'provider'   => 'smtp',
-				'host'       => ' <b>smtp.example.com</b> ',
-				'port'       => '2525abc',
-				'encryption' => 'ssl',
-				'auth'       => '1',
-				'username'   => 'user',
-				'from_email' => 'Team@Example.com<script>',
-				'from_name'  => '<i>Team</i>',
-				'force_from' => '1',
+				'provider'         => 'smtp',
+				'host'             => ' <b>smtp.example.com</b> ',
+				'port'             => '2525abc',
+				'encryption'       => 'ssl',
+				'auth'             => '1',
+				'username'         => 'user',
+				'from_email'       => 'Team@Example.com<script>',
+				'from_name'        => '<i>Team</i>',
+				'force_from_email' => '1',
 			)
 		);
 
@@ -376,14 +381,14 @@ class Settings_Tests extends WP_UnitTestCase {
 		$this->assertSame( 'user', $clean['username'] );
 		$this->assertStringNotContainsString( '<', $clean['from_email'] );
 		$this->assertSame( 'Team', $clean['from_name'] );
-		$this->assertTrue( $clean['force_from'] );
+		$this->assertTrue( $clean['force_from_email'] );
 	}
 
 	public function test_sanitize_unchecked_checkboxes_are_false() {
 		$clean = $this->settings->sanitize( array( 'provider' => 'smtp' ) );
 
 		$this->assertFalse( $clean['auth'] );
-		$this->assertFalse( $clean['force_from'] );
+		$this->assertFalse( $clean['force_from_email'] );
 	}
 
 	public function test_sanitize_falls_back_to_defaults_for_invalid_values() {
@@ -539,12 +544,12 @@ class Settings_Tests extends WP_UnitTestCase {
 	public function test_update_changes_only_the_given_values() {
 		$this->save(
 			array(
-				'host'       => 'smtp.example.com',
-				'port'       => 2525,
-				'encryption' => 'ssl',
-				'auth'       => false,
-				'username'   => 'me',
-				'force_from' => true,
+				'host'             => 'smtp.example.com',
+				'port'             => 2525,
+				'encryption'       => 'ssl',
+				'auth'             => false,
+				'username'         => 'me',
+				'force_from_email' => true,
 			)
 		);
 
@@ -555,7 +560,7 @@ class Settings_Tests extends WP_UnitTestCase {
 		$this->assertSame( 'ssl', $this->settings->get( 'encryption' ) );
 		$this->assertFalse( $this->settings->get( 'auth' ) );
 		$this->assertSame( 'me', $this->settings->get( 'username' ) );
-		$this->assertTrue( $this->settings->get( 'force_from' ) );
+		$this->assertTrue( $this->settings->get( 'force_from_email' ) );
 	}
 
 	public function test_update_keeps_the_defaults_of_fields_that_were_never_saved() {
@@ -612,5 +617,92 @@ class Settings_Tests extends WP_UnitTestCase {
 		$this->save( array( 'provider' => 'locked' ) );
 
 		$this->assertSame( 'constant', $this->settings->get_source( 'token' ) );
+	}
+
+	public function test_sanitize_cleans_the_default_reply_to() {
+		$clean = $this->settings->sanitize(
+			array(
+				'provider' => 'smtp',
+				'reply_to' => 'Help@Example.com<script>',
+			)
+		);
+
+		$this->assertStringNotContainsString( '<', $clean['reply_to'] );
+	}
+
+	public function test_maybe_upgrade_splits_force_from() {
+		update_option(
+			Settings::OPTION,
+			array(
+				'provider'   => 'smtp',
+				'host'       => 'smtp.example.com',
+				'force_from' => true,
+			)
+		);
+
+		$this->settings->maybe_upgrade();
+
+		$options = get_option( Settings::OPTION );
+		$this->assertArrayNotHasKey( 'force_from', $options );
+		$this->assertTrue( $options['force_from_email'] );
+		$this->assertTrue( $options['force_from_name'] );
+		$this->assertSame( 'smtp.example.com', $options['host'] );
+	}
+
+	public function test_maybe_upgrade_keeps_force_from_off() {
+		update_option( Settings::OPTION, array( 'force_from' => false ) );
+
+		$this->settings->maybe_upgrade();
+
+		$this->assertFalse( $this->settings->get( 'force_from_email' ) );
+		$this->assertFalse( $this->settings->get( 'force_from_name' ) );
+	}
+
+	public function test_maybe_upgrade_keeps_the_server_return_path_on_existing_sites() {
+		update_option(
+			Settings::OPTION,
+			array(
+				'host'       => 'smtp.example.com',
+				'force_from' => false,
+			)
+		);
+
+		$this->settings->maybe_upgrade();
+
+		$this->assertFalse( $this->settings->get( 'return_path' ) );
+	}
+
+	public function test_maybe_upgrade_does_nothing_on_new_sites() {
+		delete_option( Settings::OPTION );
+
+		$this->settings->maybe_upgrade();
+
+		$this->assertFalse( get_option( Settings::OPTION ) );
+		$this->assertTrue( $this->settings->get( 'return_path' ) );
+	}
+
+	public function test_maybe_upgrade_runs_once() {
+		update_option( Settings::OPTION, array( 'force_from' => true ) );
+		$this->settings->maybe_upgrade();
+
+		$this->settings->update( array( 'return_path' => true ) );
+		$this->settings->maybe_upgrade();
+
+		$this->assertTrue( $this->settings->get( 'return_path' ) );
+		$this->assertTrue( $this->settings->get( 'force_from_email' ) );
+	}
+
+	public function test_maybe_upgrade_ignores_settings_saved_without_a_locked_field() {
+		// Locked fields are not saved, so force_from_email can be missing from current settings.
+		$saved = array(
+			'host'            => 'smtp.example.com',
+			'force_from_name' => true,
+			'return_path'     => true,
+		);
+		update_option( Settings::OPTION, $saved );
+
+		$this->settings->maybe_upgrade();
+
+		$this->assertSame( $saved, get_option( Settings::OPTION ) );
 	}
 }
