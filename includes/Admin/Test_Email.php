@@ -111,9 +111,16 @@ class Test_Email {
 	 * @since 1.2.0
 	 *
 	 * @param string $to Recipient address.
-	 * @return array Result with `success`, `to`, `error`, `debug` and `provider`. The credentials are removed from `debug`.
+	 * @return array Result with `success`, `to`, `error`, `debug`, `provider`, `from`, `reply_to` and
+	 *               `return_path`. The credentials are removed from `debug`.
 	 */
 	public function send( string $to ): array {
+		$sender = array(
+			'from'        => '',
+			'reply_to'    => '',
+			'return_path' => '',
+		);
+
 		if ( ! is_email( $to ) ) {
 			return array(
 				'success'  => false,
@@ -121,7 +128,7 @@ class Test_Email {
 				'error'    => __( 'Please enter a valid email address.', 'smtp' ),
 				'debug'    => '',
 				'provider' => '',
-			);
+			) + $sender;
 		}
 
 		$debug    = array();
@@ -130,7 +137,13 @@ class Test_Email {
 
 		// PHPMailer property names are not snake_case.
 		// phpcs:disable WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase
-		$capture_debug = static function ( $phpmailer ) use ( &$debug ) {
+		$capture_debug = static function ( $phpmailer ) use ( &$debug, &$sender ) {
+			$sender = array(
+				'from'        => (string) $phpmailer->From,
+				'reply_to'    => implode( ', ', array_column( $phpmailer->getReplyToAddresses(), 0 ) ),
+				'return_path' => (string) $phpmailer->Sender,
+			);
+
 			$phpmailer->SMTPDebug   = 2;
 			$phpmailer->Debugoutput = static function ( $message ) use ( &$debug ) {
 				$debug[] = trim( (string) $message );
@@ -169,7 +182,7 @@ class Test_Email {
 			'error'    => $error,
 			'debug'    => $this->redact( implode( "\n", $debug ) ),
 			'provider' => $provider,
-		);
+		) + $sender;
 	}
 
 	/**
@@ -178,7 +191,7 @@ class Test_Email {
 	 * @since 1.2.0
 	 *
 	 * @param int   $user_id User ID.
-	 * @param array $result  Result with `success`, `to`, `error`, `debug` and `provider`.
+	 * @param array $result  Result of Test_Email::send().
 	 */
 	private function finish( int $user_id, array $result ) {
 		set_transient( self::ACTION . '_' . $user_id, $result, 5 * MINUTE_IN_SECONDS );

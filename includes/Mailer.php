@@ -51,6 +51,22 @@ class Mailer {
 	private $tracker;
 
 	/**
+	 * From email of the current email before Force From email replaced it.
+	 *
+	 * @since 1.3.0
+	 * @var string
+	 */
+	private $replaced_from = '';
+
+	/**
+	 * Return-Path this plugin set on the shared PHPMailer instance.
+	 *
+	 * @since 1.3.0
+	 * @var string
+	 */
+	private $sender = '';
+
+	/**
 	 * Constructor.
 	 *
 	 * @since 1.2.0
@@ -121,7 +137,58 @@ class Mailer {
 
 		call_user_func( $provider['configure'], $phpmailer, $this->settings->get_provider_values() );
 
+		// After the provider, since it can change the From address.
+		$this->apply_sender( $phpmailer );
+
 		$this->tracker->remember( $phpmailer );
+	}
+
+	/**
+	 * Sets the Return-Path and the Reply-To.
+	 *
+	 * Reply-To order, highest first: forced Reply-To, the Reply-To of the email, the original
+	 * sender, the default Reply-To.
+	 *
+	 * @since 1.3.0
+	 *
+	 * @param \PHPMailer\PHPMailer\PHPMailer $phpmailer PHPMailer instance.
+	 */
+	private function apply_sender( $phpmailer ) {
+		$replaced_from       = $this->replaced_from;
+		$this->replaced_from = '';
+
+		// PHPMailer property names are not snake_case.
+		// phpcs:disable WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase
+		// wp_mail() reuses the PHPMailer instance and never resets Sender, so drop the one set for the previous email.
+		if ( '' !== $this->sender && $this->sender === $phpmailer->Sender ) {
+			$phpmailer->Sender = '';
+		}
+		$this->sender = '';
+
+		if ( $this->settings->get( 'return_path' ) && is_email( $phpmailer->From ) ) {
+			$phpmailer->Sender = $phpmailer->From;
+			$this->sender      = $phpmailer->Sender;
+		}
+		// phpcs:enable WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase
+
+		$reply_to = (string) $this->settings->get( 'reply_to' );
+		$reply_to = is_email( $reply_to ) ? $reply_to : '';
+
+		if ( '' !== $reply_to && $this->settings->get( 'force_reply_to' ) ) {
+			$phpmailer->clearReplyTos();
+			$phpmailer->addReplyTo( $reply_to );
+			return;
+		}
+
+		if ( array() !== $phpmailer->getReplyToAddresses() ) {
+			return;
+		}
+
+		if ( '' !== $replaced_from && $this->settings->get( 'reply_to_sender' ) ) {
+			$phpmailer->addReplyTo( $replaced_from );
+		} elseif ( '' !== $reply_to ) {
+			$phpmailer->addReplyTo( $reply_to );
+		}
 	}
 
 	/**
@@ -133,6 +200,8 @@ class Mailer {
 	 * @return string From email address.
 	 */
 	public function filter_from_email( $email ) {
+		$this->replaced_from = '';
+
 		if ( ! $this->settings->is_configured() ) {
 			return $email;
 		}
@@ -142,7 +211,14 @@ class Mailer {
 			return $email;
 		}
 
-		if ( $this->settings->get( 'force_from' ) || $this->get_default_from_email() === $email ) {
+		$default = $this->get_default_from_email() === $email;
+
+		if ( $this->settings->get( 'force_from_email' ) || $default ) {
+			// The WordPress default address is not a real sender, so replies never go to it.
+			if ( ! $default && is_string( $email ) && is_email( $email ) && strtolower( $email ) !== strtolower( $from_email ) ) {
+				$this->replaced_from = $email;
+			}
+
 			return $from_email;
 		}
 
@@ -167,7 +243,7 @@ class Mailer {
 			return $name;
 		}
 
-		if ( $this->settings->get( 'force_from' ) || 'WordPress' === $name ) {
+		if ( $this->settings->get( 'force_from_name' ) || 'WordPress' === $name ) {
 			return $from_name;
 		}
 

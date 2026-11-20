@@ -141,7 +141,9 @@ class Migration_Tests extends WP_UnitTestCase {
 
 		$this->assertSame( $admin->user_email, $settings['from_email'] );
 		$this->assertSame( $admin->display_name, $settings['from_name'] );
-		$this->assertTrue( $settings['force_from'] );
+		$this->assertTrue( $settings['force_from_email'] );
+		$this->assertTrue( $settings['force_from_name'] );
+		$this->assertFalse( $settings['return_path'] );
 	}
 
 	public function test_encryption_none_and_unknown_values() {

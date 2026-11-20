@@ -242,24 +242,28 @@ class Migration {
 		$encryption = isset( $legacy['smtp_secure'] ) && is_string( $legacy['smtp_secure'] ) ? $legacy['smtp_secure'] : '';
 
 		$settings = array(
-			'provider'   => 'smtp',
-			'host'       => $host,
-			'port'       => $port > 1 ? $port : 25,
-			'encryption' => in_array( $encryption, array( 'ssl', 'tls' ), true ) ? $encryption : 'none',
+			'provider'         => 'smtp',
+			'host'             => $host,
+			'port'             => $port > 1 ? $port : 25,
+			'encryption'       => in_array( $encryption, array( 'ssl', 'tls' ), true ) ? $encryption : 'none',
 			// The legacy plugin authenticated whenever a username was set.
-			'auth'       => '' !== $username,
-			'username'   => sanitize_text_field( $username ),
-			'from_email' => '',
-			'from_name'  => '',
-			'force_from' => false,
+			'auth'             => '' !== $username,
+			'username'         => sanitize_text_field( $username ),
+			'from_email'       => '',
+			'from_name'        => '',
+			'force_from_email' => false,
+			'force_from_name'  => false,
+			// Existing sites keep the Return-Path chosen by their server.
+			'return_path'      => false,
 		);
 
 		// The legacy plugin always sent email as the first user of the site.
 		$admin = get_userdata( 1 );
 		if ( $admin && is_email( $admin->user_email ) ) {
-			$settings['from_email'] = $admin->user_email;
-			$settings['from_name']  = sanitize_text_field( $admin->display_name );
-			$settings['force_from'] = true;
+			$settings['from_email']       = $admin->user_email;
+			$settings['from_name']        = sanitize_text_field( $admin->display_name );
+			$settings['force_from_email'] = true;
+			$settings['force_from_name']  = true;
 		}
 
 		return $settings;

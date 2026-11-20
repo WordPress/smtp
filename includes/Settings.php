@@ -284,6 +284,34 @@ class Settings {
 	}
 
 	/**
+	 * Splits the `force_from` setting of version 1.2 into `force_from_email` and `force_from_name`.
+	 *
+	 * Runs once, on sites that saved their settings before the split. These sites keep the Return-Path
+	 * chosen by their server, only new sites use the From email by default.
+	 *
+	 * @since 1.3.0
+	 */
+	public function maybe_upgrade() {
+		$options = get_option( self::OPTION );
+
+		// Version 1.2 always saved this key, and nothing saves it anymore.
+		if ( ! is_array( $options ) || ! array_key_exists( 'force_from', $options ) ) {
+			return;
+		}
+
+		$force = ! empty( $options['force_from'] );
+		unset( $options['force_from'] );
+
+		$options += array(
+			'force_from_email' => $force,
+			'force_from_name'  => $force,
+			'return_path'      => false,
+		);
+
+		update_option( self::OPTION, $options );
+	}
+
+	/**
 	 * Returns where the value of a field comes from.
 	 *
 	 * @since 1.2.0
@@ -318,21 +346,56 @@ class Settings {
 	 */
 	private function get_general_fields(): array {
 		return array(
-			'from_email' => array(
+			'from_email'       => array(
 				'label'       => __( 'From email', 'smtp' ),
 				'type'        => 'email',
 				'constant'    => 'SMTP_FROM_EMAIL',
 				'description' => __( 'Leave empty to keep the address chosen by WordPress or other plugins.', 'smtp' ),
 			),
-			'from_name'  => array(
-				'label' => __( 'From name', 'smtp' ),
-				'type'  => 'text',
+			'from_name'        => array(
+				'label'    => __( 'From name', 'smtp' ),
+				'type'     => 'text',
+				'constant' => 'SMTP_FROM_NAME',
 			),
-			'force_from' => array(
-				'label'       => __( 'Force from', 'smtp' ),
+			'force_from_email' => array(
+				'label'       => __( 'Force From email', 'smtp' ),
 				'type'        => 'checkbox',
 				'default'     => false,
-				'description' => __( 'Always use the From email and name above, even when another plugin sets its own.', 'smtp' ),
+				'constant'    => 'SMTP_FORCE_FROM_EMAIL',
+				'description' => __( 'Always use the From email above, even when another plugin sets its own.', 'smtp' ),
+			),
+			'force_from_name'  => array(
+				'label'       => __( 'Force From name', 'smtp' ),
+				'type'        => 'checkbox',
+				'default'     => false,
+				'constant'    => 'SMTP_FORCE_FROM_NAME',
+				'description' => __( 'Always use the From name above, even when another plugin sets its own.', 'smtp' ),
+			),
+			'return_path'      => array(
+				'label'       => __( 'Return-Path', 'smtp' ),
+				'type'        => 'checkbox',
+				'default'     => true,
+				'constant'    => 'SMTP_RETURN_PATH',
+				'description' => __( 'Use the From email as Return-Path, so bounces go to it and SPF checks match the From domain.', 'smtp' ),
+			),
+			'reply_to'         => array(
+				'label'       => __( 'Default Reply-To', 'smtp' ),
+				'type'        => 'email',
+				'constant'    => 'SMTP_REPLY_TO',
+				'description' => __( 'Used when an email has no Reply-To of its own. Leave empty to add none.', 'smtp' ),
+			),
+			'force_reply_to'   => array(
+				'label'       => __( 'Force Reply-To', 'smtp' ),
+				'type'        => 'checkbox',
+				'default'     => false,
+				'constant'    => 'SMTP_FORCE_REPLY_TO',
+				'description' => __( 'Replace any Reply-To set by WordPress or other plugins with the default Reply-To above.', 'smtp' ),
+			),
+			'reply_to_sender'  => array(
+				'label'       => __( 'Keep the sender as Reply-To', 'smtp' ),
+				'type'        => 'checkbox',
+				'default'     => false,
+				'description' => __( 'When the From email is forced and the email has no Reply-To, use the original From email as Reply-To.', 'smtp' ),
 			),
 		);
 	}

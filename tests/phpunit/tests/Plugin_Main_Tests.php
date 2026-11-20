@@ -81,6 +81,17 @@ class Plugin_Main_Tests extends WP_UnitTestCase {
 		return null;
 	}
 
+	public function test_plugin_upgrades_the_settings_on_init() {
+		global $wp_filter;
+
+		$found = false;
+		foreach ( isset( $wp_filter['init'][0] ) ? $wp_filter['init'][0] : array() as $callback ) {
+			$found = $found || ( is_array( $callback['function'] ) && $callback['function'][0] instanceof Settings && 'maybe_upgrade' === $callback['function'][1] );
+		}
+
+		$this->assertTrue( $found );
+	}
+
 	public function test_plugin_creates_the_log_table_on_init_and_no_longer_on_admin_init() {
 		global $wp_filter;
 
