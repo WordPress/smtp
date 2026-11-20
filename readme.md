@@ -4,9 +4,11 @@
 
 ![Required PHP Version](https://img.shields.io/wordpress/plugin/required-php/smtp?label=Requires%20PHP) ![Required WordPress Version](https://img.shields.io/wordpress/plugin/wp-version/smtp?label=Requires%20WordPress) ![WordPress Tested Up To](https://img.shields.io/wordpress/plugin/tested/smtp?label=WordPress) [![GPL-2.0-or-later License](https://img.shields.io/github/license/wordpress/smtp.svg?label=License)](https://www.gnu.org/licenses/gpl-2.0.html)
 
-![Plugin Version](https://img.shields.io/wordpress/plugin/v/smtp?label=Version) ![WordPress.org Rating](https://img.shields.io/wordpress/plugin/rating/smtp?label=WP.org%20Rating) ![WordPress Plugin Downloads](https://img.shields.io/wordpress/plugin/dt/smtp?label=WP.org%20Downloads) ![WordPress Plugin Active Installs](https://img.shields.io/wordpress/plugin/installs/smtp?label=WP.org%20Active%20Installs)
+![Plugin Version](https://img.shields.io/wordpress/plugin/v/smtp?label=Version) ![WordPress.org Rating](https://img.shields.io/wordpress/plugin/rating/smtp?label=WP.org%20Rating) ![WordPress Plugin Downloads](https://img.shields.io/wordpress/plugin/dt/smtp?label=WP.org%20Downloads) ![WordPress Plugin Active Installs](https://img.shields.io/wordpress/plugin/installs/smtp?label=WP.org%20Active%20Installs) [![WordPress Playground Demo](https://img.shields.io/wordpress/plugin/v/smtp?logo=wordpress&logoColor=FFFFFF&label=Live%20Demo&labelColor=3858E9&color=3858E9)](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/WordPress/smtp/trunk/.wordpress-org/blueprints/blueprint.json)
 
 [![PHP Unit Testing](https://github.com/WordPress/smtp/actions/workflows/php-test.yml/badge.svg)](https://github.com/WordPress/smtp/actions/workflows/php-test.yml) [![PHP Linting](https://github.com/WordPress/smtp/actions/workflows/php-lint.yml/badge.svg)](https://github.com/WordPress/smtp/actions/workflows/php-lint.yml)
+
+> SMTP plugin for WordPress. [View on WordPress.org →](https://wordpress.org/plugins/smtp/)
 
 Send WordPress emails through an SMTP server, with an extensible provider API and a simple email log.
 
