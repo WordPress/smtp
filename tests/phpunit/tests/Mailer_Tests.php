@@ -356,6 +356,17 @@ class Mailer_Tests extends WP_UnitTestCase {
 		$this->assertSame( '', tests_retrieve_phpmailer_instance()->Sender );
 	}
 
+	public function test_return_path_of_the_previous_email_is_not_kept_when_no_longer_configured() {
+		reset_phpmailer_instance();
+		$this->configure( array( 'from_email' => 'team@example.com' ) );
+		wp_mail( 'to@example.org', 'Subject', 'Body' );
+
+		$this->settings_update( array( 'host' => '' ) );
+		wp_mail( 'to@example.org', 'Subject', 'Body', array( 'From: someone@example.org' ) );
+
+		$this->assertSame( '', tests_retrieve_phpmailer_instance()->Sender );
+	}
+
 	public function test_return_path_set_by_another_plugin_is_kept_when_off() {
 		reset_phpmailer_instance();
 		$this->configure(

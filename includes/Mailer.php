@@ -147,6 +147,8 @@ class Mailer {
 	 * @param \PHPMailer\PHPMailer\PHPMailer $phpmailer PHPMailer instance.
 	 */
 	public function configure( $phpmailer ) {
+		$this->drop_previous_sender( $phpmailer );
+
 		$settings = $this->get_settings();
 
 		if ( ! $settings->is_configured() ) {
@@ -193,6 +195,26 @@ class Mailer {
 	}
 
 	/**
+	 * Removes the Return-Path this plugin set for the previous email.
+	 *
+	 * The PHPMailer instance of wp_mail() is reused and Sender is never reset. Runs for every email, so the
+	 * Return-Path is dropped even when this one is not sent through a configured connection.
+	 *
+	 * @since 1.3.0
+	 *
+	 * @param \PHPMailer\PHPMailer\PHPMailer $phpmailer PHPMailer instance.
+	 */
+	private function drop_previous_sender( $phpmailer ) {
+		// PHPMailer property names are not snake_case.
+		// phpcs:disable WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase
+		if ( '' !== $this->sender && $this->sender === $phpmailer->Sender ) {
+			$phpmailer->Sender = '';
+		}
+		// phpcs:enable WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase
+		$this->sender = '';
+	}
+
+	/**
 	 * Sets the Return-Path and the Reply-To.
 	 *
 	 * Reply-To order, highest first: forced Reply-To, the Reply-To of the email, the original
@@ -209,12 +231,6 @@ class Mailer {
 
 		// PHPMailer property names are not snake_case.
 		// phpcs:disable WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase
-		// wp_mail() reuses the PHPMailer instance and never resets Sender, so drop the one set for the previous email.
-		if ( '' !== $this->sender && $this->sender === $phpmailer->Sender ) {
-			$phpmailer->Sender = '';
-		}
-		$this->sender = '';
-
 		if ( $settings->get( 'return_path' ) && is_email( $phpmailer->From ) ) {
 			$phpmailer->Sender = $phpmailer->From;
 			$this->sender      = $phpmailer->Sender;
