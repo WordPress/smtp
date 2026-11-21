@@ -565,6 +565,22 @@ class Settings_Tests extends WP_UnitTestCase {
 		$this->assertSame( 'default', $this->settings->get_source( 'password' ) );
 	}
 
+	public function test_sanitize_removes_only_the_password_of_its_connection() {
+		$this->credentials->set( 'password', 'default-secret' );
+		$this->credentials->set( 'connection:sponsors:password', 'sponsors-secret' );
+
+		( new Settings( new Provider_Registry(), $this->credentials, 'sponsors' ) )->sanitize(
+			array(
+				'provider'       => 'smtp',
+				'password'       => '',
+				'remove_secrets' => array( 'password' => '1' ),
+			)
+		);
+
+		$this->assertSame( '', $this->credentials->get( 'connection:sponsors:password' ) );
+		$this->assertSame( 'default-secret', $this->credentials->get( 'password' ) );
+	}
+
 	public function test_sanitize_prefers_a_new_password_over_its_removal() {
 		$this->credentials->set( 'password', 'current' );
 
