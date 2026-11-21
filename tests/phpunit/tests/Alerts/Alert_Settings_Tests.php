@@ -97,6 +97,41 @@ class Alert_Settings_Tests extends WP_UnitTestCase {
 		$this->assertSame( 'saved-token', $this->credentials->get( 'alert_fake_token' ) );
 	}
 
+	public function test_a_secret_is_removed_when_asked() {
+		$this->credentials->set( 'alert_fake_token', 'saved-token' );
+
+		$clean = $this->settings->sanitize(
+			array(
+				'channels' => array(
+					'fake' => array(
+						'token'          => '',
+						'remove_secrets' => array( 'token' => '1' ),
+					),
+				),
+			)
+		);
+
+		$this->assertSame( '', $this->credentials->get( 'alert_fake_token' ) );
+		$this->assertArrayNotHasKey( 'remove_secrets', $clean['channels']['fake'] );
+	}
+
+	public function test_a_new_secret_wins_over_its_removal() {
+		$this->credentials->set( 'alert_fake_token', 'saved-token' );
+
+		$this->settings->sanitize(
+			array(
+				'channels' => array(
+					'fake' => array(
+						'token'          => 'new-token',
+						'remove_secrets' => array( 'token' => '1' ),
+					),
+				),
+			)
+		);
+
+		$this->assertSame( 'new-token', $this->credentials->get( 'alert_fake_token' ) );
+	}
+
 	public function test_sanitize_ignores_unknown_channels_and_malformed_input() {
 		$this->assertSame(
 			array(

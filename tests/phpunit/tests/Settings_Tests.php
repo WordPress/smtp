@@ -505,6 +505,80 @@ class Settings_Tests extends WP_UnitTestCase {
 		$this->assertSame( 'current', $this->credentials->get( 'password' ) );
 	}
 
+	public function test_sanitize_removes_the_password_when_asked() {
+		$this->credentials->set( 'password', 'current' );
+
+		$this->settings->sanitize(
+			array(
+				'provider'       => 'smtp',
+				'password'       => '',
+				'remove_secrets' => array( 'password' => '1' ),
+			)
+		);
+
+		$this->assertSame( '', $this->credentials->get( 'password' ) );
+		$this->assertSame( 'default', $this->settings->get_source( 'password' ) );
+	}
+
+	public function test_sanitize_prefers_a_new_password_over_its_removal() {
+		$this->credentials->set( 'password', 'current' );
+
+		$this->settings->sanitize(
+			array(
+				'provider'       => 'smtp',
+				'password'       => 'new',
+				'remove_secrets' => array( 'password' => '1' ),
+			)
+		);
+
+		$this->assertSame( 'new', $this->credentials->get( 'password' ) );
+	}
+
+	public function test_sanitize_ignores_malformed_removal_requests() {
+		$this->credentials->set( 'password', 'current' );
+
+		$clean = $this->settings->sanitize(
+			array(
+				'provider'       => 'smtp',
+				'remove_secrets' => 'password',
+			)
+		);
+		$this->settings->sanitize(
+			array(
+				'provider'       => 'smtp',
+				'remove_secrets' => array( 'host' => '1' ),
+			)
+		);
+
+		$this->assertSame( 'current', $this->credentials->get( 'password' ) );
+		$this->assertArrayNotHasKey( 'remove_secrets', $clean );
+	}
+
+	public function test_sanitize_does_not_remove_a_secret_locked_by_a_constant() {
+		if ( ! defined( 'SMTP_TESTS_LOCKED_SECRET' ) ) {
+			define( 'SMTP_TESTS_LOCKED_SECRET', 'from-constant' );
+		}
+
+		add_filter(
+			'smtp_providers',
+			static function ( $providers ) {
+				$providers['smtp']['fields']['password']['constant'] = 'SMTP_TESTS_LOCKED_SECRET';
+
+				return $providers;
+			}
+		);
+		$this->credentials->set( 'password', 'saved' );
+
+		$this->settings->sanitize(
+			array(
+				'provider'       => 'smtp',
+				'remove_secrets' => array( 'password' => '1' ),
+			)
+		);
+
+		$this->assertSame( 'saved', $this->credentials->get( 'password' ) );
+	}
+
 	public function test_sanitize_skips_fields_locked_by_a_constant() {
 		$this->add_locked_provider();
 

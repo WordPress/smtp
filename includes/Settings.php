@@ -193,8 +193,10 @@ class Settings {
 	 * Sanitizes the submitted settings.
 	 *
 	 * Secrets are never written to the settings option, they go to the credentials storage.
+	 * A secret listed in `remove_secrets` is deleted when no new value is submitted.
 	 *
 	 * @since 1.2.0
+	 * @since 1.3.0 Accepts `remove_secrets`.
 	 *
 	 * @param mixed $input Submitted settings.
 	 * @return array Sanitized settings.
@@ -223,9 +225,11 @@ class Settings {
 					break;
 
 				case 'password':
-					// An empty submission keeps the current secret.
+					// An empty submission keeps the current secret, unless its removal was asked.
 					if ( is_string( $raw ) && '' !== $raw ) {
 						$this->credentials->set( $key, $raw );
+					} elseif ( ! empty( $input['remove_secrets'][ $key ] ) ) {
+						$this->credentials->delete( $key );
 					}
 					break;
 

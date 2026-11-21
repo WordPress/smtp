@@ -224,7 +224,45 @@ class Admin_Page_Tests extends WP_UnitTestCase {
 		$html = $this->render();
 
 		$this->assertStringNotContainsString( 'top-secret-password', $html );
-		$this->assertStringContainsString( 'A password is saved. Leave empty to keep it.', $html );
+		$this->assertStringContainsString( 'A password is saved. Leave empty to keep it, or check the box above to remove it.', $html );
+	}
+
+	public function test_a_saved_password_can_be_removed() {
+		( new Credentials() )->set( 'password', 'top-secret-password' );
+		$this->admin_page->register_settings();
+
+		$html = $this->render( 'settings' );
+
+		$this->assertStringContainsString( 'name="smtp_settings[remove_secrets][password]"', $html );
+		$this->assertStringContainsString( 'Remove the saved password', $html );
+	}
+
+	public function test_the_remove_checkbox_is_hidden_without_a_saved_password() {
+		$this->admin_page->register_settings();
+
+		$html = $this->render( 'settings' );
+
+		$this->assertStringNotContainsString( 'remove_secrets', $html );
+	}
+
+	public function test_the_remove_checkbox_is_hidden_for_a_password_locked_by_a_constant() {
+		if ( ! defined( 'SMTP_TESTS_ADMIN_LOCKED_PASSWORD' ) ) {
+			define( 'SMTP_TESTS_ADMIN_LOCKED_PASSWORD', 'from-constant' );
+		}
+
+		add_filter(
+			'smtp_providers',
+			static function ( $providers ) {
+				$providers['smtp']['fields']['password']['constant'] = 'SMTP_TESTS_ADMIN_LOCKED_PASSWORD';
+
+				return $providers;
+			}
+		);
+		$this->admin_page->register_settings();
+
+		$html = $this->render( 'settings' );
+
+		$this->assertStringNotContainsString( 'remove_secrets', $html );
 	}
 
 	public function test_saved_values_are_escaped() {
@@ -262,6 +300,26 @@ class Admin_Page_Tests extends WP_UnitTestCase {
 
 		$this->assertStringContainsString( 'No emails logged yet.', $html );
 		$this->assertStringContainsString( 'never stored', $html );
+	}
+
+	public function test_the_settings_tab_warns_when_saved_settings_are_incomplete() {
+		$this->admin_page->register_settings();
+		$this->assertStringNotContainsString( 'is not fully configured', $this->render( 'settings' ) );
+
+		update_option(
+			Settings::OPTION,
+			array(
+				'host'     => 'smtp.example.com',
+				'auth'     => true,
+				'username' => 'user@example.com',
+			)
+		);
+
+		$this->assertStringContainsString( 'is not fully configured', $this->render( 'settings' ) );
+
+		( new Credentials() )->set( 'password', 'secret' );
+
+		$this->assertStringNotContainsString( 'is not fully configured', $this->render( 'settings' ) );
 	}
 
 	public function test_render_page_shows_the_test_tab() {

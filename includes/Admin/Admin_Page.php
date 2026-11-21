@@ -344,7 +344,16 @@ class Admin_Page {
 				/>
 				<?php
 				if ( '' !== $value && ! $locked ) {
-					$field['description'] = __( 'A password is saved. Leave empty to keep it.', 'smtp' );
+					$remove_id = $id . '-remove';
+					?>
+					<p>
+						<label for="<?php echo esc_attr( $remove_id ); ?>">
+							<input type="checkbox" id="<?php echo esc_attr( $remove_id ); ?>" name="<?php echo esc_attr( Settings::OPTION . '[remove_secrets][' . $key . ']' ); ?>" value="1" />
+							<?php esc_html_e( 'Remove the saved password', 'smtp' ); ?>
+						</label>
+					</p>
+					<?php
+					$field['description'] = __( 'A password is saved. Leave empty to keep it, or check the box above to remove it.', 'smtp' );
 				}
 				break;
 
@@ -397,6 +406,15 @@ class Admin_Page {
 	 */
 	private function render_settings_tab() {
 		$this->render_other_mailer_notice();
+
+		// Saved but incomplete settings, for example after removing a required password.
+		if ( false !== get_option( Settings::OPTION, false ) && ! $this->settings->is_configured() && '' === $this->tracker->get_wp_mail_owner() ) {
+			?>
+			<div class="notice notice-warning inline">
+				<p><?php esc_html_e( 'SMTP is not fully configured, so emails are sent with the default WordPress mailer. Fill in the required fields to use SMTP.', 'smtp' ); ?></p>
+			</div>
+			<?php
+		}
 		?>
 		<form action="options.php" method="post">
 			<?php

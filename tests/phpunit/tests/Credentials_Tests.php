@@ -59,6 +59,43 @@ class Credentials_Tests extends WP_UnitTestCase {
 		$this->assertSame( 'secret', $this->credentials->get( 'password' ) );
 	}
 
+	public function test_delete_removes_only_the_given_secret() {
+		$this->credentials->set( 'password', 'one' );
+		$this->credentials->set( 'api_key', 'two' );
+
+		$this->credentials->delete( 'password' );
+
+		$this->assertSame( '', $this->credentials->get( 'password' ) );
+		$this->assertSame( 'two', $this->credentials->get( 'api_key' ) );
+		$this->assertArrayNotHasKey( 'password', get_option( Credentials::OPTION ) );
+	}
+
+	public function test_delete_ignores_a_missing_secret_and_a_corrupted_option() {
+		$this->credentials->delete( 'password' );
+		$this->assertFalse( get_option( Credentials::OPTION ) );
+
+		update_option( Credentials::OPTION, 'not-an-array' );
+		$this->credentials->delete( 'password' );
+		$this->assertSame( 'not-an-array', get_option( Credentials::OPTION ) );
+	}
+
+	public function test_deleting_the_last_secret_removes_the_option() {
+		$this->credentials->set( 'password', 'one' );
+
+		$this->credentials->delete( 'password' );
+
+		$this->assertFalse( get_option( Credentials::OPTION ) );
+	}
+
+	public function test_secrets_are_not_autoloaded_after_a_delete() {
+		$this->credentials->set( 'password', 'one' );
+		$this->credentials->set( 'api_key', 'two' );
+
+		$this->credentials->delete( 'password' );
+
+		$this->assertArrayNotHasKey( Credentials::OPTION, wp_load_alloptions( true ) );
+	}
+
 	public function test_secrets_are_not_autoloaded() {
 		$this->credentials->set( 'password', 'secret' );
 
