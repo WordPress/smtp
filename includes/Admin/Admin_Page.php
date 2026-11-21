@@ -79,7 +79,7 @@ class Admin_Page {
 	/**
 	 * Connections, or null when they are not available.
 	 *
-	 * @since 1.2.0
+	 * @since 1.3.0
 	 * @var Connections_Tab|null
 	 */
 	private $connections_tab;
@@ -209,7 +209,7 @@ class Admin_Page {
 	/**
 	 * Adds the script that shows the sending limits when they are customized.
 	 *
-	 * @since 1.2.0
+	 * @since 1.3.0
 	 *
 	 * @param string $hook_suffix Current admin page.
 	 */

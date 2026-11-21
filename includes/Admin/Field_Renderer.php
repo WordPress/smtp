@@ -13,7 +13,7 @@ use WordPress\SMTP\Settings;
 /**
  * Renders a settings field, for the Settings tab and for the connections.
  *
- * @since 1.2.0
+ * @since 1.3.0
  */
 class Field_Renderer {
 
@@ -23,7 +23,7 @@ class Field_Renderer {
 	 * The box is not saved: it starts checked when a limit is set, and unchecking it clears the limits (see
 	 * assets/js/limits.js, which disables the hidden fields).
 	 *
-	 * @since 1.2.0
+	 * @since 1.3.0
 	 *
 	 * @param Settings $settings Settings the limits are read from.
 	 */
@@ -51,7 +51,7 @@ class Field_Renderer {
 	 *
 	 * Secrets are never printed: password fields render empty, with a placeholder when one is saved.
 	 *
-	 * @since 1.2.0
+	 * @since 1.3.0
 	 *
 	 * @param string   $key      Field key.
 	 * @param array    $field    Normalized field.

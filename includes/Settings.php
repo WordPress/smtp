@@ -46,7 +46,7 @@ class Settings {
 	/**
 	 * ID of the connection these settings belong to, or an empty string for the default connection.
 	 *
-	 * @since 1.2.0
+	 * @since 1.3.0
 	 * @var string
 	 */
 	private $connection;
@@ -69,7 +69,7 @@ class Settings {
 	/**
 	 * Returns the ID of the connection these settings belong to.
 	 *
-	 * @since 1.2.0
+	 * @since 1.3.0
 	 *
 	 * @return string Connection ID, `default` for the default connection.
 	 */
@@ -463,7 +463,7 @@ class Settings {
 	/**
 	 * Saves sanitized settings.
 	 *
-	 * @since 1.2.0
+	 * @since 1.3.0
 	 *
 	 * @param array $clean Sanitized settings.
 	 */
@@ -479,7 +479,7 @@ class Settings {
 	/**
 	 * Returns the key a secret is stored under.
 	 *
-	 * @since 1.2.0
+	 * @since 1.3.0
 	 *
 	 * @param string $key Field key.
 	 * @return string Secret key.

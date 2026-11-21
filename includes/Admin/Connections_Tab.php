@@ -20,28 +20,28 @@ use WordPress\SMTP\Settings;
  * Each connection has its own provider, credentials, From address and sending limits. The ID of a
  * connection is generated from its name when it is added, and never changes.
  *
- * @since 1.2.0
+ * @since 1.3.0
  */
 class Connections_Tab {
 
 	/**
 	 * Action and nonce name of saving a connection.
 	 *
-	 * @since 1.2.0
+	 * @since 1.3.0
 	 */
 	const SAVE_ACTION = 'smtp_save_connection';
 
 	/**
 	 * Action and nonce name of deleting a connection.
 	 *
-	 * @since 1.2.0
+	 * @since 1.3.0
 	 */
 	const DELETE_ACTION = 'smtp_delete_connection';
 
 	/**
 	 * Value of the `connection` query argument that opens the form to add a connection.
 	 *
-	 * @since 1.2.0
+	 * @since 1.3.0
 	 */
 	const NEW_CONNECTION = 'new';
 
@@ -49,14 +49,14 @@ class Connections_Tab {
 	 * ID used for the settings of the form to add a connection. It can not be a real ID, since
 	 * {@see Connections::sanitize_id()} removes the dot.
 	 *
-	 * @since 1.2.0
+	 * @since 1.3.0
 	 */
 	const NEW_SETTINGS_ID = '.new';
 
 	/**
 	 * Connections.
 	 *
-	 * @since 1.2.0
+	 * @since 1.3.0
 	 * @var Connections
 	 */
 	private $connections;
@@ -64,7 +64,7 @@ class Connections_Tab {
 	/**
 	 * Provider registry.
 	 *
-	 * @since 1.2.0
+	 * @since 1.3.0
 	 * @var Provider_Registry
 	 */
 	private $registry;
@@ -72,7 +72,7 @@ class Connections_Tab {
 	/**
 	 * Credentials storage.
 	 *
-	 * @since 1.2.0
+	 * @since 1.3.0
 	 * @var Credentials
 	 */
 	private $credentials;
@@ -80,7 +80,7 @@ class Connections_Tab {
 	/**
 	 * Constructor.
 	 *
-	 * @since 1.2.0
+	 * @since 1.3.0
 	 *
 	 * @param Connections       $connections Connections.
 	 * @param Provider_Registry $registry    Provider registry.
@@ -95,7 +95,7 @@ class Connections_Tab {
 	/**
 	 * Registers the hooks.
 	 *
-	 * @since 1.2.0
+	 * @since 1.3.0
 	 */
 	public function add_hooks() {
 		add_action( 'admin_post_' . self::SAVE_ACTION, array( $this, 'handle_save' ) );
@@ -105,7 +105,7 @@ class Connections_Tab {
 	/**
 	 * Returns the connections.
 	 *
-	 * @since 1.2.0
+	 * @since 1.3.0
 	 *
 	 * @return Connections Connections.
 	 */
@@ -116,7 +116,7 @@ class Connections_Tab {
 	/**
 	 * Returns the URL of the Settings tab, or of the form of a connection.
 	 *
-	 * @since 1.2.0
+	 * @since 1.3.0
 	 *
 	 * @param string               $connection Optional. Connection ID, or `new`.
 	 * @param array<string,string> $args       Optional. Extra query arguments.
@@ -135,7 +135,7 @@ class Connections_Tab {
 	/**
 	 * Handles saving a connection.
 	 *
-	 * @since 1.2.0
+	 * @since 1.3.0
 	 */
 	public function handle_save() {
 		check_admin_referer( self::SAVE_ACTION );
@@ -175,7 +175,7 @@ class Connections_Tab {
 	/**
 	 * Handles deleting a connection.
 	 *
-	 * @since 1.2.0
+	 * @since 1.3.0
 	 */
 	public function handle_delete() {
 		check_admin_referer( self::DELETE_ACTION );
@@ -195,7 +195,7 @@ class Connections_Tab {
 	/**
 	 * Returns the ID of the connection the Settings tab must show.
 	 *
-	 * @since 1.2.0
+	 * @since 1.3.0
 	 *
 	 * @return string `new`, the ID of an extra connection, or the default ID.
 	 */
@@ -214,7 +214,7 @@ class Connections_Tab {
 	/**
 	 * Renders the notice of the last action and the links to switch between connections.
 	 *
-	 * @since 1.2.0
+	 * @since 1.3.0
 	 *
 	 * @param string $current Connection being shown: `new`, an ID or the default ID.
 	 */
@@ -252,7 +252,7 @@ class Connections_Tab {
 	/**
 	 * Renders the notice of the last action.
 	 *
-	 * @since 1.2.0
+	 * @since 1.3.0
 	 *
 	 * @param string $notice Notice code.
 	 */
@@ -278,7 +278,7 @@ class Connections_Tab {
 	/**
 	 * Renders the form to add or edit a connection.
 	 *
-	 * @since 1.2.0
+	 * @since 1.3.0
 	 *
 	 * @param string $id Connection ID, or the ID of the settings of a new connection.
 	 */
@@ -378,7 +378,7 @@ class Connections_Tab {
 	/**
 	 * Redirects and stops.
 	 *
-	 * @since 1.2.0
+	 * @since 1.3.0
 	 *
 	 * @param string $url Admin URL.
 	 */

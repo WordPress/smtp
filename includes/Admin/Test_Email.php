@@ -44,7 +44,7 @@ class Test_Email {
 	/**
 	 * Connections, or null to only test the default connection.
 	 *
-	 * @since 1.2.0
+	 * @since 1.3.0
 	 * @var Connections|null
 	 */
 	private $connections;

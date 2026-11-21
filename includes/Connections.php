@@ -15,35 +15,35 @@ namespace WordPress\SMTP;
  * connection keep working unchanged. Other connections are stored in the `smtp_connections` option,
  * keyed by ID, and their secrets go to {@see Credentials} under `connection:{id}:{field}`.
  *
- * @since 1.2.0
+ * @since 1.3.0
  */
 class Connections {
 
 	/**
 	 * ID of the default connection, the settings saved under Tools > SMTP.
 	 *
-	 * @since 1.2.0
+	 * @since 1.3.0
 	 */
 	const DEFAULT_ID = 'default';
 
 	/**
 	 * Name of the option that stores the other connections.
 	 *
-	 * @since 1.2.0
+	 * @since 1.3.0
 	 */
 	const OPTION = 'smtp_connections';
 
 	/**
 	 * Maximum length of a connection ID, the size of the log column.
 	 *
-	 * @since 1.2.0
+	 * @since 1.3.0
 	 */
 	const MAX_ID_LENGTH = 50;
 
 	/**
 	 * Provider registry.
 	 *
-	 * @since 1.2.0
+	 * @since 1.3.0
 	 * @var Provider_Registry
 	 */
 	private $registry;
@@ -51,7 +51,7 @@ class Connections {
 	/**
 	 * Credentials storage.
 	 *
-	 * @since 1.2.0
+	 * @since 1.3.0
 	 * @var Credentials
 	 */
 	private $credentials;
@@ -59,7 +59,7 @@ class Connections {
 	/**
 	 * Settings of the default connection.
 	 *
-	 * @since 1.2.0
+	 * @since 1.3.0
 	 * @var Settings
 	 */
 	private $default;
@@ -67,7 +67,7 @@ class Connections {
 	/**
 	 * Constructor.
 	 *
-	 * @since 1.2.0
+	 * @since 1.3.0
 	 *
 	 * @param Provider_Registry $registry    Provider registry.
 	 * @param Credentials       $credentials Credentials storage.
@@ -82,7 +82,7 @@ class Connections {
 	/**
 	 * Returns the stored connections, without the default one.
 	 *
-	 * @since 1.2.0
+	 * @since 1.3.0
 	 *
 	 * @return array[] Entries with `label` and `settings`, keyed by connection ID.
 	 */
@@ -111,7 +111,7 @@ class Connections {
 	/**
 	 * Returns the saved settings of a connection.
 	 *
-	 * @since 1.2.0
+	 * @since 1.3.0
 	 *
 	 * @param string $id Connection ID.
 	 * @return array Saved settings, empty when the connection does not exist.
@@ -125,7 +125,7 @@ class Connections {
 	/**
 	 * Saves the settings of an existing connection, keeping its name.
 	 *
-	 * @since 1.2.0
+	 * @since 1.3.0
 	 *
 	 * @param string $id       Connection ID.
 	 * @param array  $settings Sanitized settings.
@@ -145,7 +145,7 @@ class Connections {
 	/**
 	 * Returns the prefix of the credentials keys of a connection.
 	 *
-	 * @since 1.2.0
+	 * @since 1.3.0
 	 *
 	 * @param string $id Connection ID.
 	 * @return string Prefix.
@@ -158,7 +158,7 @@ class Connections {
 	/**
 	 * Cleans up a connection ID: lowercase letters, numbers, dashes and underscores.
 	 *
-	 * @since 1.2.0
+	 * @since 1.3.0
 	 *
 	 * @param mixed $id Raw ID.
 	 * @return string Clean ID, empty when nothing is left or when it is the reserved default ID.
@@ -175,7 +175,7 @@ class Connections {
 	 * The name goes through sanitize_title(). When the result is the reserved default ID or is already
 	 * taken, a number is appended: `sponsors`, `sponsors-2`, `sponsors-3`...
 	 *
-	 * @since 1.2.0
+	 * @since 1.3.0
 	 *
 	 * @param string $label Connection name.
 	 * @return string Unique ID, empty when nothing is left of the name.
@@ -202,7 +202,7 @@ class Connections {
 	/**
 	 * Returns the IDs of every connection, the default one first.
 	 *
-	 * @since 1.2.0
+	 * @since 1.3.0
 	 *
 	 * @return string[] Connection IDs.
 	 */
@@ -213,7 +213,7 @@ class Connections {
 	/**
 	 * Whether there are connections besides the default one.
 	 *
-	 * @since 1.2.0
+	 * @since 1.3.0
 	 *
 	 * @return bool True when at least one more connection is stored.
 	 */
@@ -224,7 +224,7 @@ class Connections {
 	/**
 	 * Whether a connection exists.
 	 *
-	 * @since 1.2.0
+	 * @since 1.3.0
 	 *
 	 * @param string $id Connection ID.
 	 * @return bool True for the default connection and the stored ones.
@@ -236,7 +236,7 @@ class Connections {
 	/**
 	 * Returns the name of a connection.
 	 *
-	 * @since 1.2.0
+	 * @since 1.3.0
 	 *
 	 * @param string $id Connection ID.
 	 * @return string Name, or the ID when the connection does not exist any more.
@@ -252,7 +252,7 @@ class Connections {
 	/**
 	 * Returns the settings of a connection.
 	 *
-	 * @since 1.2.0
+	 * @since 1.3.0
 	 *
 	 * @param string $id Connection ID. Empty for the default connection.
 	 * @return Settings|null Settings, or null when the connection does not exist.
@@ -272,7 +272,7 @@ class Connections {
 	/**
 	 * Describes the connections for other plugins, without any credential.
 	 *
-	 * @since 1.2.0
+	 * @since 1.3.0
 	 *
 	 * @return array[] Entries keyed by connection ID, each with `label`, `provider` (slug),
 	 *                 `configured` (bool) and `rate_limits` (see {@see Rate_Limits}).
@@ -300,9 +300,10 @@ class Connections {
 	/**
 	 * Picks the connection an email is sent through.
 	 *
-	 * An unknown or incomplete connection falls back to the default one, so the email is still sent.
+	 * An unknown or incomplete connection falls back to the default one, so the email is still sent, and
+	 * the `smtp_connection_fallback` action fires.
 	 *
-	 * @since 1.2.0
+	 * @since 1.3.0
 	 *
 	 * @param array $mail_data Email data: `to`, `subject`, `message`, `headers` and `attachments`.
 	 * @return string Connection ID.
@@ -314,7 +315,7 @@ class Connections {
 		 * Return the ID of one of the connections listed under Tools > SMTP, see `wp_smtp_get_connections()`.
 		 * An unknown connection, or one that is not fully configured, falls back to the default connection.
 		 *
-		 * @since 1.2.0
+		 * @since 1.3.0
 		 *
 		 * @param string $connection_id Connection ID. Default `default`.
 		 * @param array  $mail_data     Email data: `to`, `subject`, `message`, `headers` and `attachments`.
@@ -327,13 +328,32 @@ class Connections {
 
 		$settings = $this->get_settings( $id );
 
-		return $settings && $settings->is_configured() ? $id : self::DEFAULT_ID;
+		if ( $settings && $settings->is_configured() ) {
+			return $id;
+		}
+
+		/**
+		 * Fires when an email asked for a connection that can not be used, so it is sent through the default one.
+		 *
+		 * The email is not dropped, but it leaves from the mailbox of the default connection instead of the one
+		 * that was asked for. Use it to log the mismatch or to alert someone.
+		 *
+		 * @since 1.3.0
+		 *
+		 * @param string $connection_id ID that was asked for.
+		 * @param string $reason        `unknown` when the connection does not exist, `incomplete` when it exists
+		 *                              but is not fully configured.
+		 * @param array  $mail_data     Email data: `to`, `subject`, `message`, `headers` and `attachments`.
+		 */
+		do_action( 'smtp_connection_fallback', $id, $settings ? 'incomplete' : 'unknown', $mail_data );
+
+		return self::DEFAULT_ID;
 	}
 
 	/**
 	 * Creates or updates a connection.
 	 *
-	 * @since 1.2.0
+	 * @since 1.3.0
 	 *
 	 * @param string $id    Connection ID. Cleaned up with {@see Connections::sanitize_id()}.
 	 * @param string $label Connection name.
@@ -370,7 +390,7 @@ class Connections {
 	/**
 	 * Deletes a connection and its secrets.
 	 *
-	 * @since 1.2.0
+	 * @since 1.3.0
 	 *
 	 * @param string $id Connection ID. The default connection can not be deleted.
 	 * @return bool True when a connection was deleted.

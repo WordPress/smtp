@@ -53,7 +53,7 @@ class Mailer {
 	/**
 	 * Connections, or null to only use the default connection.
 	 *
-	 * @since 1.2.0
+	 * @since 1.3.0
 	 * @var Connections|null
 	 */
 	private $connections;
@@ -61,7 +61,7 @@ class Mailer {
 	/**
 	 * ID of the connection the current email is sent through.
 	 *
-	 * @since 1.2.0
+	 * @since 1.3.0
 	 * @var string
 	 */
 	private $connection_id = Connections::DEFAULT_ID;
@@ -101,7 +101,7 @@ class Mailer {
 	/**
 	 * Picks the connection the email is sent through.
 	 *
-	 * @since 1.2.0
+	 * @since 1.3.0
 	 *
 	 * @param array $args Email data, as passed to the `wp_mail` filter.
 	 * @return array Email data, unchanged.
@@ -117,7 +117,7 @@ class Mailer {
 	/**
 	 * Goes back to the default connection, once the email was sent or failed.
 	 *
-	 * @since 1.2.0
+	 * @since 1.3.0
 	 */
 	public function reset_connection() {
 		$this->connection_id = Connections::DEFAULT_ID;
@@ -230,7 +230,7 @@ class Mailer {
 	/**
 	 * Returns the settings of the connection the current email is sent through.
 	 *
-	 * @since 1.2.0
+	 * @since 1.3.0
 	 *
 	 * @return Settings Settings.
 	 */

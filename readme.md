@@ -109,7 +109,7 @@ add_filter( 'smtp_connection_for_email', function ( $connection_id, $mail_data )
 }, 10, 2 );
 ```
 
-`wp_smtp_mail()` takes the connection ID first and then the arguments of `wp_mail()`. The filter receives the connection ID (`default` unless another callback changed it) and the email data (`to`, `subject`, `message`, `headers` and `attachments`). An unknown connection, or one that is not fully configured, falls back to the default connection, so the email is still sent.
+`wp_smtp_mail()` takes the connection ID first and then the arguments of `wp_mail()`. The filter receives the connection ID (`default` unless another callback changed it) and the email data (`to`, `subject`, `message`, `headers` and `attachments`). An unknown connection, or one that is not fully configured, falls back to the default connection, so the email is still sent. The `smtp_connection_fallback` action fires in that case, with the ID that was asked for and the reason (`unknown` or `incomplete`), so you can log it or alert someone.
 
 Other plugins list the connections without any access to the credentials:
 
@@ -199,6 +199,7 @@ Passwords cannot be passed as arguments, since those end up in the shell history
 | `smtp_failure_notice_period` | Seconds the admin notice about failed emails looks back. Default one day. |
 | `smtp_rate_limits` | Change the sending limits of a provider. Receives `$limits`, the provider slug and the connection ID. See [Sending limits](#sending-limits). |
 | `smtp_connection_for_email` | Pick the connection an email is sent through. Receives `$connection_id` (`default`) and `$mail_data`. See [Multiple connections](#multiple-connections). |
+| `smtp_connection_fallback` | Action. Fires when an email asked for a connection that does not exist or is not fully configured and goes through the default one. Receives `$connection_id`, `$reason` (`unknown` or `incomplete`) and `$mail_data`. |
 | `smtp_timeout` | Seconds to wait for the SMTP server to connect and to answer each command. Default `15`. A value of `0` or less keeps the PHPMailer default of 300 seconds. |
 | `smtp_alert_channels` | Add alert channels. Receives an array of `WordPress\SMTP\Alerts\Alert_Channel` instances. |
 | `smtp_alert_enabled` | Return `false` to skip the alert for a failed email. Receives `$enabled` and the `Alert`. |

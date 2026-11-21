@@ -87,7 +87,7 @@ function wp_smtp_get_rate_limits( string $provider = '' ): array {
  *
  * The default connection is the one configured under Tools > SMTP. The result never includes credentials.
  *
- * @since 1.2.0
+ * @since 1.3.0
  *
  * @return array[] Connections keyed by ID. The default connection is first, with the ID `default`. Each one has:
  *                 `label` (string), `provider` (provider slug), `configured` (bool, whether it can send mail)
@@ -112,7 +112,7 @@ function wp_smtp_get_connections(): array {
  * default connection, so the email is still sent. To route emails you do not send yourself, use the
  * `smtp_connection_for_email` filter instead.
  *
- * @since 1.2.0
+ * @since 1.3.0
  *
  * @param string          $connection  ID of the connection, see wp_smtp_get_connections().
  * @param string|string[] $to          Array or comma-separated list of email addresses to send the message to.

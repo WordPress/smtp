@@ -52,11 +52,15 @@ SMTP is developed in the open. Bug reports, ideas and pull requests are welcome 
 
 == Changelog ==
 
+= 1.3.0 =
+
+* Multiple connections: add mailboxes with their own provider, credentials, From address and sending limits, and pick one per email with `wp_smtp_mail()` or the `smtp_connection_for_email` filter. The existing settings become the default connection.
+* Developers can react when an email falls back to the default connection with the `smtp_connection_fallback` action.
+
 = 1.2.0 =
 
 * Initial release, maintained by the WordPress Plugins Team and the community.
 * Settings of the previous SMTP plugin are imported automatically.
 * Alerts tab: get notified on Slack when an email fails to send.
 * Providers can declare their sending limits (per second, minute, hour and day, and concurrency). Administrators can override them, and other plugins read them with `wp_smtp_get_rate_limits()` or the `smtp_rate_limits` filter.
-* Multiple connections: add mailboxes with their own provider, credentials, From address and sending limits, and pick one per email with `wp_smtp_mail()` or the `smtp_connection_for_email` filter. The existing settings become the default connection.
 * With authentication on, mail goes through SMTP only once a username and password are saved. Until then, the default mailer and From address are kept.

@@ -73,7 +73,7 @@ class Delivery_Tracker {
 	/**
 	 * Settings of the connection the current email is sent through, or null for the default connection.
 	 *
-	 * @since 1.2.0
+	 * @since 1.3.0
 	 * @var Settings|null
 	 */
 	private $connection_settings = null;
@@ -92,7 +92,7 @@ class Delivery_Tracker {
 	/**
 	 * Sets the connection the current email is sent through.
 	 *
-	 * @since 1.2.0
+	 * @since 1.3.0
 	 *
 	 * @param string   $id       Connection ID.
 	 * @param Settings $settings Settings of the connection.
@@ -104,7 +104,7 @@ class Delivery_Tracker {
 	/**
 	 * Returns the ID of the connection the current email is sent through.
 	 *
-	 * @since 1.2.0
+	 * @since 1.3.0
 	 *
 	 * @return string Connection ID, `default` for the default connection.
 	 */
@@ -204,7 +204,7 @@ class Delivery_Tracker {
 	/**
 	 * Returns the settings of the connection the current email is sent through.
 	 *
-	 * @since 1.2.0
+	 * @since 1.3.0
 	 *
 	 * @return Settings Settings.
 	 */

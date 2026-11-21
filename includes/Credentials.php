@@ -65,7 +65,7 @@ class Credentials {
 	/**
 	 * Deletes every secret whose key starts with a prefix.
 	 *
-	 * @since 1.2.0
+	 * @since 1.3.0
 	 *
 	 * @param string $prefix Key prefix. An empty prefix deletes nothing.
 	 */

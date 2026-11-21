@@ -45,7 +45,7 @@ class Log_List_Table extends \WP_List_Table {
 	/**
 	 * Connections, or null when the connection of each email is not shown.
 	 *
-	 * @since 1.2.0
+	 * @since 1.3.0
 	 * @var Connections|null
 	 */
 	private $connections;
@@ -217,7 +217,7 @@ class Log_List_Table extends \WP_List_Table {
 	/**
 	 * Returns the name of the connection that sent an email.
 	 *
-	 * @since 1.2.0
+	 * @since 1.3.0
 	 *
 	 * @param array $item Log entry.
 	 * @return string Connection name, or a dash when no connection delivered the email.

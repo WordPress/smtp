@@ -307,6 +307,90 @@ class Connections_Tests extends WP_UnitTestCase {
 		$this->assertSame( 'default', $this->connections->resolve( array() ) );
 	}
 
+	public function test_resolve_fires_the_fallback_action_for_an_unknown_connection() {
+		$calls = array();
+		add_action(
+			'smtp_connection_fallback',
+			static function ( $id, $reason, $mail_data ) use ( &$calls ) {
+				$calls[] = array( $id, $reason, $mail_data );
+			},
+			10,
+			3
+		);
+		add_filter(
+			'smtp_connection_for_email',
+			static function () {
+				return 'missing';
+			}
+		);
+
+		$this->assertSame( 'default', $this->connections->resolve( array( 'subject' => 'Hello' ) ) );
+		$this->assertSame( array( array( 'missing', 'unknown', array( 'subject' => 'Hello' ) ) ), $calls );
+	}
+
+	public function test_resolve_fires_the_fallback_action_for_an_incomplete_connection() {
+		$this->connections->save( 'empty', 'Empty', array( 'provider' => 'smtp' ) );
+		$calls = array();
+		add_action(
+			'smtp_connection_fallback',
+			static function ( $id, $reason ) use ( &$calls ) {
+				$calls[] = array( $id, $reason );
+			},
+			10,
+			2
+		);
+		add_filter(
+			'smtp_connection_for_email',
+			static function () {
+				return 'empty';
+			}
+		);
+
+		$this->connections->resolve( array() );
+
+		$this->assertSame( array( array( 'empty', 'incomplete' ) ), $calls );
+	}
+
+	public function test_resolve_does_not_fire_the_fallback_action_when_the_connection_is_used() {
+		$this->connections->save(
+			'sponsors',
+			'Sponsors',
+			array(
+				'provider' => 'smtp',
+				'host'     => 'smtp.sponsors.example',
+			)
+		);
+		$count = 0;
+		add_action(
+			'smtp_connection_fallback',
+			static function () use ( &$count ) {
+				++$count;
+			}
+		);
+		add_filter(
+			'smtp_connection_for_email',
+			static function () {
+				return 'sponsors';
+			}
+		);
+
+		$this->assertSame( 'sponsors', $this->connections->resolve( array() ) );
+		$this->assertSame( 0, $count );
+	}
+
+	public function test_resolve_does_not_fire_the_fallback_action_for_the_default_connection() {
+		$count = 0;
+		add_action(
+			'smtp_connection_fallback',
+			static function () use ( &$count ) {
+				++$count;
+			}
+		);
+
+		$this->assertSame( 'default', $this->connections->resolve( array() ) );
+		$this->assertSame( 0, $count );
+	}
+
 	public function test_resolve_ignores_a_filter_result_that_is_not_a_string() {
 		add_filter( 'smtp_connection_for_email', '__return_true' );
 

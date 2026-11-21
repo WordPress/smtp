@@ -152,7 +152,7 @@ class Log_Repository {
 	/**
 	 * Inserts a row of the log table.
 	 *
-	 * @since 1.2.0
+	 * @since 1.3.0
 	 *
 	 * @param array $row Column values, all strings.
 	 * @return int|false Number of rows inserted, or false on error.
