@@ -7,8 +7,8 @@ This file provides context for AI coding agents (Claude Code, OpenAI Codex, Gemi
 **SMTP** is a minimal, community-maintained WordPress plugin that sends the emails of a site through an SMTP server. It is designed to follow WordPress.org canonical plugin conventions (slug and text domain `smtp`, owned by `wordpressdotorg`).
 
 - Settings under _Tools > SMTP_: provider, host, port, encryption, authentication, From email, From name and "Force from".
-- Credentials can be defined as constants in `wp-config.php` (`SMTP_HOST`, `SMTP_PORT`, `SMTP_ENCRYPTION`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM_EMAIL`). A constant overrides the saved value and locks the field.
-- Extensible through the `smtp_providers` filter. Generic SMTP is registered through the same filter.
+- Credentials can be defined as constants in `wp-config.php` (`SMTP_HOST`, `SMTP_PORT`, `SMTP_ENCRYPTION`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM_EMAIL`, and `SMTP_SENDLAYER_USER`, `SMTP_SENDLAYER_PASSWORD` for the SendLayer provider). A constant overrides the saved value and locks the field.
+- Extensible through the `smtp_providers` filter. The built-in providers (Generic SMTP and SendLayer) are registered through the same filter.
 - Metadata-only email log (no message body, no attachments) with automatic retention.
 - A test email tab that shows the connection log with credentials redacted.
 - An Alerts tab that notifies external channels (Slack first) when an email fails, extensible through the `smtp_alert_channels` filter.
@@ -27,7 +27,7 @@ smtp/
 ├── assets/js/alerts.js       # Shows the fields of the selected alert channel, enqueued by Alerts_Tab
 ├── includes/                 # PSR-4 autoloaded under WordPress\SMTP\
 │   ├── Plugin_Main.php       # Wires every component, activation/deactivation, purge schedule
-│   ├── Provider_Registry.php # smtp_providers filter, provider validation, Generic SMTP provider
+│   ├── Provider_Registry.php # smtp_providers filter, provider validation, Generic SMTP and SendLayer providers
 │   ├── Settings.php          # Field resolution (constant > saved value > default) and sanitization
 │   ├── Credentials.php       # The only place that reads/writes secrets
 │   ├── Migration.php         # One-time import of the legacy SMTP plugin (smtp_options) settings
@@ -199,7 +199,7 @@ npm run test-php -- --filter Settings_Tests::test_sanitize_is_idempotent
 - `includes/Plugin_Main.php` — the composition root. Add new components here.
 - `includes/Settings.php` — the only class that knows how a field value is resolved and sanitized.
 - `includes/Credentials.php` — the only class that touches secrets.
-- `includes/Provider_Registry.php` — the provider contract and the Generic SMTP provider.
+- `includes/Provider_Registry.php` — the provider contract and the built-in providers (Generic SMTP, SendLayer).
 
 ## Release Process
 

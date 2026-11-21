@@ -181,6 +181,50 @@ class Settings_Tests extends WP_UnitTestCase {
 		$this->assertTrue( $this->settings->is_configured() );
 	}
 
+	public function test_is_configured_requires_the_sendlayer_username_and_password() {
+		$this->save( array( 'provider' => 'sendlayer' ) );
+
+		$this->assertFalse( $this->settings->is_configured() );
+
+		$this->save(
+			array(
+				'provider'           => 'sendlayer',
+				'sendlayer_username' => 'user',
+			)
+		);
+
+		$this->assertFalse( $this->settings->is_configured() );
+
+		$this->credentials->set( 'sendlayer_password', 'secret' );
+
+		$this->assertTrue( $this->settings->is_configured() );
+
+		$this->save( array( 'provider' => 'sendlayer' ) );
+
+		$this->assertFalse( $this->settings->is_configured() );
+	}
+
+	public function test_sendlayer_does_not_use_the_generic_smtp_credentials() {
+		$this->save(
+			array(
+				'provider' => 'sendlayer',
+				'host'     => 'smtp.example.com',
+				'auth'     => true,
+				'username' => 'other-user',
+			)
+		);
+		$this->credentials->set( 'password', 'other-secret' );
+
+		$this->assertFalse( $this->settings->is_configured() );
+		$this->assertSame(
+			array(
+				'sendlayer_username' => '',
+				'sendlayer_password' => '',
+			),
+			$this->settings->get_provider_values()
+		);
+	}
+
 	public function test_is_configured_is_false_when_authentication_has_no_password() {
 		$this->save(
 			array(

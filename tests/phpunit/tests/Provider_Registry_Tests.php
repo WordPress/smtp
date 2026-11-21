@@ -91,7 +91,7 @@ class Provider_Registry_Tests extends WP_UnitTestCase {
 			}
 		);
 
-		$this->assertSame( array( 'smtp' ), array_keys( $this->registry->get_all() ) );
+		$this->assertSame( array( 'smtp', 'sendlayer' ), array_keys( $this->registry->get_all() ) );
 	}
 
 	public function test_filter_returning_a_non_array_leaves_no_providers() {
@@ -173,5 +173,82 @@ class Provider_Registry_Tests extends WP_UnitTestCase {
 		$this->assertFalse( $phpmailer->SMTPAuth );
 		$this->assertSame( '', $phpmailer->Username );
 		$this->assertSame( '', $phpmailer->Password );
+	}
+
+	public function test_sendlayer_is_registered_by_default() {
+		$provider = $this->registry->get( 'sendlayer' );
+
+		$this->assertSame( 'SendLayer', $provider['label'] );
+		$this->assertSame( array( 'sendlayer_username', 'sendlayer_password' ), $provider['required'] );
+		$this->assertSame( array(), $provider['required_if'] );
+		$this->assertTrue( is_callable( $provider['configure'] ) );
+	}
+
+	public function test_sendlayer_only_asks_for_the_credentials() {
+		$fields = $this->registry->get( 'sendlayer' )['fields'];
+
+		$this->assertSame( array( 'sendlayer_username', 'sendlayer_password' ), array_keys( $fields ) );
+		$this->assertSame( 'text', $fields['sendlayer_username']['type'] );
+		$this->assertSame( 'SMTP_SENDLAYER_USER', $fields['sendlayer_username']['constant'] );
+		$this->assertSame( 'password', $fields['sendlayer_password']['type'] );
+		$this->assertSame( 'SMTP_SENDLAYER_PASSWORD', $fields['sendlayer_password']['constant'] );
+	}
+
+	public function test_sendlayer_does_not_share_fields_or_constants_with_generic_smtp() {
+		$generic   = $this->registry->get( 'smtp' )['fields'];
+		$sendlayer = $this->registry->get( 'sendlayer' )['fields'];
+
+		$this->assertSame( array(), array_intersect_key( $sendlayer, $generic ) );
+		$this->assertSame(
+			array(),
+			array_intersect( array_column( $sendlayer, 'constant' ), array_column( $generic, 'constant' ) )
+		);
+	}
+
+	public function test_configure_sendlayer_sets_the_server_and_the_credentials() {
+		$phpmailer = $this->get_phpmailer();
+
+		call_user_func(
+			$this->registry->get( 'sendlayer' )['configure'],
+			$phpmailer,
+			array(
+				'sendlayer_username' => 'user',
+				'sendlayer_password' => 'secret',
+			)
+		);
+
+		$this->assertSame( 'smtp', $phpmailer->Mailer );
+		$this->assertSame( 'smtp.sendlayer.net', $phpmailer->Host );
+		$this->assertSame( 587, $phpmailer->Port );
+		$this->assertSame( 'tls', $phpmailer->SMTPSecure );
+		$this->assertTrue( $phpmailer->SMTPAuth );
+		$this->assertSame( 'user', $phpmailer->Username );
+		$this->assertSame( 'secret', $phpmailer->Password );
+	}
+
+	public function test_configure_sendlayer_ignores_the_generic_smtp_values() {
+		$phpmailer = $this->get_phpmailer();
+
+		call_user_func(
+			$this->registry->get( 'sendlayer' )['configure'],
+			$phpmailer,
+			array(
+				'host'               => 'smtp.example.com',
+				'port'               => 25,
+				'encryption'         => 'none',
+				'auth'               => false,
+				'username'           => 'other-user',
+				'password'           => 'other-secret',
+				'sendlayer_username' => 'user',
+				'sendlayer_password' => 'secret',
+			)
+		);
+
+		$this->assertSame( 'smtp.sendlayer.net', $phpmailer->Host );
+		$this->assertSame( 587, $phpmailer->Port );
+		$this->assertSame( 'tls', $phpmailer->SMTPSecure );
+		$this->assertTrue( $phpmailer->SMTPAuth );
+		$this->assertSame( 'user', $phpmailer->Username );
+		$this->assertSame( 'secret', $phpmailer->Password );
 	}
 }
