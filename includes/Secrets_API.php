@@ -88,4 +88,15 @@ class Secrets_API {
 
 		return true;
 	}
+
+	/**
+	 * Deletes a secret.
+	 *
+	 * @since 1.3.0
+	 *
+	 * @param string $name Secret name, `plugin-slug/secret-name`.
+	 */
+	public function delete( string $name ) {
+		wp_delete_secret( $name );
+	}
 }

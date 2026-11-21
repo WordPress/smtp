@@ -103,6 +103,38 @@ class Credentials_Tests extends WP_UnitTestCase {
 		$this->assertSame( 'nope', get_option( Credentials::OPTION ) );
 	}
 
+	public function test_delete_prefixed_removes_the_secrets_stored_with_the_api() {
+		$this->api->available = true;
+		$this->credentials->set( 'connection:a:password', 'one' );
+		$this->credentials->set( 'connection:ab:password', 'two' );
+
+		$this->credentials->delete_prefixed( 'connection:a:' );
+
+		$this->assertSame( array( Credentials::get_secret_name( 'connection:ab:password' ) => 'two' ), $this->api->secrets );
+		$this->assertSame( '', $this->credentials->get( 'connection:a:password' ) );
+		$this->assertSame( 'two', $this->credentials->get( 'connection:ab:password' ) );
+	}
+
+	public function test_secret_names_are_valid_for_the_api_and_unique() {
+		$keys  = array( 'password', 'connection:a:password', 'connection:a-1a:password', 'connection:a:1a:password', 'alert_slack_webhook_url' );
+		$names = array_map( array( Credentials::class, 'get_secret_name' ), $keys );
+
+		foreach ( $names as $name ) {
+			$this->assertMatchesRegularExpression( '#^smtp/[a-z0-9_-]+$#', $name );
+		}
+		$this->assertSame( 'smtp/password', $names[0] );
+		$this->assertCount( count( $keys ), array_unique( $names ) );
+	}
+
+	public function test_a_connection_secret_is_stored_with_the_api() {
+		$this->api->available = true;
+
+		$this->assertTrue( $this->credentials->set( 'connection:sponsors:password', 'secret' ) );
+
+		$this->assertSame( array( 'smtp/connection-1sponsors-1password' => 'secret' ), $this->api->secrets );
+		$this->assertSame( 'secret', $this->credentials->get( 'connection:sponsors:password' ) );
+	}
+
 	public function test_without_the_api_secrets_are_stored_in_the_option() {
 		$this->credentials->set( 'password', 'secret' );
 

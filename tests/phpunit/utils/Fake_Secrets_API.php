@@ -74,4 +74,8 @@ class Fake_Secrets_API extends Secrets_API {
 
 		return true;
 	}
+
+	public function delete( string $name ) {
+		unset( $this->secrets[ $name ] );
+	}
 }

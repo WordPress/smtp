@@ -96,7 +96,12 @@ class Credentials {
 	 */
 	public function add_hooks() {
 		// Reads fall back to the option until then, so there is no need to run it on every request.
-		add_action( 'admin_init', array( $this, 'migrate' ) );
+		add_action(
+			'admin_init',
+			function () {
+				$this->migrate();
+			}
+		);
 		add_action( 'admin_notices', array( $this, 'render_notice' ) );
 	}
 
@@ -134,7 +139,7 @@ class Credentials {
 	 */
 	public function set( string $key, string $value ) {
 		if ( $this->secrets->is_writable() ) {
-			$result = $this->secrets->set( self::SECRET_PREFIX . $key, $value );
+			$result = $this->secrets->set( self::get_secret_name( $key ), $value );
 			if ( is_wp_error( $result ) ) {
 				return $result;
 			}
@@ -188,7 +193,7 @@ class Credentials {
 
 			++$tried;
 
-			$name = self::SECRET_PREFIX . $key;
+			$name = self::get_secret_name( $key );
 			if ( is_wp_error( $this->secrets->set( $name, $value ) ) || $this->secrets->get( $name ) !== $value ) {
 				continue;
 			}
@@ -290,7 +295,7 @@ class Credentials {
 				return new \WP_Error( 'smtp_secrets_unavailable', __( 'The Secrets API is not available.', 'smtp' ) );
 			}
 
-			$value = $this->secrets->get( self::SECRET_PREFIX . $key );
+			$value = $this->secrets->get( self::get_secret_name( $key ) );
 
 			// It was stored, so a missing secret was deleted outside the plugin.
 			return null === $value ? new \WP_Error( 'smtp_secret_missing', __( 'The secret is missing from the Secrets API.', 'smtp' ) ) : $value;
@@ -302,7 +307,7 @@ class Credentials {
 		}
 
 		// Also covers secrets provided by the host, and a key list overwritten by a concurrent save.
-		return $this->secrets->is_available() ? $this->secrets->get( self::SECRET_PREFIX . $key ) : null;
+		return $this->secrets->is_available() ? $this->secrets->get( self::get_secret_name( $key ) ) : null;
 	}
 
 	/**
@@ -378,7 +383,7 @@ class Credentials {
 	}
 
 	/**
-	 * Deletes every secret whose key starts with a prefix.
+	 * Deletes every secret whose key starts with a prefix, in both storages.
 	 *
 	 * @since 1.3.0
 	 *
@@ -389,17 +394,33 @@ class Credentials {
 			return;
 		}
 
-		$secrets = get_option( self::OPTION, array() );
-		if ( ! is_array( $secrets ) ) {
-			return;
-		}
+		$matches = static function ( $key ) use ( $prefix ) {
+			return 0 === strpos( (string) $key, $prefix );
+		};
 
-		foreach ( array_keys( $secrets ) as $key ) {
-			if ( 0 === strpos( (string) $key, $prefix ) ) {
-				unset( $secrets[ $key ] );
+		$migrated = array_filter( $this->get_migrated_keys(), $matches );
+		if ( $migrated && $this->secrets->is_writable() ) {
+			foreach ( $migrated as $key ) {
+				$this->secrets->delete( self::get_secret_name( $key ) );
+				$this->set_migrated( $key, false );
 			}
 		}
 
-		update_option( self::OPTION, $secrets, false );
+		$this->remove_from_option( array_filter( array_keys( $this->get_option() ), $matches ) );
+	}
+
+	/**
+	 * Returns the Secrets API name of a secret key.
+	 *
+	 * Names only accept lowercase letters, digits, hyphens and underscores, but connection keys
+	 * contain colons. The hyphen is escaped first, so two different keys never share a name.
+	 *
+	 * @since 1.3.0
+	 *
+	 * @param string $key Secret key.
+	 * @return string Secret name.
+	 */
+	public static function get_secret_name( string $key ): string {
+		return self::SECRET_PREFIX . str_replace( array( '-', ':' ), array( '-0', '-1' ), $key );
 	}
 }

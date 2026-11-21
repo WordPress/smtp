@@ -20,7 +20,8 @@ $smtp_uninstall_site = static function () {
 	// Secrets stored with the WordPress Secrets API. They stay if the API is not available any more.
 	if ( function_exists( 'wp_delete_secret' ) ) {
 		foreach ( (array) get_option( 'smtp_secret_keys', array() ) as $smtp_secret_key ) {
-			wp_delete_secret( 'smtp/' . $smtp_secret_key );
+			// Same name as Credentials::get_secret_name(), which is not loaded here.
+			wp_delete_secret( 'smtp/' . str_replace( array( '-', ':' ), array( '-0', '-1' ), (string) $smtp_secret_key ) );
 		}
 	}
 
