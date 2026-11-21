@@ -121,7 +121,7 @@ class Privacy {
 					),
 					array(
 						'name'  => __( 'To', 'smtp' ),
-						'value' => $entry['recipient'],
+						'value' => self::get_own_recipient( $entry['recipient'], (string) $email ),
 					),
 					array(
 						'name'  => __( 'Subject', 'smtp' ),
@@ -207,6 +207,32 @@ class Privacy {
 		$text .= "\n\n" . __( 'The log is only visible to administrators. Log entries sent to an email address are included when that person requests an export of their personal data, and deleted when they request its erasure.', 'smtp' );
 
 		return $text;
+	}
+
+	/**
+	 * Returns the recipients of a log entry that are the given address, without the others.
+	 *
+	 * Matches like Log_Repository::get_items_by_recipient(): the whole address, or the address in angle brackets.
+	 *
+	 * @since 1.3.0
+	 *
+	 * @param string $recipient Recipient column of the entry.
+	 * @param string $email     Email address.
+	 * @return string Matching recipients, comma separated.
+	 */
+	private static function get_own_recipient( string $recipient, string $email ): string {
+		$email = strtolower( trim( $email ) );
+		$own   = array();
+
+		foreach ( explode( ',', $recipient ) as $part ) {
+			$part  = trim( $part );
+			$lower = strtolower( $part );
+			if ( $lower === $email || false !== strpos( $lower, '<' . $email . '>' ) ) {
+				$own[] = $part;
+			}
+		}
+
+		return implode( ', ', $own );
 	}
 
 	/**

@@ -255,6 +255,38 @@ class Test_Email {
 			}
 		);
 
-		return str_replace( $secrets, '[redacted]', $text );
+		return self::redact_auth_exchange( str_replace( $secrets, '[redacted]', $text ) );
+	}
+
+	/**
+	 * Removes what the client sends to authenticate, whatever the AUTH mechanism.
+	 *
+	 * Some data sent there does not come from a field, like the access token of XOAUTH2.
+	 *
+	 * @since 1.3.0
+	 *
+	 * @param string $text Connection log.
+	 * @return string Connection log without the authentication data.
+	 */
+	private static function redact_auth_exchange( string $text ): string {
+		$client  = 'CLIENT -> SERVER: ';
+		$lines   = explode( "\n", $text );
+		$in_auth = false;
+
+		foreach ( $lines as $i => $line ) {
+			if ( preg_match( '/^(' . preg_quote( $client, '/' ) . 'AUTH [A-Z0-9_-]+)(\s+\S.*)?$/i', $line, $matches ) ) {
+				$in_auth = true;
+				if ( isset( $matches[2] ) ) {
+					$lines[ $i ] = $matches[1] . ' [redacted]';
+				}
+			} elseif ( $in_auth && 0 === strpos( $line, $client ) && '' !== trim( substr( $line, strlen( $client ) ) ) ) {
+				$lines[ $i ] = $client . '[redacted]';
+			} elseif ( 0 === strpos( $line, 'SERVER -> CLIENT: ' ) && 0 !== strpos( $line, 'SERVER -> CLIENT: 334' ) ) {
+				// Any answer other than a challenge ends the exchange.
+				$in_auth = false;
+			}
+		}
+
+		return implode( "\n", $lines );
 	}
 }

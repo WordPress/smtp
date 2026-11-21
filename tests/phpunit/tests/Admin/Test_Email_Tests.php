@@ -538,4 +538,37 @@ class Test_Email_Tests extends WP_UnitTestCase {
 
 		$this->assertSame( 'key [redacted], token [redacted]', $this->redact( 'key abc-def-ghi, token abc' ) );
 	}
+
+	public function test_redact_removes_an_xoauth2_token_sent_with_the_command() {
+		$token = base64_encode( "user=jane@example.com\x01auth=Bearer ya29.access-token\x01\x01" ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode
+
+		$this->assertSame( 'CLIENT -> SERVER: AUTH XOAUTH2 [redacted]', $this->redact( 'CLIENT -> SERVER: AUTH XOAUTH2 ' . $token ) );
+	}
+
+	public function test_redact_removes_the_lines_sent_during_the_auth_exchange() {
+		$log = implode(
+			"\n",
+			array(
+				'CLIENT -> SERVER: AUTH XOAUTH2',
+				'SERVER -> CLIENT: 334',
+				'CLIENT -> SERVER: dXNlcj1qYW5lQGV4YW1wbGUuY29tAWF1dGg9QmVhcmVyIGxvbmctdG9rZW4BAQ==',
+				'SERVER -> CLIENT: 235 2.7.0 Accepted',
+				'CLIENT -> SERVER: MAIL FROM:<jane@example.com>',
+			)
+		);
+
+		$this->assertSame(
+			implode(
+				"\n",
+				array(
+					'CLIENT -> SERVER: AUTH XOAUTH2',
+					'SERVER -> CLIENT: 334',
+					'CLIENT -> SERVER: [redacted]',
+					'SERVER -> CLIENT: 235 2.7.0 Accepted',
+					'CLIENT -> SERVER: MAIL FROM:<jane@example.com>',
+				)
+			),
+			$this->redact( $log )
+		);
+	}
 }
