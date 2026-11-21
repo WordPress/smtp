@@ -6,7 +6,7 @@
 
 ![Plugin Version](https://img.shields.io/wordpress/plugin/v/smtp?label=Version) ![WordPress.org Rating](https://img.shields.io/wordpress/plugin/rating/smtp?label=WP.org%20Rating) ![WordPress Plugin Downloads](https://img.shields.io/wordpress/plugin/dt/smtp?label=WP.org%20Downloads) ![WordPress Plugin Active Installs](https://img.shields.io/wordpress/plugin/installs/smtp?label=WP.org%20Active%20Installs) [![WordPress Playground Demo](https://img.shields.io/wordpress/plugin/v/smtp?logo=wordpress&logoColor=FFFFFF&label=Live%20Demo&labelColor=3858E9&color=3858E9)](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/WordPress/smtp/trunk/.wordpress-org/blueprints/blueprint.json)
 
-[![PHP Unit Testing](https://github.com/WordPress/smtp/actions/workflows/php-test.yml/badge.svg)](https://github.com/WordPress/smtp/actions/workflows/php-test.yml) [![PHP Linting](https://github.com/WordPress/smtp/actions/workflows/php-lint.yml/badge.svg)](https://github.com/WordPress/smtp/actions/workflows/php-lint.yml)
+[![PHP Unit Testing](https://github.com/WordPress/smtp/actions/workflows/php-test.yml/badge.svg)](https://github.com/WordPress/smtp/actions/workflows/php-test.yml) [![PHP Linting](https://github.com/WordPress/smtp/actions/workflows/php-lint.yml/badge.svg)](https://github.com/WordPress/smtp/actions/workflows/php-lint.yml) [![codecov](https://codecov.io/gh/WordPress/smtp/graph/badge.svg)](https://codecov.io/gh/WordPress/smtp)
 
 > SMTP plugin for WordPress. [View on WordPress.org →](https://wordpress.org/plugins/smtp/)
 

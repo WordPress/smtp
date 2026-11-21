@@ -3,4 +3,5 @@
 .phpcs.xml
 .phpunit.result.cache
 .phpunit.result.cache.multisite
+/build/
 .DS_Store
