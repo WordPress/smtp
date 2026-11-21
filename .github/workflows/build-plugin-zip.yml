@@ -1,0 +1,61 @@
+name: Build Plugin Zip
+
+on:
+  pull_request:
+    branches:
+      - trunk
+      - 'feature/**'
+    types:
+      - opened
+      - reopened
+      - synchronize
+
+# Cancels all previous workflow runs for pull requests that have not completed.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.sha }}
+  cancel-in-progress: true
+
+# Disable permissions for all available scopes by default.
+# Any needed permissions are set at the job level.
+permissions: {}
+
+jobs:
+  build:
+    name: Build plugin zip
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read # Required to clone the repo.
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2.40.0
+        with:
+          php-version: '8.3'
+          coverage: none
+
+      # Same Composer options as deploy.yml, so the preview gets what WordPress.org gets.
+      - name: Install PHP dependencies
+        uses: ramsey/composer-install@65e4f84970763564f46a70b8a54b90d033b3bdda # v4.0.0
+        with:
+          composer-options: '--prefer-dist --no-dev'
+
+      # The zip contains one "smtp" folder, so WordPress installs it under its real slug.
+      - name: Build the plugin zip
+        run: |
+          mkdir -p build/smtp
+          rsync -a --exclude-from=.distignore ./ build/smtp/
+          (cd build && zip -qr ../smtp.zip smtp)
+          unzip -l smtp.zip | tail -n 1
+
+      - name: Upload the plugin zip
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: smtp-zip-pr${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
+          path: smtp.zip
+          if-no-files-found: error
+          retention-days: 7

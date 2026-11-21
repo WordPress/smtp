@@ -1,0 +1,16 @@
+includes:
+    - phpstan-baseline.neon
+
+parameters:
+    level: 5
+    phpVersion:
+        min: 70400
+        max: 80500
+    # Runtime values in WordPress do not always match the documented types.
+    treatPhpDocTypesAsCertain: false
+    paths:
+        - smtp.php
+        - uninstall.php
+        - includes/
+    scanFiles:
+        - vendor/php-stubs/wp-cli-stubs/wp-cli-stubs.php

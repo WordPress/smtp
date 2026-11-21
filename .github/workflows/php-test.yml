@@ -12,6 +12,7 @@ on:
       - 'package.json'
       - 'package-lock.json'
       - 'phpunit.xml.dist'
+      - 'phpunit-multisite.xml'
       - 'composer.json'
       - 'composer.lock'
   pull_request:
@@ -26,6 +27,7 @@ on:
       - 'package.json'
       - 'package-lock.json'
       - 'phpunit.xml.dist'
+      - 'phpunit-multisite.xml'
       - 'composer.json'
       - 'composer.lock'
     types:
@@ -37,45 +39,76 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/trunk' }}
 
+# Disable permissions for all available scopes by default.
+# Any needed permissions are set at the job level.
+permissions: {}
+
 jobs:
   php-test:
-    name: PHP ${{ matrix.php }} - WP ${{ matrix.wordpress }}${{ matrix.experimental && ' (experimental)' || '' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    continue-on-error: ${{ matrix.experimental == true }}
+    name: PHP ${{ matrix.php }} - WP ${{ matrix.wp }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read # Required to clone the repo.
     strategy:
-      fail-fast: true
+      # One broken job should not cancel the rest of the matrix and hide every other result.
+      fail-fast: false
       matrix:
         php:
-          - '7.4'
-          - '8.0'
-          - '8.1'
-          - '8.2'
+          - '8.5'
+          - '8.4'
           - '8.3'
-        wordpress: [ 'latest' ]
+          - '8.2'
+          - '8.1'
+        wp:
+          - latest
+          - WordPress/WordPress
+          - WordPress/WordPress#6.8-branch
+          - WordPress/WordPress#6.9-branch
+          - WordPress/WordPress#7.0-branch
+          - WordPress/WordPress#7.1-branch
+        exclude:
+          # WordPress 6.8 does not support PHP 8.5.
+          - php: '8.5'
+            wp: WordPress/WordPress#6.8-branch
         include:
+          # Oldest supported PHP versions, on the latest release and trunk.
           - php: '7.4'
-            wordpress: '6.3'
-          - php: '8.4'
-            wordpress: 'trunk'
-            experimental: true
+            wp: latest
+          - php: '7.4'
+            wp: WordPress/WordPress
+          - php: '8.0'
+            wp: latest
+          # Minimum supported WordPress version ("Requires at least: 6.3").
+          # WordPress 6.3 supports PHP up to 8.2.
+          - php: '7.4'
+            wp: WordPress/WordPress#6.3-branch
+          - php: '8.2'
+            wp: WordPress/WordPress#6.3-branch
     env:
       WP_ENV_PHP_VERSION: ${{ matrix.php }}
-      WP_ENV_CORE: ${{ matrix.wordpress == 'trunk' && 'WordPress/WordPress' || format( 'https://wordpress.org/wordpress-{0}.zip', matrix.wordpress ) }}
-    steps:
-      - uses: actions/checkout@v4
+      WP_ENV_CORE: ${{ matrix.wp == 'latest' && 'https://wordpress.org/wordpress-latest.zip' || matrix.wp }}
 
-      - uses: shivammathur/setup-php@v2
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Composer runs on the runner, so the runner needs the same PHP version as the container.
+      - name: Setup PHP
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2.40.0
         with:
           php-version: ${{ matrix.php }}
+          coverage: none
 
       - name: Install PHP dependencies
-        uses: ramsey/composer-install@v3
+        uses: ramsey/composer-install@65e4f84970763564f46a70b8a54b90d033b3bdda # 4.0.0
         with:
           composer-options: '--prefer-dist'
 
       - name: Setup Node.js (.nvmrc)
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: '.nvmrc'
           cache: npm
@@ -83,8 +116,36 @@ jobs:
       - name: npm install
         run: npm ci
 
+      # Docker image pulls fail now and then; retry instead of failing the job.
       - name: Start WordPress
-        run: npm run wp-env:start:tests
+        uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60 # v4.0.0
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          command: npm run wp-env:start:tests
 
-      - name: Run tests
+      # wp-env takes the PHPUnit library from wordpress-develop trunk whenever the core
+      # version has an -alpha suffix, which is the case on release branches between point
+      # releases (e.g. 7.1.5-alpha). Check out the matching wordpress-develop branch instead.
+      - name: Match the PHPUnit library to the WordPress branch
+        if: ${{ endsWith( matrix.wp, '-branch' ) }}
+        env:
+          WP_BRANCH: ${{ matrix.wp }}
+        run: |
+          BRANCH="${WP_BRANCH##*#}"
+          BRANCH="${BRANCH%-branch}"
+          PHPUNIT_DIR="$(npx wp-env --config=.wp-env.tests.json status --json | jq -r .installPath)/tests-WordPress-PHPUnit"
+          git -C "$PHPUNIT_DIR" fetch origin "$BRANCH" --depth 1
+          git -C "$PHPUNIT_DIR" checkout FETCH_HEAD
+
+      - name: Versions
+        run: |
+          npx wp-env --config=.wp-env.tests.json run cli wp eval 'echo "PHP " . PHP_VERSION . ", WordPress " . get_bloginfo( "version" ) . PHP_EOL;'
+
+      - name: Run tests (single site)
         run: npm run test-php
+
+      # Runs even when the single-site suite failed, so both results are visible.
+      - name: Run tests (multisite)
+        if: ${{ !cancelled() }}
+        run: npm run test-php-multisite

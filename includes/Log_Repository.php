@@ -33,6 +33,14 @@ class Log_Repository {
 	const DB_VERSION_OPTION = 'smtp_db_version';
 
 	/**
+	 * Name of the transient that stops several requests from creating the table at once, and
+	 * delays the next attempt after a failure.
+	 *
+	 * @since 1.2.0
+	 */
+	const UPGRADE_LOCK = 'smtp_db_upgrade_lock';
+
+	/**
 	 * Returns the full table name.
 	 *
 	 * @since 1.2.0
@@ -54,6 +62,12 @@ class Log_Repository {
 		if ( get_option( self::DB_VERSION_OPTION ) === self::DB_VERSION ) {
 			return;
 		}
+
+		// Right after an update many requests arrive at once, and only one of them needs to run dbDelta.
+		if ( get_transient( self::UPGRADE_LOCK ) ) {
+			return;
+		}
+		set_transient( self::UPGRADE_LOCK, '1', MINUTE_IN_SECONDS );
 
 		global $wpdb;
 
@@ -77,7 +91,17 @@ class Log_Repository {
 			) {$charset};"
 		);
 
+		// Without the table (for example when the database user cannot create tables), the version is
+		// not saved, so the table is created later. The lock keeps that to one attempt an hour instead
+		// of one per request.
+		if ( ! $this->table_exists() ) {
+			set_transient( self::UPGRADE_LOCK, '1', HOUR_IN_SECONDS );
+
+			return;
+		}
+
 		update_option( self::DB_VERSION_OPTION, self::DB_VERSION );
+		delete_transient( self::UPGRADE_LOCK );
 	}
 
 	/**
@@ -90,18 +114,50 @@ class Log_Repository {
 	public function insert( array $entry ) {
 		global $wpdb;
 
-		$wpdb->insert(
-			$this->get_table_name(),
-			array(
-				'created_at' => current_time( 'mysql', true ),
-				'recipient'  => $entry['recipient'],
-				'subject'    => $entry['subject'],
-				'status'     => $entry['status'],
-				'error'      => $entry['error'],
-				'provider'   => $entry['provider'],
-			),
-			array( '%s', '%s', '%s', '%s', '%s', '%s' )
+		// Email sent before init, for example on plugins_loaded, arrives before the table is created.
+		// Once the table exists this only reads an autoloaded option.
+		$this->maybe_upgrade();
+
+		$row = array(
+			'created_at' => current_time( 'mysql', true ),
+			'recipient'  => $entry['recipient'],
+			'subject'    => $entry['subject'],
+			'status'     => $entry['status'],
+			'error'      => $entry['error'],
+			'provider'   => $entry['provider'],
 		);
+
+		if ( false !== $wpdb->insert( $this->get_table_name(), $row, array( '%s', '%s', '%s', '%s', '%s', '%s' ) ) || $this->table_exists() ) {
+			return;
+		}
+
+		// The table was removed after it was created, so it is created again, once.
+		delete_option( self::DB_VERSION_OPTION );
+		$this->maybe_upgrade();
+
+		if ( $this->table_exists() ) {
+			$wpdb->insert( $this->get_table_name(), $row, array( '%s', '%s', '%s', '%s', '%s', '%s' ) );
+		}
+	}
+
+	/**
+	 * Returns whether the log table exists.
+	 *
+	 * Uses SHOW COLUMNS instead of SHOW TABLES, which does not list temporary tables.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @return bool Whether the table exists.
+	 */
+	private function table_exists(): bool {
+		global $wpdb;
+
+		$table    = $this->get_table_name();
+		$suppress = $wpdb->suppress_errors( true );
+		$columns  = $wpdb->get_results( "SHOW COLUMNS FROM {$table}" );
+		$wpdb->suppress_errors( $suppress );
+
+		return ! empty( $columns );
 	}
 
 	/**

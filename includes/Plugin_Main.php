@@ -80,7 +80,9 @@ class Plugin_Main {
 		$alert_dispatcher = new Alert_Dispatcher( $alert_settings );
 		$alert_dispatcher->add_hooks();
 
-		add_action( 'admin_init', array( $repository, 'maybe_upgrade' ) );
+		// Sites updating from the 1.x plugin never run the activation hook, and cron or front-end
+		// requests send mail without admin_init. Priority 0 creates the table before most mail is sent.
+		add_action( 'init', array( $repository, 'maybe_upgrade' ), 0 );
 		add_action( 'init', array( $this, 'schedule_purge' ) );
 
 		if ( is_admin() ) {

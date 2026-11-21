@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Help with my email setup
+    url: https://wordpress.org/support/plugin/smtp/
+    about: Questions about configuring the plugin or your email provider go to the WordPress.org support forum.
+  - name: Report a security vulnerability
+    url: https://github.com/WordPress/smtp/security/policy
+    about: Please report security issues privately, as described in the security policy. Don't open a public issue.

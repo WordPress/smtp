@@ -141,6 +141,12 @@ class Admin_Page_Tests extends WP_UnitTestCase {
 		$this->assertStringContainsString( 'name="smtp_settings[provider]"', $html );
 	}
 
+	public function test_number_fields_render_their_range() {
+		$this->admin_page->register_settings();
+
+		$this->assertMatchesRegularExpression( '/name="smtp_settings\[port\]"[^>]*min="1"[^>]*max="65535"/s', $this->render() );
+	}
+
 	private function get_tab_slugs( string $html ): array {
 		preg_match_all( '/tab=([a-z]+)"\s+class="nav-tab/', $html, $matches );
 
