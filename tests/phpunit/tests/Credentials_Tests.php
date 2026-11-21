@@ -64,4 +64,36 @@ class Credentials_Tests extends WP_UnitTestCase {
 
 		$this->assertArrayNotHasKey( Credentials::OPTION, wp_load_alloptions( true ) );
 	}
+
+	public function test_delete_prefixed_removes_only_the_matching_secrets() {
+		$credentials = new Credentials();
+		$credentials->set( 'connection:a:password', 'one' );
+		$credentials->set( 'connection:a:token', 'two' );
+		$credentials->set( 'connection:ab:password', 'three' );
+		$credentials->set( 'password', 'four' );
+
+		$credentials->delete_prefixed( 'connection:a:' );
+
+		$this->assertSame( '', $credentials->get( 'connection:a:password' ) );
+		$this->assertSame( '', $credentials->get( 'connection:a:token' ) );
+		$this->assertSame( 'three', $credentials->get( 'connection:ab:password' ) );
+		$this->assertSame( 'four', $credentials->get( 'password' ) );
+	}
+
+	public function test_delete_prefixed_with_an_empty_prefix_deletes_nothing() {
+		$credentials = new Credentials();
+		$credentials->set( 'password', 'secret' );
+
+		$credentials->delete_prefixed( '' );
+
+		$this->assertSame( 'secret', $credentials->get( 'password' ) );
+	}
+
+	public function test_delete_prefixed_survives_a_corrupted_option() {
+		update_option( Credentials::OPTION, 'nope' );
+
+		( new Credentials() )->delete_prefixed( 'connection:a:' );
+
+		$this->assertSame( 'nope', get_option( Credentials::OPTION ) );
+	}
 }

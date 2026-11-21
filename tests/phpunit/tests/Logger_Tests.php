@@ -358,4 +358,19 @@ class Logger_Tests extends WP_UnitTestCase {
 
 		$this->assertCount( 1, $this->get_logged_entries() );
 	}
+
+	public function test_log_leaves_the_connection_empty_for_the_default_connection() {
+		update_option(
+			Settings::OPTION,
+			array(
+				'provider' => 'smtp',
+				'host'     => 'smtp.example.com',
+				'auth'     => false,
+			)
+		);
+
+		$this->logger->log_success( array( 'to' => 'a@example.org' ) );
+
+		$this->assertSame( '', $this->get_logged_entries()[0]['connection_id'] );
+	}
 }

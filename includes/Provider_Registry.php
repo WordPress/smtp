@@ -15,7 +15,8 @@ namespace WordPress\SMTP;
  * - `label` (string): Human readable name.
  * - `fields` (array): Settings fields, keyed by field key. Each field accepts `label`, `type`
  *   (`text`, `number`, `email`, `password`, `select`, `checkbox`), `default`, `options` (for
- *   `select`), `description` and `constant` (name of a constant that overrides the value).
+ *   `select`), `description`, `constant` (name of a constant that overrides the value) and `max`
+ *   (highest accepted value of a `number` field).
  * - `required` (string[]): Field keys that must have a value for the provider to be usable.
  * - `required_if` (array): Field keys that must have a value when another field is enabled, as
  *   `field => condition field` pairs. For example `array( 'password' => 'auth' )`.
@@ -25,6 +26,8 @@ namespace WordPress\SMTP;
  *   `wp_remote_request()` and `$phpmailer->Timeout` as timeout. Returns true, or a `WP_Error` on failure.
  *   It must never call `wp_mail()`. Declare API keys as `password` fields: their values are redacted
  *   from error messages.
+ * - `rate_limits` (array): Optional default sending limits, see {@see Rate_Limits}. For example
+ *   `array( 'per_second' => 2, 'per_minute' => 60 )`.
  *
  * A provider needs `configure`, `send` or both.
  *
@@ -72,6 +75,7 @@ class Provider_Registry {
 			$provider['fields']      = isset( $provider['fields'] ) && is_array( $provider['fields'] ) ? $provider['fields'] : array();
 			$provider['required']    = isset( $provider['required'] ) && is_array( $provider['required'] ) ? $provider['required'] : array();
 			$provider['required_if'] = isset( $provider['required_if'] ) && is_array( $provider['required_if'] ) ? $provider['required_if'] : array();
+			$provider['rate_limits'] = Rate_Limits::normalize( $provider['rate_limits'] ?? array() );
 
 			$valid[ $slug ] = $provider;
 		}
@@ -137,6 +141,7 @@ class Provider_Registry {
 					'label'    => __( 'Port', 'smtp' ),
 					'type'     => 'number',
 					'default'  => 587,
+					'max'      => 65535,
 					'constant' => 'SMTP_PORT',
 				),
 				'encryption' => array(

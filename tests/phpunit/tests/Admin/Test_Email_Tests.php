@@ -5,6 +5,7 @@
  * @package smtp
  */
 
+use WordPress\SMTP\Connections;
 use WordPress\SMTP\Admin\Test_Email;
 use WordPress\SMTP\Credentials;
 use WordPress\SMTP\Delivery_Tracker;
@@ -329,5 +330,212 @@ class Test_Email_Tests extends WP_UnitTestCase {
 		$method->setAccessible( true );
 
 		$this->assertSame( 'SERVER -> CLIENT: 220 ready', $method->invoke( $this->test_email, 'SERVER -> CLIENT: 220 ready' ) );
+	}
+
+	private function connections_for_test(): Connections {
+		$registry    = new Provider_Registry();
+		$credentials = new Credentials();
+		$settings    = new Settings( $registry, $credentials );
+		$connections = new Connections( $registry, $credentials, $settings );
+		$connections->save(
+			'sponsors',
+			'Sponsors',
+			array(
+				'provider'   => 'smtp',
+				'host'       => 'smtp.sponsors.example',
+				'auth'       => '1',
+				'username'   => 'sponsors-user',
+				'password'   => 'sponsors-secret',
+				'from_email' => 'sponsors@example.org',
+			)
+		);
+
+		$mailer = new Mailer( $settings, $registry, $this->tracker, $connections );
+		$mailer->add_hooks();
+
+		return $connections;
+	}
+
+	public function test_send_tests_the_selected_connection() {
+		$connections = $this->connections_for_test();
+		$test_email  = new Test_Email( new Settings( new Provider_Registry(), new Credentials() ), $this->tracker, $connections );
+
+		$result = $test_email->send( 'to@example.org', 'sponsors' );
+
+		$this->assertTrue( $result['success'] );
+		$this->assertSame( 'sponsors', $result['connection_id'] );
+		$this->assertSame( 'smtp.sponsors.example', tests_retrieve_phpmailer_instance()->Host );
+		$this->assertSame( 'sponsors', $this->get_logged_entries()[0]['connection_id'] );
+	}
+
+	public function test_redact_removes_the_password_of_the_selected_connection() {
+		$connections = $this->connections_for_test();
+		$test_email  = new Test_Email( new Settings( new Provider_Registry(), new Credentials() ), $this->tracker, $connections );
+		$log         = 'AUTH PLAIN ' . base64_encode( "\0sponsors-user\0sponsors-secret" ) . ' sponsors-secret'; // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode
+
+		$method = new ReflectionMethod( Test_Email::class, 'redact' );
+		$method->setAccessible( true );
+		$redacted = $method->invoke( $test_email, $log, 'sponsors' );
+
+		$this->assertStringNotContainsString( 'sponsors-secret', $redacted );
+		$this->assertStringNotContainsString( base64_encode( "\0sponsors-user\0sponsors-secret" ), $redacted ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode
+		$this->assertStringContainsString( '[redacted]', $redacted );
+	}
+
+	public function test_send_uses_the_default_connection_for_an_unknown_one() {
+		$connections = $this->connections_for_test();
+		$test_email  = new Test_Email( new Settings( new Provider_Registry(), new Credentials() ), $this->tracker, $connections );
+
+		$result = $test_email->send( 'to@example.org', 'missing' );
+
+		$this->assertTrue( $result['success'] );
+		$this->assertSame( 'default', $result['connection_id'] );
+	}
+
+	public function test_send_does_not_leave_the_connection_filter_behind() {
+		$connections = $this->connections_for_test();
+		$test_email  = new Test_Email( new Settings( new Provider_Registry(), new Credentials() ), $this->tracker, $connections );
+
+		$test_email->send( 'to@example.org', 'sponsors' );
+
+		$this->assertFalse( has_filter( 'smtp_connection_for_email' ) );
+	}
+
+	public function test_redact_uses_the_password_fields_of_the_selected_connection() {
+		add_filter(
+			'smtp_providers',
+			static function ( $providers ) {
+				$providers['api'] = array(
+					'label'     => 'API',
+					'required'  => array( 'api_key' ),
+					'fields'    => array(
+						'api_key' => array(
+							'label' => 'API key',
+							'type'  => 'password',
+						),
+					),
+					'configure' => static function () {},
+				);
+
+				return $providers;
+			}
+		);
+
+		$registry    = new Provider_Registry();
+		$credentials = new Credentials();
+		$connections = new Connections( $registry, $credentials, new Settings( $registry, $credentials ) );
+		$connections->save(
+			'api',
+			'API',
+			array(
+				'provider' => 'api',
+				'api_key'  => 'api-secret-key',
+			)
+		);
+
+		$test_email = new Test_Email( new Settings( $registry, $credentials ), $this->tracker, $connections );
+
+		$method = new ReflectionMethod( Test_Email::class, 'redact' );
+		$method->setAccessible( true );
+		$redacted = $method->invoke( $test_email, 'request failed for api-secret-key', 'api' );
+
+		$this->assertSame( 'request failed for [redacted]', $redacted );
+	}
+
+	public function test_redact_removes_every_password_field_of_the_provider() {
+		add_filter(
+			'smtp_providers',
+			static function ( $providers ) {
+				$providers['relay'] = array(
+					'label'     => 'Relay',
+					'required'  => array( 'api_key' ),
+					'fields'    => array(
+						'api_key' => array(
+							'label' => 'API key',
+							'type'  => 'password',
+						),
+					),
+					'configure' => '__return_null',
+				);
+
+				return $providers;
+			}
+		);
+		update_option( Settings::OPTION, array( 'provider' => 'relay' ) );
+		( new Credentials() )->set( 'api_key', 'relay-key-123' );
+
+		$log = implode(
+			"\n",
+			array(
+				'CLIENT -> SERVER: ' . base64_encode( 'relay-key-123' ), // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode
+				'key is relay-key-123',
+			)
+		);
+
+		$method = new ReflectionMethod( Test_Email::class, 'redact' );
+		$method->setAccessible( true );
+		$redacted = $method->invoke( $this->test_email, $log );
+
+		$this->assertStringNotContainsString( 'relay-key-123', $redacted );
+		$this->assertStringNotContainsString( base64_encode( 'relay-key-123' ), $redacted ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode
+		$this->assertSame( "CLIENT -> SERVER: [redacted]\nkey is [redacted]", $redacted );
+	}
+
+	private function use_provider_with_fields( array $fields ) {
+		add_filter(
+			'smtp_providers',
+			static function ( $providers ) use ( $fields ) {
+				$providers['relay'] = array(
+					'label'     => 'Relay',
+					'fields'    => $fields,
+					'configure' => '__return_null',
+				);
+
+				return $providers;
+			}
+		);
+		update_option( Settings::OPTION, array( 'provider' => 'relay' ) );
+	}
+
+	private function redact( string $log ): string {
+		$method = new ReflectionMethod( Test_Email::class, 'redact' );
+		$method->setAccessible( true );
+
+		return $method->invoke( $this->test_email, $log );
+	}
+
+	public function test_redact_removes_the_auth_plain_form_of_any_password_field() {
+		$this->use_provider_with_fields(
+			array(
+				'username' => array( 'type' => 'text' ),
+				'api_key'  => array( 'type' => 'password' ),
+			)
+		);
+		update_option(
+			Settings::OPTION,
+			array(
+				'provider' => 'relay',
+				'username' => 'relay-user',
+			)
+		);
+		( new Credentials() )->set( 'api_key', 'relay-key-123' );
+
+		$plain = base64_encode( "\0relay-user\0relay-key-123" ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode
+
+		$this->assertSame( 'CLIENT -> SERVER: AUTH PLAIN [redacted]', $this->redact( 'CLIENT -> SERVER: AUTH PLAIN ' . $plain ) );
+	}
+
+	public function test_redact_replaces_a_secret_that_contains_another_as_a_whole() {
+		// The shorter secret comes first, so only the longest-first order replaces the longer one whole.
+		$this->use_provider_with_fields(
+			array(
+				'token'   => array( 'type' => 'password' ),
+				'api_key' => array( 'type' => 'password' ),
+			)
+		);
+		( new Credentials() )->set( 'token', 'abc' );
+		( new Credentials() )->set( 'api_key', 'abc-def-ghi' );
+
+		$this->assertSame( 'key [redacted], token [redacted]', $this->redact( 'key abc-def-ghi, token abc' ) );
 	}
 }

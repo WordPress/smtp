@@ -5,6 +5,7 @@
  * @package smtp
  */
 
+use WordPress\SMTP\Connections;
 use WordPress\SMTP\Credentials;
 use WordPress\SMTP\Provider_Registry;
 use WordPress\SMTP\Settings;
@@ -79,7 +80,22 @@ class Settings_Tests extends WP_UnitTestCase {
 		$keys = array_keys( $this->settings->get_fields() );
 
 		$this->assertSame(
-			array( 'host', 'port', 'encryption', 'auth', 'username', 'password', 'from_email', 'from_name', 'force_from' ),
+			array(
+				'host',
+				'port',
+				'encryption',
+				'auth',
+				'username',
+				'password',
+				'from_email',
+				'from_name',
+				'force_from',
+				'rate_limit_per_second',
+				'rate_limit_per_minute',
+				'rate_limit_per_hour',
+				'rate_limit_per_day',
+				'rate_limit_concurrency',
+			),
 			$keys
 		);
 	}
@@ -95,9 +111,38 @@ class Settings_Tests extends WP_UnitTestCase {
 
 	public function test_fields_of_an_unknown_provider_are_only_the_general_ones() {
 		$this->assertSame(
-			array( 'from_email', 'from_name', 'force_from' ),
+			array(
+				'from_email',
+				'from_name',
+				'force_from',
+				'rate_limit_per_second',
+				'rate_limit_per_minute',
+				'rate_limit_per_hour',
+				'rate_limit_per_day',
+				'rate_limit_concurrency',
+			),
 			array_keys( $this->settings->get_fields( 'unknown' ) )
 		);
+	}
+
+	public function test_rate_limit_fields_are_empty_by_default() {
+		$this->assertSame( 0, $this->settings->get( 'rate_limit_per_minute' ) );
+	}
+
+	public function test_sanitize_keeps_a_rate_limit_override_and_drops_invalid_ones() {
+		$clean = $this->settings->sanitize(
+			array(
+				'rate_limit_per_second' => '5',
+				'rate_limit_per_minute' => '0',
+				'rate_limit_per_hour'   => 'abc',
+				'rate_limit_per_day'    => '',
+			)
+		);
+
+		$this->assertSame( 5, $clean['rate_limit_per_second'] );
+		$this->assertSame( '', $clean['rate_limit_per_minute'] );
+		$this->assertSame( '', $clean['rate_limit_per_hour'] );
+		$this->assertSame( '', $clean['rate_limit_per_day'] );
 	}
 
 	public function test_get_returns_defaults_when_nothing_is_saved() {
@@ -399,6 +444,63 @@ class Settings_Tests extends WP_UnitTestCase {
 		$this->assertSame( 'tls', $clean['encryption'] );
 	}
 
+	public function test_sanitize_rejects_a_port_above_65535() {
+		$this->assertSame( 587, $this->settings->sanitize( array( 'port' => '65536' ) )['port'] );
+		$this->assertSame( 65535, $this->settings->sanitize( array( 'port' => '65535' ) )['port'] );
+	}
+
+	public function test_sanitize_reports_a_reset_number_once() {
+		global $wp_settings_errors;
+		$wp_settings_errors = array();
+
+		require_once ABSPATH . 'wp-admin/includes/template.php';
+
+		$this->settings->sanitize( array( 'port' => '99999' ) );
+		$this->settings->sanitize( array( 'port' => '99999' ) );
+
+		$errors = get_settings_errors( Settings::OPTION );
+		$this->assertCount( 1, $errors );
+		$this->assertSame( 'smtp_invalid_port', $errors[0]['code'] );
+		$this->assertStringContainsString( 'between 1 and 65535', $errors[0]['message'] );
+	}
+
+	public function test_sanitize_does_not_report_an_empty_number() {
+		global $wp_settings_errors;
+		$wp_settings_errors = array();
+
+		require_once ABSPATH . 'wp-admin/includes/template.php';
+
+		$this->assertSame( 587, $this->settings->sanitize( array( 'port' => '' ) )['port'] );
+		$this->assertSame( array(), get_settings_errors( Settings::OPTION ) );
+	}
+
+	public function test_max_comes_from_the_field_definition() {
+		add_filter(
+			'smtp_providers',
+			static function ( $providers ) {
+				$providers['smtp']['fields']['port']['max'] = 1000;
+
+				return $providers;
+			}
+		);
+
+		$this->assertSame( 587, $this->settings->sanitize( array( 'port' => '1001' ) )['port'] );
+		$this->assertSame( 1000, $this->settings->sanitize( array( 'port' => '1000' ) )['port'] );
+	}
+
+	public function test_number_fields_without_a_max_accept_any_positive_value() {
+		add_filter(
+			'smtp_providers',
+			static function ( $providers ) {
+				unset( $providers['smtp']['fields']['port']['max'] );
+
+				return $providers;
+			}
+		);
+
+		$this->assertSame( 99999, $this->settings->sanitize( array( 'port' => '99999' ) )['port'] );
+	}
+
 	public function test_sanitize_falls_back_to_the_current_provider_when_unknown() {
 		$clean = $this->settings->sanitize( array( 'provider' => 'unknown' ) );
 
@@ -555,5 +657,64 @@ class Settings_Tests extends WP_UnitTestCase {
 		$this->save( array( 'provider' => 'locked' ) );
 
 		$this->assertSame( 'constant', $this->settings->get_source( 'token' ) );
+	}
+
+	public function test_the_default_settings_belong_to_the_default_connection() {
+		$this->assertSame( 'default', $this->settings->get_connection_id() );
+		$this->assertSame( 'default', ( new Settings( new Provider_Registry(), $this->credentials, 'default' ) )->get_connection_id() );
+	}
+
+	public function test_settings_of_another_connection_read_their_own_values() {
+		update_option(
+			Connections::OPTION,
+			array(
+				'sponsors' => array(
+					'label'    => 'Sponsors',
+					'settings' => array(
+						'host' => 'smtp.sponsors.example',
+						'port' => 2525,
+					),
+				),
+			)
+		);
+		$this->save( array( 'host' => 'smtp.default.example' ) );
+		$sponsors = new Settings( new Provider_Registry(), $this->credentials, 'sponsors' );
+
+		$this->assertSame( 'sponsors', $sponsors->get_connection_id() );
+		$this->assertSame( 'smtp.sponsors.example', $sponsors->get( 'host' ) );
+		$this->assertSame( 2525, $sponsors->get( 'port' ) );
+		$this->assertSame( 'smtp.default.example', $this->settings->get( 'host' ) );
+	}
+
+	public function test_settings_of_another_connection_read_their_own_secret() {
+		$this->credentials->set( 'password', 'default-secret' );
+		$this->credentials->set( 'connection:sponsors:password', 'sponsors-secret' );
+		$sponsors = new Settings( new Provider_Registry(), $this->credentials, 'sponsors' );
+
+		$this->assertSame( 'sponsors-secret', $sponsors->get( 'password' ) );
+		$this->assertSame( 'default-secret', $this->settings->get( 'password' ) );
+		$this->assertSame( 'database', $sponsors->get_source( 'password' ) );
+	}
+
+	public function test_update_saves_the_settings_of_another_connection_only() {
+		update_option(
+			Connections::OPTION,
+			array(
+				'sponsors' => array(
+					'label'    => 'Sponsors',
+					'settings' => array( 'host' => 'smtp.sponsors.example' ),
+				),
+			)
+		);
+		$this->save( array( 'host' => 'smtp.default.example' ) );
+		$sponsors = new Settings( new Provider_Registry(), $this->credentials, 'sponsors' );
+
+		$sponsors->update( array( 'port' => 465 ) );
+
+		$this->assertSame( 465, $sponsors->get( 'port' ) );
+		$this->assertSame( 'smtp.sponsors.example', $sponsors->get( 'host' ) );
+		$this->assertSame( 'Sponsors', Connections::get_stored()['sponsors']['label'] );
+		$this->assertSame( 'smtp.default.example', $this->settings->get( 'host' ) );
+		$this->assertSame( 587, $this->settings->get( 'port' ) );
 	}
 }

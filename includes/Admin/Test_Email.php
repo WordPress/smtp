@@ -7,6 +7,7 @@
 
 namespace WordPress\SMTP\Admin;
 
+use WordPress\SMTP\Connections;
 use WordPress\SMTP\Delivery_Tracker;
 use WordPress\SMTP\Settings;
 
@@ -41,16 +42,26 @@ class Test_Email {
 	private $tracker;
 
 	/**
+	 * Connections, or null to only test the default connection.
+	 *
+	 * @since 1.3.0
+	 * @var Connections|null
+	 */
+	private $connections;
+
+	/**
 	 * Constructor.
 	 *
 	 * @since 1.2.0
 	 *
-	 * @param Settings         $settings Settings.
-	 * @param Delivery_Tracker $tracker  Delivery tracker.
+	 * @param Settings         $settings    Settings of the default connection.
+	 * @param Delivery_Tracker $tracker     Delivery tracker.
+	 * @param Connections|null $connections Optional. Connections. Default null, which only tests the default connection.
 	 */
-	public function __construct( Settings $settings, Delivery_Tracker $tracker ) {
-		$this->settings = $settings;
-		$this->tracker  = $tracker;
+	public function __construct( Settings $settings, Delivery_Tracker $tracker, ?Connections $connections = null ) {
+		$this->settings    = $settings;
+		$this->tracker     = $tracker;
+		$this->connections = $connections;
 	}
 
 	/**
@@ -99,10 +110,11 @@ class Test_Email {
 
 		// The nonce was verified above. An empty field falls back to the email of the current user.
 		// The address is validated as typed: sanitize_email() would turn a list of addresses into a different, valid one.
-		$requested = isset( $_POST['to'] ) ? sanitize_text_field( wp_unslash( $_POST['to'] ) ) : '';
-		$to        = '' === $requested ? $user->user_email : $requested;
+		$requested  = isset( $_POST['to'] ) ? sanitize_text_field( wp_unslash( $_POST['to'] ) ) : '';
+		$to         = '' === $requested ? $user->user_email : $requested;
+		$connection = isset( $_POST['connection'] ) ? sanitize_text_field( wp_unslash( $_POST['connection'] ) ) : '';
 
-		$this->finish( $user->ID, $this->send( $to ) );
+		$this->finish( $user->ID, $this->send( $to, $connection ) );
 	}
 
 	/**
@@ -110,23 +122,35 @@ class Test_Email {
 	 *
 	 * @since 1.2.0
 	 *
-	 * @param string $to Recipient address.
-	 * @return array Result with `success`, `to`, `error`, `debug` and `provider`. The credentials are removed from `debug`.
+	 * @param string $to         Recipient address.
+	 * @param string $connection Optional. ID of the connection to test. Default empty, the connection the email would normally use.
+	 * @return array Result with `success`, `to`, `error`, `debug`, `provider` and `connection_id`. The credentials are removed from `debug`.
 	 */
-	public function send( string $to ): array {
+	public function send( string $to, string $connection = '' ): array {
 		if ( ! is_email( $to ) ) {
 			return array(
-				'success'  => false,
-				'to'       => $to,
-				'error'    => __( 'Please enter a valid email address.', 'smtp' ),
-				'debug'    => '',
-				'provider' => '',
+				'success'       => false,
+				'to'            => $to,
+				'error'         => __( 'Please enter a valid email address.', 'smtp' ),
+				'debug'         => '',
+				'provider'      => '',
+				'connection_id' => '' === $connection ? Connections::DEFAULT_ID : $connection,
 			);
 		}
 
-		$debug    = array();
-		$error    = '';
-		$provider = '';
+		// Pick the connection like a plugin would, with the filter.
+		$select = null;
+		if ( $this->connections && '' !== $connection && $this->connections->exists( $connection ) ) {
+			$select = static function () use ( $connection ) {
+				return $connection;
+			};
+			add_filter( 'smtp_connection_for_email', $select, PHP_INT_MAX );
+		}
+
+		$debug         = array();
+		$error         = '';
+		$provider      = '';
+		$connection_id = Connections::DEFAULT_ID;
 
 		// PHPMailer property names are not snake_case.
 		// phpcs:disable WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase
@@ -142,8 +166,9 @@ class Test_Email {
 		};
 		// Read before the tracker forgets the email, at the end of the same hooks.
 		$tracker          = $this->tracker;
-		$capture_provider = static function () use ( &$provider, $tracker ) {
-			$provider = $tracker->get_provider();
+		$capture_provider = static function () use ( &$provider, &$connection_id, $tracker ) {
+			$provider      = $tracker->get_provider();
+			$connection_id = $tracker->get_connection_id();
 		};
 
 		add_action( 'phpmailer_init', $capture_debug, PHP_INT_MAX );
@@ -158,17 +183,22 @@ class Test_Email {
 			__( 'This is a test email sent by the SMTP plugin. If you are reading it, your settings work.', 'smtp' )
 		);
 
+		if ( $select ) {
+			remove_filter( 'smtp_connection_for_email', $select, PHP_INT_MAX );
+		}
+
 		remove_action( 'phpmailer_init', $capture_debug, PHP_INT_MAX );
 		remove_action( 'wp_mail_failed', $capture_error );
 		remove_action( 'wp_mail_succeeded', $capture_provider );
 		remove_action( 'wp_mail_failed', $capture_provider );
 
 		return array(
-			'success'  => $sent,
-			'to'       => $to,
-			'error'    => $error,
-			'debug'    => $this->redact( implode( "\n", $debug ) ),
-			'provider' => $provider,
+			'success'       => $sent,
+			'to'            => $to,
+			'error'         => $error,
+			'debug'         => $this->redact( implode( "\n", $debug ), $connection_id ),
+			'provider'      => $provider,
+			'connection_id' => $connection_id,
 		);
 	}
 
@@ -192,20 +222,38 @@ class Test_Email {
 	 *
 	 * @since 1.2.0
 	 *
-	 * @param string $text Connection log.
+	 * @param string $text          Connection log.
+	 * @param string $connection_id Optional. ID of the connection that was used. Default the default connection.
 	 * @return string Connection log without credentials.
 	 */
-	private function redact( string $text ): string {
-		$values   = $this->settings->get_provider_values();
+	private function redact( string $text, string $connection_id = Connections::DEFAULT_ID ): string {
+		// The fields and the values must come from the same connection: another provider has other field keys.
+		$settings = ( $this->connections ? $this->connections->get_settings( $connection_id ) : null ) ?? $this->settings;
+		$fields   = $settings->get_fields();
+		$values   = $settings->get_provider_values();
 		$username = isset( $values['username'] ) ? (string) $values['username'] : '';
-		$password = isset( $values['password'] ) ? (string) $values['password'] : '';
 		$secrets  = array();
 
-		if ( '' !== $password ) {
-			$secrets[] = $password;
-			$secrets[] = base64_encode( $password ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode -- Needed to match the SMTP AUTH exchange.
-			$secrets[] = base64_encode( "\0" . $username . "\0" . $password ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode -- Needed to match the SMTP AUTH exchange.
+		// Every password field is a secret, not only the one named `password`: providers added
+		// through the smtp_providers filter may call it `api_key` or `token`.
+		foreach ( $values as $key => $value ) {
+			$value = (string) $value;
+			if ( '' === $value || ! isset( $fields[ $key ] ) || 'password' !== $fields[ $key ]['type'] ) {
+				continue;
+			}
+
+			$secrets[] = $value;
+			$secrets[] = base64_encode( $value ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode -- Needed to match the SMTP AUTH exchange.
+			$secrets[] = base64_encode( "\0" . $username . "\0" . $value ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode -- Needed to match the SMTP AUTH exchange.
 		}
+
+		// Longest first, so a secret that contains another one is replaced as a whole.
+		usort(
+			$secrets,
+			static function ( $a, $b ) {
+				return strlen( $b ) - strlen( $a );
+			}
+		);
 
 		return str_replace( $secrets, '[redacted]', $text );
 	}

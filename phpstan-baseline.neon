@@ -1,0 +1,37 @@
+parameters:
+	ignoreErrors:
+		-
+			message: '#^Function cli\\prompt not found\.$#'
+			identifier: function.notFound
+			count: 1
+			path: includes/CLI/Settings_Command.php
+
+		-
+			message: '#^Constant WPINC not found\.$#'
+			identifier: constant.notFound
+			count: 1
+			path: includes/Delivery_Tracker.php
+
+		-
+			message: '#^Constant WPINC not found\.$#'
+			identifier: constant.notFound
+			count: 5
+			path: includes/Mailer.php
+
+		-
+			message: '#^Property PHPMailer\\PHPMailer\\PHPMailer\:\:\$Mailer \(string\) in isset\(\) is not nullable\.$#'
+			identifier: isset.property
+			count: 1
+			path: includes/Delivery_Tracker.php
+
+		-
+			message: '#^If condition is always false\.$#'
+			identifier: if.alwaysFalse
+			count: 1
+			path: includes/Log_Repository.php
+
+		-
+			message: '#^Action callback returns bool but should not return anything\.$#'
+			identifier: return.void
+			count: 1
+			path: includes/Migration.php

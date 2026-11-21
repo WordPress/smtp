@@ -176,7 +176,17 @@ class Transport_PHPMailer extends PHPMailer {
 			}
 		}
 
-		$redacted = array_values( array_unique( array_filter( $redacted, 'strlen' ) ) );
+		// `substr()` returns false for an empty string on PHP 7, and an empty value would match everywhere.
+		$redacted = array_values(
+			array_unique(
+				array_filter(
+					$redacted,
+					static function ( $value ) {
+						return is_string( $value ) && '' !== $value;
+					}
+				)
+			)
+		);
 
 		// Longest first, so a secret that contains another one is replaced as a whole.
 		usort(

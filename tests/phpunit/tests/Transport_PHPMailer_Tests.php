@@ -6,7 +6,9 @@
  */
 
 use PHPMailer\PHPMailer\Exception;
+use WordPress\SMTP\Connections;
 use WordPress\SMTP\Credentials;
+use WordPress\SMTP\Provider_Registry;
 use WordPress\SMTP\Settings;
 use WordPress\SMTP\Transport_PHPMailer;
 use WordPress\SMTP\Test_Utils\Traits\With_Log_Table;
@@ -240,6 +242,50 @@ class Transport_PHPMailer_Tests extends WP_UnitTestCase {
 		$this->assertSame( 'failed', $entry['status'] );
 		$this->assertSame( 'Key [redacted] is not allowed', $entry['error'] );
 		$this->assertSame( 'api', $entry['provider'] );
+	}
+
+	public function test_the_error_of_another_connection_is_redacted_with_the_secrets_of_that_connection() {
+		// The default connection uses Generic SMTP, where `api_key` is not a password field. The secrets must
+		// be found with the fields of the provider of the selected connection, or its key stays in the message.
+		$this->register_api_provider();
+		update_option(
+			Settings::OPTION,
+			array(
+				'provider' => 'smtp',
+				'host'     => 'smtp.example.com',
+			)
+		);
+		$registry    = new Provider_Registry();
+		$credentials = new Credentials();
+		( new Connections( $registry, $credentials, new Settings( $registry, $credentials ) ) )->save(
+			'vendor',
+			'Vendor',
+			array(
+				'provider' => 'api',
+				'api_key'  => 'vendor-key-999',
+			)
+		);
+		add_filter(
+			'smtp_connection_for_email',
+			static function () {
+				return 'vendor';
+			}
+		);
+		$GLOBALS['phpmailer'] = null;
+		$this->result         = new WP_Error( 'api', 'Key vendor-key-999 is not allowed' );
+
+		$failed = null;
+		add_action(
+			'wp_mail_failed',
+			static function ( $error ) use ( &$failed ) {
+				$failed = $error;
+			}
+		);
+
+		$this->assertFalse( wp_mail( 'to@example.org', 'Integration', 'Body' ) );
+		$this->assertInstanceOf( WP_Error::class, $failed );
+		$this->assertSame( 'Key [redacted] is not allowed', $failed->get_error_message() );
+		$this->assertSame( array( 'api_key' => 'vendor-key-999' ), $this->calls[0]['values'] );
 	}
 
 	private function get_error_message( Transport_PHPMailer $mailer ): string {

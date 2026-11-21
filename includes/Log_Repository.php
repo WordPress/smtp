@@ -23,7 +23,7 @@ class Log_Repository {
 	 *
 	 * @since 1.2.0
 	 */
-	const DB_VERSION = '1';
+	const DB_VERSION = '2';
 
 	/**
 	 * Name of the option that stores the installed schema version.
@@ -31,6 +31,14 @@ class Log_Repository {
 	 * @since 1.2.0
 	 */
 	const DB_VERSION_OPTION = 'smtp_db_version';
+
+	/**
+	 * Name of the transient that stops several requests from creating the table at once, and
+	 * delays the next attempt after a failure.
+	 *
+	 * @since 1.2.0
+	 */
+	const UPGRADE_LOCK = 'smtp_db_upgrade_lock';
 
 	/**
 	 * Returns the full table name.
@@ -55,6 +63,12 @@ class Log_Repository {
 			return;
 		}
 
+		// Right after an update many requests arrive at once, and only one of them needs to run dbDelta.
+		if ( get_transient( self::UPGRADE_LOCK ) ) {
+			return;
+		}
+		set_transient( self::UPGRADE_LOCK, '1', MINUTE_IN_SECONDS );
+
 		global $wpdb;
 
 		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
@@ -71,13 +85,24 @@ class Log_Repository {
 				status varchar(10) NOT NULL,
 				error text NOT NULL,
 				provider varchar(50) NOT NULL,
+				connection_id varchar(50) NOT NULL DEFAULT '',
 				PRIMARY KEY  (id),
 				KEY status (status),
 				KEY created_at (created_at)
 			) {$charset};"
 		);
 
+		// Without the table (for example when the database user cannot create tables), the version is
+		// not saved, so the table is created later. The lock keeps that to one attempt an hour instead
+		// of one per request.
+		if ( ! $this->table_exists() ) {
+			set_transient( self::UPGRADE_LOCK, '1', HOUR_IN_SECONDS );
+
+			return;
+		}
+
 		update_option( self::DB_VERSION_OPTION, self::DB_VERSION );
+		delete_transient( self::UPGRADE_LOCK );
 	}
 
 	/**
@@ -85,23 +110,77 @@ class Log_Repository {
 	 *
 	 * @since 1.2.0
 	 *
-	 * @param array $entry Entry with `recipient`, `subject`, `status`, `error` and `provider`.
+	 * @param array $entry Entry with `recipient`, `subject`, `status`, `error`, `provider` and, optionally, `connection_id`.
 	 */
 	public function insert( array $entry ) {
+		// Email sent before init, for example on plugins_loaded, arrives before the table is created.
+		// Once the table exists this only reads an autoloaded option.
+		$this->maybe_upgrade();
+
+		$row = array(
+			'created_at'    => current_time( 'mysql', true ),
+			'recipient'     => $entry['recipient'],
+			'subject'       => $entry['subject'],
+			'status'        => $entry['status'],
+			'error'         => $entry['error'],
+			'provider'      => $entry['provider'],
+			'connection_id' => $entry['connection_id'] ?? '',
+		);
+
+		if ( false !== $this->insert_row( $row ) ) {
+			return;
+		}
+
+		if ( $this->table_exists() ) {
+			// The table can still have the version 1 schema while another request upgrades it, and
+			// it has no `connection_id` column yet. The entry is kept without it instead of lost.
+			unset( $row['connection_id'] );
+			$this->insert_row( $row );
+
+			return;
+		}
+
+		// The table was removed after it was created, so it is created again, once.
+		delete_option( self::DB_VERSION_OPTION );
+		$this->maybe_upgrade();
+
+		if ( $this->table_exists() ) {
+			$this->insert_row( $row );
+		}
+	}
+
+	/**
+	 * Inserts a row of the log table.
+	 *
+	 * @since 1.3.0
+	 *
+	 * @param array $row Column values, all strings.
+	 * @return int|false Number of rows inserted, or false on error.
+	 */
+	private function insert_row( array $row ) {
 		global $wpdb;
 
-		$wpdb->insert(
-			$this->get_table_name(),
-			array(
-				'created_at' => current_time( 'mysql', true ),
-				'recipient'  => $entry['recipient'],
-				'subject'    => $entry['subject'],
-				'status'     => $entry['status'],
-				'error'      => $entry['error'],
-				'provider'   => $entry['provider'],
-			),
-			array( '%s', '%s', '%s', '%s', '%s', '%s' )
-		);
+		return $wpdb->insert( $this->get_table_name(), $row, array_fill( 0, count( $row ), '%s' ) );
+	}
+
+	/**
+	 * Returns whether the log table exists.
+	 *
+	 * Uses SHOW COLUMNS instead of SHOW TABLES, which does not list temporary tables.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @return bool Whether the table exists.
+	 */
+	private function table_exists(): bool {
+		global $wpdb;
+
+		$table    = $this->get_table_name();
+		$suppress = $wpdb->suppress_errors( true );
+		$columns  = $wpdb->get_results( "SHOW COLUMNS FROM {$table}" );
+		$wpdb->suppress_errors( $suppress );
+
+		return ! empty( $columns );
 	}
 
 	/**

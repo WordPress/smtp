@@ -9,6 +9,7 @@ namespace WordPress\SMTP;
 
 use WordPress\SMTP\Admin\Admin_Page;
 use WordPress\SMTP\Admin\Alerts_Tab;
+use WordPress\SMTP\Admin\Connections_Tab;
 use WordPress\SMTP\Admin\Failure_Notice;
 use WordPress\SMTP\Admin\Test_Email;
 use WordPress\SMTP\Alerts\Alert_Channel_Registry;
@@ -67,7 +68,9 @@ class Plugin_Main {
 		$tracker = new Delivery_Tracker( $settings );
 		$tracker->add_hooks();
 
-		$mailer = new Mailer( $settings, $registry, $tracker );
+		$connections = new Connections( $registry, $credentials, $settings );
+
+		$mailer = new Mailer( $settings, $registry, $tracker, $connections );
 		$mailer->add_hooks();
 
 		$logger = new Logger( $repository, $tracker );
@@ -80,17 +83,22 @@ class Plugin_Main {
 		$alert_dispatcher = new Alert_Dispatcher( $alert_settings );
 		$alert_dispatcher->add_hooks();
 
-		add_action( 'admin_init', array( $repository, 'maybe_upgrade' ) );
+		// Sites updating from the 1.x plugin never run the activation hook, and cron or front-end
+		// requests send mail without admin_init. Priority 0 creates the table before most mail is sent.
+		add_action( 'init', array( $repository, 'maybe_upgrade' ), 0 );
 		add_action( 'init', array( $this, 'schedule_purge' ) );
 
 		if ( is_admin() ) {
 			$alerts_tab = new Alerts_Tab( $alert_settings, $alert_dispatcher );
 			$alerts_tab->add_hooks();
 
-			$admin = new Admin_Page( $settings, $registry, $repository, $this->main_file, $tracker, $alerts_tab );
+			$connections_tab = new Connections_Tab( $connections, $registry, $credentials );
+			$connections_tab->add_hooks();
+
+			$admin = new Admin_Page( $settings, $registry, $repository, $this->main_file, $tracker, $alerts_tab, $connections_tab );
 			$admin->add_hooks();
 
-			$test_email = new Test_Email( $settings, $tracker );
+			$test_email = new Test_Email( $settings, $tracker, $connections );
 			$test_email->add_hooks();
 
 			$failure_notice = new Failure_Notice( $repository );

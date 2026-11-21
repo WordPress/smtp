@@ -71,14 +71,45 @@ class Delivery_Tracker {
 	private $state = null;
 
 	/**
+	 * Settings of the connection the current email is sent through, or null for the default connection.
+	 *
+	 * @since 1.3.0
+	 * @var Settings|null
+	 */
+	private $connection_settings = null;
+
+	/**
 	 * Constructor.
 	 *
 	 * @since 1.2.0
 	 *
-	 * @param Settings $settings Settings.
+	 * @param Settings $settings Settings of the default connection.
 	 */
 	public function __construct( Settings $settings ) {
 		$this->settings = $settings;
+	}
+
+	/**
+	 * Sets the connection the current email is sent through.
+	 *
+	 * @since 1.3.0
+	 *
+	 * @param string   $id       Connection ID.
+	 * @param Settings $settings Settings of the connection.
+	 */
+	public function set_connection( string $id, Settings $settings ) {
+		$this->connection_settings = Connections::DEFAULT_ID === $id ? null : $settings;
+	}
+
+	/**
+	 * Returns the ID of the connection the current email is sent through.
+	 *
+	 * @since 1.3.0
+	 *
+	 * @return string Connection ID, `default` for the default connection.
+	 */
+	public function get_connection_id(): string {
+		return $this->get_settings()->get_connection_id();
 	}
 
 	/**
@@ -97,7 +128,8 @@ class Delivery_Tracker {
 	 *
 	 * @since 1.2.0
 	 *
-	 * @param \PHPMailer\PHPMailer\PHPMailer $phpmailer PHPMailer instance.
+	 * @param \PHPMailer\PHPMailer\PHPMailer|null $phpmailer PHPMailer instance. Null when another plugin sends the
+	 *                                                       email: the snapshot is empty and never matches the real instance.
 	 */
 	public function remember( $phpmailer ) {
 		$this->snapshot = $this->take_snapshot( $phpmailer );
@@ -126,8 +158,9 @@ class Delivery_Tracker {
 	 * @since 1.2.0
 	 */
 	public function reset() {
-		$this->snapshot = null;
-		$this->state    = null;
+		$this->snapshot            = null;
+		$this->state               = null;
+		$this->connection_settings = null;
 	}
 
 	/**
@@ -138,11 +171,11 @@ class Delivery_Tracker {
 	 * @return string Slug of the active provider, `default` for the WordPress mailer or `other` for another plugin.
 	 */
 	public function get_provider(): string {
-		$configured = $this->settings->is_configured();
+		$configured = $this->get_settings()->is_configured();
 
 		if ( 'handled' === $this->state ) {
 			// A replaced wp_mail(), like the one in FluentSMTP, can change PHPMailer after phpmailer_init.
-			return '' === $this->get_wp_mail_owner() ? $this->settings->get_provider_slug() : self::PROVIDER_OTHER;
+			return '' === $this->get_wp_mail_owner() ? $this->get_settings()->get_provider_slug() : self::PROVIDER_OTHER;
 		}
 
 		if ( null !== $this->state ) {
@@ -155,7 +188,7 @@ class Delivery_Tracker {
 			return self::PROVIDER_OTHER;
 		}
 
-		return $configured ? $this->settings->get_provider_slug() : self::PROVIDER_DEFAULT;
+		return $configured ? $this->get_settings()->get_provider_slug() : self::PROVIDER_DEFAULT;
 	}
 
 	/**
@@ -167,6 +200,17 @@ class Delivery_Tracker {
 	 */
 	public function get_wp_mail_owner(): string {
 		return $this->get_function_owner( 'wp_mail' );
+	}
+
+	/**
+	 * Returns the settings of the connection the current email is sent through.
+	 *
+	 * @since 1.3.0
+	 *
+	 * @return Settings Settings.
+	 */
+	private function get_settings(): Settings {
+		return $this->connection_settings ?? $this->settings;
 	}
 
 	/**

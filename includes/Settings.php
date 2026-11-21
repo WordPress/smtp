@@ -12,6 +12,10 @@ namespace WordPress\SMTP;
  *
  * Values defined through constants always win over saved values.
  *
+ * An instance reads either the settings of the default connection, or the ones of another connection
+ * when it is built with its ID. Constants only apply to the default connection, and the secrets of the
+ * other connections are stored under their own keys.
+ *
  * @since 1.2.0
  */
 class Settings {
@@ -40,16 +44,37 @@ class Settings {
 	private $credentials;
 
 	/**
+	 * ID of the connection these settings belong to, or an empty string for the default connection.
+	 *
+	 * @since 1.3.0
+	 * @var string
+	 */
+	private $connection;
+
+	/**
 	 * Constructor.
 	 *
 	 * @since 1.2.0
 	 *
 	 * @param Provider_Registry $registry    Provider registry.
 	 * @param Credentials       $credentials Credentials storage.
+	 * @param string            $connection  Optional. Connection ID. Default empty, the default connection.
 	 */
-	public function __construct( Provider_Registry $registry, Credentials $credentials ) {
+	public function __construct( Provider_Registry $registry, Credentials $credentials, string $connection = '' ) {
 		$this->registry    = $registry;
 		$this->credentials = $credentials;
+		$this->connection  = Connections::DEFAULT_ID === $connection ? '' : $connection;
+	}
+
+	/**
+	 * Returns the ID of the connection these settings belong to.
+	 *
+	 * @since 1.3.0
+	 *
+	 * @return string Connection ID, `default` for the default connection.
+	 */
+	public function get_connection_id(): string {
+		return '' === $this->connection ? Connections::DEFAULT_ID : $this->connection;
 	}
 
 	/**
@@ -98,6 +123,7 @@ class Settings {
 					'options'     => array(),
 					'description' => '',
 					'constant'    => '',
+					'max'         => 0,
 				)
 			);
 		}
@@ -185,7 +211,8 @@ class Settings {
 	 * @return bool True when locked by a constant.
 	 */
 	public function is_locked( array $field ): bool {
-		return '' !== $field['constant'] && defined( $field['constant'] );
+		// Constants configure the default connection only, they would override every other one.
+		return '' === $this->connection && '' !== $field['constant'] && defined( $field['constant'] );
 	}
 
 	/**
@@ -224,7 +251,7 @@ class Settings {
 				case 'password':
 					// An empty submission keeps the current secret.
 					if ( is_string( $raw ) && '' !== $raw ) {
-						$this->credentials->set( $key, $raw );
+						$this->credentials->set( $this->get_secret_key( $key ), $raw );
 					}
 					break;
 
@@ -233,8 +260,15 @@ class Settings {
 					break;
 
 				case 'number':
-					$number        = absint( $raw );
-					$clean[ $key ] = $number > 0 ? $number : $field['default'];
+					$number = absint( $raw );
+					$max    = (int) $field['max'];
+					$valid  = $number > 0 && ( $max <= 0 || $number <= $max );
+
+					$clean[ $key ] = $valid ? $number : $field['default'];
+
+					if ( ! $valid && null !== $raw && '' !== $raw ) {
+						$this->report_reset( $key, $field );
+					}
 					break;
 
 				case 'email':
@@ -272,7 +306,7 @@ class Settings {
 			}
 		}
 
-		update_option( self::OPTION, $this->sanitize( array_merge( $current, $values ) ) );
+		$this->store( $this->sanitize( array_merge( $current, $values ) ) );
 	}
 
 	/**
@@ -295,7 +329,7 @@ class Settings {
 		}
 
 		if ( 'password' === $fields[ $key ]['type'] ) {
-			return '' !== $this->credentials->get( $key ) ? 'database' : 'default';
+			return '' !== $this->credentials->get( $this->get_secret_key( $key ) ) ? 'database' : 'default';
 		}
 
 		return array_key_exists( $key, $this->get_saved_options() ) ? 'database' : 'default';
@@ -309,7 +343,7 @@ class Settings {
 	 * @return array[] Fields keyed by field key.
 	 */
 	private function get_general_fields(): array {
-		return array(
+		$fields = array(
 			'from_email' => array(
 				'label'       => __( 'From email', 'smtp' ),
 				'type'        => 'email',
@@ -327,6 +361,8 @@ class Settings {
 				'description' => __( 'Always use the From email and name above, even when another plugin sets its own.', 'smtp' ),
 			),
 		);
+
+		return array_merge( $fields, Rate_Limits::get_override_fields() );
 	}
 
 	/**
@@ -344,7 +380,7 @@ class Settings {
 		}
 
 		if ( 'password' === $field['type'] ) {
-			return $this->credentials->get( $key );
+			return $this->credentials->get( $this->get_secret_key( $key ) );
 		}
 
 		$options = $this->get_saved_options();
@@ -376,6 +412,38 @@ class Settings {
 	}
 
 	/**
+	 * Tells the admin that an invalid number was replaced by its default.
+	 *
+	 * The settings screen shows it after saving. Settings::sanitize() can run twice when the option
+	 * is first created, so the same message is only added once.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @param string $key   Field key.
+	 * @param array  $field Normalized field.
+	 */
+	private function report_reset( string $key, array $field ) {
+		if ( ! function_exists( 'add_settings_error' ) ) {
+			return;
+		}
+
+		$code = 'smtp_invalid_' . $key;
+		foreach ( get_settings_errors( self::OPTION ) as $error ) {
+			if ( $code === $error['code'] ) {
+				return;
+			}
+		}
+
+		$message = (int) $field['max'] > 0
+			/* translators: 1: field label, 2: highest allowed number, 3: default value */
+			? sprintf( __( '%1$s must be a number between 1 and %2$d, so it was reset to %3$s.', 'smtp' ), $field['label'], (int) $field['max'], (string) $field['default'] )
+			/* translators: 1: field label, 2: default value */
+			: sprintf( __( '%1$s must be a positive number, so it was reset to %2$s.', 'smtp' ), $field['label'], (string) $field['default'] );
+
+		add_settings_error( self::OPTION, $code, $message );
+	}
+
+	/**
 	 * Returns the saved settings option.
 	 *
 	 * @since 1.2.0
@@ -383,8 +451,40 @@ class Settings {
 	 * @return array Saved settings.
 	 */
 	private function get_saved_options(): array {
+		if ( '' !== $this->connection ) {
+			return Connections::get_stored_settings( $this->connection );
+		}
+
 		$options = get_option( self::OPTION, array() );
 
 		return is_array( $options ) ? $options : array();
+	}
+
+	/**
+	 * Saves sanitized settings.
+	 *
+	 * @since 1.3.0
+	 *
+	 * @param array $clean Sanitized settings.
+	 */
+	private function store( array $clean ) {
+		if ( '' !== $this->connection ) {
+			Connections::store_settings( $this->connection, $clean );
+			return;
+		}
+
+		update_option( self::OPTION, $clean );
+	}
+
+	/**
+	 * Returns the key a secret is stored under.
+	 *
+	 * @since 1.3.0
+	 *
+	 * @param string $key Field key.
+	 * @return string Secret key.
+	 */
+	private function get_secret_key( string $key ): string {
+		return '' === $this->connection ? $key : Connections::get_secret_prefix( $this->connection ) . $key;
 	}
 }
