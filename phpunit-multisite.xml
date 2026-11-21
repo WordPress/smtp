@@ -5,10 +5,13 @@
 	convertErrorsToExceptions="true"
 	convertNoticesToExceptions="true"
 	convertWarningsToExceptions="true"
+	cacheResultFile=".phpunit.result.cache.multisite"
 	>
 	<php>
-		<const name="WP_TESTS_MULTISITE" value="1" />
+		<const name="WP_TESTS_MULTISITE" value="1"/>
+		<env name="WORDPRESS_TABLE_PREFIX" value="wp_multisite_" force="true"/>
 	</php>
+	<!-- Kept in sync with phpunit.xml.dist; PHPUnit has no way to share this block. -->
 	<coverage processUncoveredFiles="false">
 		<include>
 			<directory suffix=".php">includes/</directory>
@@ -16,7 +19,7 @@
 		</include>
 	</coverage>
 	<testsuites>
-		<testsuite name="default">
+		<testsuite name="multisite">
 			<directory suffix="_Tests.php">./tests/phpunit/tests</directory>
 		</testsuite>
 	</testsuites>

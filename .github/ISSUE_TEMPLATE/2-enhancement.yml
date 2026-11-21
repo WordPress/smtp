@@ -1,0 +1,67 @@
+name: Enhancement
+description: Suggest an idea or an improvement for the SMTP plugin.
+labels: ['[Type] Enhancement']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting an improvement! Larger features are planned in epics: please check the [open epics](https://github.com/WordPress/smtp/issues?q=is%3Aissue%20is%3Aopen%20label%3A%22%5BType%5D%20Epic%22) first. Your idea may already be on the list.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this address?
+      description: Describe the problem or pain point this would solve.
+      placeholder: It is currently difficult to...
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: What is your proposed solution?
+      description: Outline the feature or enhancement, and how it solves the problem above.
+      placeholder: I'd like a way to...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Settings
+        - Providers and sending
+        - Test email and diagnostics
+        - Email log
+        - Alerts
+        - WP-CLI and wp-config constants
+        - Privacy
+        - Developer API (filters, providers, alert channels)
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: why
+    attributes:
+      label: Why is this important to you?
+      description: Who benefits, how often does this come up, and what do you use as a workaround today?
+    validations:
+      required: false
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Other solutions you thought about, or how another plugin handles this.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched the [existing issues](https://github.com/WordPress/smtp/issues), including the epics, and this isn't a duplicate.
+          required: true
