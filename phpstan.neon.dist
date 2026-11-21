@@ -14,3 +14,4 @@ parameters:
         - includes/
     scanFiles:
         - vendor/php-stubs/wp-cli-stubs/wp-cli-stubs.php
+        - tests/phpstan/secrets-api-stubs.php
