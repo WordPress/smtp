@@ -232,10 +232,13 @@ class Mailer {
 			return (bool) is_email( $email );
 		};
 
-		// Translated PHPMailer errors, since WordPress 6.8. The strings are shared by every instance.
+		// Translated PHPMailer errors. Since WordPress 6.9 the strings are static, so shared by every instance.
+		// shortcut: on 6.8 they belong to each WP_PHPMailer instance, so this one keeps the English errors. Drop when 6.9 is the minimum.
 		if ( file_exists( ABSPATH . WPINC . '/class-wp-phpmailer.php' ) ) {
 			require_once ABSPATH . WPINC . '/class-wp-phpmailer.php';
-			\WP_PHPMailer::setLanguage();
+			if ( ( new \ReflectionMethod( \WP_PHPMailer::class, 'setLanguage' ) )->isStatic() ) {
+				\WP_PHPMailer::setLanguage();
+			}
 		}
 
 		return $atts;
