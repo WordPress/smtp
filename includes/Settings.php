@@ -317,7 +317,7 @@ class Settings {
 	 * @return array[] Fields keyed by field key.
 	 */
 	private function get_general_fields(): array {
-		return array(
+		$fields = array(
 			'from_email' => array(
 				'label'       => __( 'From email', 'smtp' ),
 				'type'        => 'email',
@@ -335,6 +335,8 @@ class Settings {
 				'description' => __( 'Always use the From email and name above, even when another plugin sets its own.', 'smtp' ),
 			),
 		);
+
+		return array_merge( $fields, Rate_Limits::get_override_fields() );
 	}
 
 	/**

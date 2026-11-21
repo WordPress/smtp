@@ -51,6 +51,38 @@ function wp_smtp_load() {
 }
 
 /**
+ * Returns the sending limits of an SMTP provider.
+ *
+ * The limits are configured values, not the remaining capacity: the account may be shared with other
+ * applications. Keys without a known limit are missing, so the result is empty when there are none.
+ *
+ * @since 1.2.0
+ *
+ * @param string $provider Provider slug. Defaults to the active provider.
+ * @return array {
+ *     Limits.
+ *
+ *     @type int   $per_second  Maximum messages per second.
+ *     @type int   $per_minute  Maximum messages per minute.
+ *     @type int   $per_hour    Maximum messages per hour.
+ *     @type int   $per_day     Maximum messages per day.
+ *     @type int   $concurrency Maximum simultaneous connections or sending operations.
+ *     @type int[] $recipients  Maximum recipients per `per_second`, `per_minute`, `per_hour` and `per_day`.
+ * }
+ */
+function wp_smtp_get_rate_limits( string $provider = '' ): array {
+	// The classes are not loaded when a requirement check failed.
+	if ( ! class_exists( WordPress\SMTP\Rate_Limits::class ) ) {
+		return array();
+	}
+
+	$registry = new WordPress\SMTP\Provider_Registry();
+	$settings = new WordPress\SMTP\Settings( $registry, new WordPress\SMTP\Credentials() );
+
+	return ( new WordPress\SMTP\Rate_Limits( $settings, $registry ) )->get( $provider );
+}
+
+/**
  * Displays an admin notice when the PHP version is not supported.
  *
  * @since 1.2.0

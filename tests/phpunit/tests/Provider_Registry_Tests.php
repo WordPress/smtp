@@ -174,4 +174,51 @@ class Provider_Registry_Tests extends WP_UnitTestCase {
 		$this->assertSame( '', $phpmailer->Username );
 		$this->assertSame( '', $phpmailer->Password );
 	}
+
+	public function test_providers_have_no_rate_limits_by_default() {
+		$this->assertSame( array(), $this->registry->get( 'smtp' )['rate_limits'] );
+	}
+
+	public function test_provider_can_declare_rate_limits() {
+		add_filter(
+			'smtp_providers',
+			static function ( $providers ) {
+				$providers['limited'] = array(
+					'label'       => 'Limited',
+					'configure'   => '__return_null',
+					'rate_limits' => array(
+						'per_second' => 2,
+						'per_day'    => 2000,
+					),
+				);
+
+				return $providers;
+			}
+		);
+
+		$this->assertSame(
+			array(
+				'per_second' => 2,
+				'per_day'    => 2000,
+			),
+			$this->registry->get( 'limited' )['rate_limits']
+		);
+	}
+
+	public function test_invalid_rate_limits_are_dropped_without_discarding_the_provider() {
+		add_filter(
+			'smtp_providers',
+			static function ( $providers ) {
+				$providers['broken'] = array(
+					'label'       => 'Broken',
+					'configure'   => '__return_null',
+					'rate_limits' => 'a lot',
+				);
+
+				return $providers;
+			}
+		);
+
+		$this->assertSame( array(), $this->registry->get( 'broken' )['rate_limits'] );
+	}
 }
