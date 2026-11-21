@@ -167,6 +167,36 @@ class Log_Repository_Tests extends WP_UnitTestCase {
 		$this->assertSame( 2, $this->repository->count_failed_since( gmdate( 'Y-m-d H:i:s', time() - ( 3 * DAY_IN_SECONDS ) ) ) );
 	}
 
+	public function test_insert_stores_the_connection() {
+		$entry                  = $this->entry();
+		$entry['connection_id'] = 'sponsors';
+
+		$this->repository->insert( $entry );
+
+		$this->assertSame( 'sponsors', $this->get_logged_entries()[0]['connection_id'] );
+	}
+
+	public function test_insert_leaves_the_connection_empty_by_default() {
+		$this->repository->insert( $this->entry() );
+
+		$this->assertSame( '', $this->get_logged_entries()[0]['connection_id'] );
+	}
+
+	public function test_insert_keeps_the_entry_when_the_table_has_no_connection_column_yet() {
+		global $wpdb;
+
+		$table = $this->repository->get_table_name();
+		// Like a request that runs while another one still upgrades the table to the current schema.
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$wpdb->query( "ALTER TABLE {$table} DROP COLUMN connection_id" );
+
+		$entry                  = $this->entry( 'sent', 'Early email' );
+		$entry['connection_id'] = 'sponsors';
+		$this->repository->insert( $entry );
+
+		$this->assertSame( 'Early email', $this->get_logged_entries()[0]['subject'] );
+	}
+
 	private function drop_table() {
 		global $wpdb;
 

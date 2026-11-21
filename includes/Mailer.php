@@ -51,6 +51,22 @@ class Mailer {
 	private $tracker;
 
 	/**
+	 * Connections, or null to only use the default connection.
+	 *
+	 * @since 1.3.0
+	 * @var Connections|null
+	 */
+	private $connections;
+
+	/**
+	 * ID of the connection the current email is sent through.
+	 *
+	 * @since 1.3.0
+	 * @var string
+	 */
+	private $connection_id = Connections::DEFAULT_ID;
+
+	/**
 	 * From email of the current email before Force From email replaced it.
 	 *
 	 * @since 1.3.0
@@ -71,14 +87,16 @@ class Mailer {
 	 *
 	 * @since 1.2.0
 	 *
-	 * @param Settings          $settings Settings.
-	 * @param Provider_Registry $registry Provider registry.
-	 * @param Delivery_Tracker  $tracker  Delivery tracker.
+	 * @param Settings          $settings    Settings of the default connection.
+	 * @param Provider_Registry $registry    Provider registry.
+	 * @param Delivery_Tracker  $tracker     Delivery tracker.
+	 * @param Connections|null  $connections Optional. Connections. Default null, which only uses the default connection.
 	 */
-	public function __construct( Settings $settings, Provider_Registry $registry, Delivery_Tracker $tracker ) {
-		$this->settings = $settings;
-		$this->registry = $registry;
-		$this->tracker  = $tracker;
+	public function __construct( Settings $settings, Provider_Registry $registry, Delivery_Tracker $tracker, ?Connections $connections = null ) {
+		$this->settings    = $settings;
+		$this->registry    = $registry;
+		$this->tracker     = $tracker;
+		$this->connections = $connections;
 	}
 
 	/**
@@ -87,24 +105,55 @@ class Mailer {
 	 * @since 1.2.0
 	 */
 	public function add_hooks() {
+		// Runs last, so the email data is the one wp_mail() is going to send.
+		add_filter( 'wp_mail', array( $this, 'select_connection' ), PHP_INT_MAX );
+		add_action( 'wp_mail_succeeded', array( $this, 'reset_connection' ), PHP_INT_MAX );
+		add_action( 'wp_mail_failed', array( $this, 'reset_connection' ), PHP_INT_MAX );
 		add_action( 'phpmailer_init', array( $this, 'configure' ) );
 		add_filter( 'wp_mail_from', array( $this, 'filter_from_email' ), PHP_INT_MAX );
 		add_filter( 'wp_mail_from_name', array( $this, 'filter_from_name' ), PHP_INT_MAX );
 	}
 
 	/**
-	 * Lets the active provider configure PHPMailer.
+	 * Picks the connection the email is sent through.
+	 *
+	 * @since 1.3.0
+	 *
+	 * @param array $args Email data, as passed to the `wp_mail` filter.
+	 * @return array Email data, unchanged.
+	 */
+	public function select_connection( $args ) {
+		$this->connection_id = $this->connections ? $this->connections->resolve( is_array( $args ) ? $args : array() ) : Connections::DEFAULT_ID;
+
+		$this->tracker->set_connection( $this->connection_id, $this->get_settings() );
+
+		return $args;
+	}
+
+	/**
+	 * Goes back to the default connection, once the email was sent or failed.
+	 *
+	 * @since 1.3.0
+	 */
+	public function reset_connection() {
+		$this->connection_id = Connections::DEFAULT_ID;
+	}
+
+	/**
+	 * Lets the provider of the selected connection configure PHPMailer.
 	 *
 	 * @since 1.2.0
 	 *
 	 * @param \PHPMailer\PHPMailer\PHPMailer $phpmailer PHPMailer instance.
 	 */
 	public function configure( $phpmailer ) {
-		if ( ! $this->settings->is_configured() ) {
+		$settings = $this->get_settings();
+
+		if ( ! $settings->is_configured() ) {
 			return;
 		}
 
-		$provider = $this->registry->get( $this->settings->get_provider_slug() );
+		$provider = $this->registry->get( $settings->get_provider_slug() );
 		if ( ! $provider ) {
 			return;
 		}
@@ -117,9 +166,9 @@ class Mailer {
 		 * @since 1.2.0
 		 *
 		 * @param int    $timeout  Timeout in seconds. Default 15.
-		 * @param string $provider Slug of the active provider.
+		 * @param string $provider Slug of the provider of the connection used.
 		 */
-		$timeout = (int) apply_filters( 'smtp_timeout', self::DEFAULT_TIMEOUT, $this->settings->get_provider_slug() );
+		$timeout = (int) apply_filters( 'smtp_timeout', self::DEFAULT_TIMEOUT, $settings->get_provider_slug() );
 
 		if ( $timeout > 0 ) {
 			// PHPMailer property names are not snake_case.
@@ -135,10 +184,10 @@ class Mailer {
 			// phpcs:enable WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase
 		}
 
-		call_user_func( $provider['configure'], $phpmailer, $this->settings->get_provider_values() );
+		call_user_func( $provider['configure'], $phpmailer, $settings->get_provider_values() );
 
 		// After the provider, since it can change the From address.
-		$this->apply_sender( $phpmailer );
+		$this->apply_sender( $phpmailer, $settings );
 
 		$this->tracker->remember( $phpmailer );
 	}
@@ -152,8 +201,9 @@ class Mailer {
 	 * @since 1.3.0
 	 *
 	 * @param \PHPMailer\PHPMailer\PHPMailer $phpmailer PHPMailer instance.
+	 * @param Settings                       $settings  Settings of the connection the email is sent through.
 	 */
-	private function apply_sender( $phpmailer ) {
+	private function apply_sender( $phpmailer, Settings $settings ) {
 		$replaced_from       = $this->replaced_from;
 		$this->replaced_from = '';
 
@@ -165,16 +215,16 @@ class Mailer {
 		}
 		$this->sender = '';
 
-		if ( $this->settings->get( 'return_path' ) && is_email( $phpmailer->From ) ) {
+		if ( $settings->get( 'return_path' ) && is_email( $phpmailer->From ) ) {
 			$phpmailer->Sender = $phpmailer->From;
 			$this->sender      = $phpmailer->Sender;
 		}
 		// phpcs:enable WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase
 
-		$reply_to = (string) $this->settings->get( 'reply_to' );
+		$reply_to = (string) $settings->get( 'reply_to' );
 		$reply_to = is_email( $reply_to ) ? $reply_to : '';
 
-		if ( '' !== $reply_to && $this->settings->get( 'force_reply_to' ) ) {
+		if ( '' !== $reply_to && $settings->get( 'force_reply_to' ) ) {
 			$phpmailer->clearReplyTos();
 			$phpmailer->addReplyTo( $reply_to );
 			return;
@@ -184,7 +234,7 @@ class Mailer {
 			return;
 		}
 
-		if ( '' !== $replaced_from && $this->settings->get( 'reply_to_sender' ) ) {
+		if ( '' !== $replaced_from && $settings->get( 'reply_to_sender' ) ) {
 			$phpmailer->addReplyTo( $replaced_from );
 		} elseif ( '' !== $reply_to ) {
 			$phpmailer->addReplyTo( $reply_to );
@@ -202,18 +252,20 @@ class Mailer {
 	public function filter_from_email( $email ) {
 		$this->replaced_from = '';
 
-		if ( ! $this->settings->is_configured() ) {
+		$settings = $this->get_settings();
+
+		if ( ! $settings->is_configured() ) {
 			return $email;
 		}
 
-		$from_email = (string) $this->settings->get( 'from_email' );
+		$from_email = (string) $settings->get( 'from_email' );
 		if ( '' === $from_email || ! is_email( $from_email ) ) {
 			return $email;
 		}
 
 		$default = $this->get_default_from_email() === $email;
 
-		if ( $this->settings->get( 'force_from_email' ) || $default ) {
+		if ( $settings->get( 'force_from_email' ) || $default ) {
 			// The WordPress default address is not a real sender, so replies never go to it.
 			if ( ! $default && is_string( $email ) && is_email( $email ) && strtolower( $email ) !== strtolower( $from_email ) ) {
 				$this->replaced_from = $email;
@@ -234,20 +286,41 @@ class Mailer {
 	 * @return string From name.
 	 */
 	public function filter_from_name( $name ) {
-		if ( ! $this->settings->is_configured() ) {
+		$settings = $this->get_settings();
+
+		if ( ! $settings->is_configured() ) {
 			return $name;
 		}
 
-		$from_name = (string) $this->settings->get( 'from_name' );
+		$from_name = (string) $settings->get( 'from_name' );
 		if ( '' === $from_name ) {
 			return $name;
 		}
 
-		if ( $this->settings->get( 'force_from_name' ) || 'WordPress' === $name ) {
+		if ( $settings->get( 'force_from_name' ) || 'WordPress' === $name ) {
 			return $from_name;
 		}
 
 		return $name;
+	}
+
+	/**
+	 * Returns the settings of the connection the current email is sent through.
+	 *
+	 * @since 1.3.0
+	 *
+	 * @return Settings Settings.
+	 */
+	private function get_settings(): Settings {
+		if ( $this->connections ) {
+			$settings = $this->connections->get_settings( $this->connection_id );
+
+			if ( $settings ) {
+				return $settings;
+			}
+		}
+
+		return $this->settings;
 	}
 
 	/**

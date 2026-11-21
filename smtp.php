@@ -51,6 +51,93 @@ function wp_smtp_load() {
 }
 
 /**
+ * Returns the sending limits of an SMTP provider.
+ *
+ * The limits are configured values, not the remaining capacity: the account may be shared with other
+ * applications. Keys without a known limit are missing, so the result is empty when there are none.
+ *
+ * @since 1.2.0
+ *
+ * @param string $provider Provider slug. Defaults to the active provider.
+ * @return array {
+ *     Limits.
+ *
+ *     @type int   $per_second  Maximum messages per second.
+ *     @type int   $per_minute  Maximum messages per minute.
+ *     @type int   $per_hour    Maximum messages per hour.
+ *     @type int   $per_day     Maximum messages per day.
+ *     @type int   $concurrency Maximum simultaneous connections or sending operations.
+ *     @type int[] $recipients  Maximum recipients per `per_second`, `per_minute`, `per_hour` and `per_day`.
+ * }
+ */
+function wp_smtp_get_rate_limits( string $provider = '' ): array {
+	// The classes are not loaded when a requirement check failed.
+	if ( ! class_exists( WordPress\SMTP\Rate_Limits::class ) ) {
+		return array();
+	}
+
+	$registry = new WordPress\SMTP\Provider_Registry();
+	$settings = new WordPress\SMTP\Settings( $registry, new WordPress\SMTP\Credentials() );
+
+	return ( new WordPress\SMTP\Rate_Limits( $settings, $registry ) )->get( $provider );
+}
+
+/**
+ * Returns the SMTP connections, so a connection can be picked for an email.
+ *
+ * The default connection is the one configured under Tools > SMTP. The result never includes credentials.
+ *
+ * @since 1.3.0
+ *
+ * @return array[] Connections keyed by ID. The default connection is first, with the ID `default`. Each one has:
+ *                 `label` (string), `provider` (provider slug), `configured` (bool, whether it can send mail)
+ *                 and `rate_limits` (array, see wp_smtp_get_rate_limits()).
+ */
+function wp_smtp_get_connections(): array {
+	// The classes are not loaded when a requirement check failed.
+	if ( ! class_exists( WordPress\SMTP\Connections::class ) ) {
+		return array();
+	}
+
+	$registry    = new WordPress\SMTP\Provider_Registry();
+	$credentials = new WordPress\SMTP\Credentials();
+
+	return ( new WordPress\SMTP\Connections( $registry, $credentials, new WordPress\SMTP\Settings( $registry, $credentials ) ) )->describe();
+}
+
+/**
+ * Sends an email through a given SMTP connection.
+ *
+ * It works like wp_mail(). An unknown connection, or one that is not fully configured, falls back to the
+ * default connection, so the email is still sent. To route emails you do not send yourself, use the
+ * `smtp_connection_for_email` filter instead.
+ *
+ * @since 1.3.0
+ *
+ * @param string          $connection  ID of the connection, see wp_smtp_get_connections().
+ * @param string|string[] $to          Array or comma-separated list of email addresses to send the message to.
+ * @param string          $subject     Email subject.
+ * @param string          $message     Message contents.
+ * @param string|string[] $headers     Optional. Additional headers.
+ * @param string|string[] $attachments Optional. Paths to files to attach.
+ * @return bool Whether the email was sent successfully.
+ */
+function wp_smtp_mail( string $connection, $to, string $subject, string $message, $headers = '', $attachments = array() ): bool {
+	$select = static function () use ( $connection ) {
+		return $connection;
+	};
+
+	// Runs last, so the connection chosen by the caller wins over the one of any other callback.
+	add_filter( 'smtp_connection_for_email', $select, PHP_INT_MAX );
+
+	try {
+		return wp_mail( $to, $subject, $message, $headers, $attachments );
+	} finally {
+		remove_filter( 'smtp_connection_for_email', $select, PHP_INT_MAX );
+	}
+}
+
+/**
  * Displays an admin notice when the PHP version is not supported.
  *
  * @since 1.2.0

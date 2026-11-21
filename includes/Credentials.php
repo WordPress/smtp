@@ -61,4 +61,30 @@ class Credentials {
 		// Not autoloaded: secrets are only needed when sending mail or saving settings.
 		update_option( self::OPTION, $secrets, false );
 	}
+
+	/**
+	 * Deletes every secret whose key starts with a prefix.
+	 *
+	 * @since 1.3.0
+	 *
+	 * @param string $prefix Key prefix. An empty prefix deletes nothing.
+	 */
+	public function delete_prefixed( string $prefix ) {
+		if ( '' === $prefix ) {
+			return;
+		}
+
+		$secrets = get_option( self::OPTION, array() );
+		if ( ! is_array( $secrets ) ) {
+			return;
+		}
+
+		foreach ( array_keys( $secrets ) as $key ) {
+			if ( 0 === strpos( (string) $key, $prefix ) ) {
+				unset( $secrets[ $key ] );
+			}
+		}
+
+		update_option( self::OPTION, $secrets, false );
+	}
 }

@@ -28,6 +28,8 @@ smtp/
 ├── includes/                 # PSR-4 autoloaded under WordPress\SMTP\
 │   ├── Plugin_Main.php       # Wires every component, activation/deactivation, purge schedule
 │   ├── Provider_Registry.php # smtp_providers filter, provider validation, Generic SMTP provider
+│   ├── Rate_Limits.php       # Sending limits of a provider: declared, saved override, smtp_rate_limits filter
+│   ├── Connections.php       # Stored connections (smtp_connections), smtp_connection_for_email, resolve()
 │   ├── Settings.php          # Field resolution (constant > saved value > default) and sanitization
 │   ├── Credentials.php       # The only place that reads/writes secrets
 │   ├── Migration.php         # One-time import of the legacy SMTP plugin (smtp_options) settings
@@ -49,6 +51,8 @@ smtp/
 │   │   └── Settings_Command.php # wp smtp settings set
 │   └── Admin/                # Tools > SMTP screen
 │       ├── Admin_Page.php    # Tabs (the Email log tab comes first once configured), Settings API registration, field rendering
+│       ├── Connections_Tab.php # Settings tab connections: switch, add, edit and delete connections
+│       ├── Field_Renderer.php  # Renders a settings field, shared by the default and the extra connections
 │       ├── Alerts_Tab.php    # Alerts tab (channel select, fields shown per channel), admin-post handler for the test alert
 │       ├── Log_List_Table.php
 │       ├── Failure_Notice.php # Admin notice about recently failed emails, dismissible per user
@@ -76,8 +80,25 @@ A provider is an array registered through the `smtp_providers` filter:
 - `required` (string[]): field keys that must have a value before the provider is used.
 - `required_if` (array): `field => condition field` pairs. The field must have a value when the condition field is enabled. Generic SMTP uses it for `username` and `password` when `auth` is on.
 - `configure` (callable): receives the `PHPMailer` instance and the resolved field values.
+- `rate_limits` (array, optional): default sending limits. See "Sending limits".
 
 `Provider_Registry::get_all()` discards invalid providers. Providers only configure PHPMailer; they must not send mail themselves.
+
+### Connections
+
+- A connection is a provider with its own settings, secrets, From address and limits. The settings of Tools > SMTP (`smtp_settings`) are the **default connection** (ID `default`), so nothing changes for single-connection sites. Other connections live in `smtp_connections` (`id => label + settings`, not autoloaded), and `Connections` is the only class that reads and writes them.
+- `Settings` is scoped to a connection by its constructor (`new Settings( $registry, $credentials, $id )`). Constants only lock the default connection, and the secrets of the others go to `Credentials` under `connection:{id}:{field}`. The colon can not be in an ID, so one ID prefix never matches another (`a` and `a_b`). **Never build a secret key by hand: use `Connections::get_secret_prefix()`.**
+- `Mailer` picks the connection in the `wp_mail` filter (last priority, so it sees the final email data) with `Connections::resolve()`, which applies `smtp_connection_for_email`. `phpmailer_init` and the From filters then read the settings of that connection, and `Delivery_Tracker` credits its provider. An unknown or incomplete connection falls back to the default one so email is never dropped, and `smtp_connection_fallback` fires so the mismatch can be logged.
+- `wp_smtp_mail()` adds a one-shot `smtp_connection_for_email` callback at `PHP_INT_MAX` around `wp_mail()`. `wp_smtp_get_connections()` describes the connections without credentials. Both live in `smtp.php`.
+- The log table has a `connection_id` column (schema version 2). It is empty for the default connection, so entries logged before connections existed stay correct, and for emails that were not delivered by a connection.
+- `Admin\Connections_Tab` adds the connection links and forms to the Settings tab (add, edit, delete; the ID comes from the name) (admin-post handlers with nonce and capability checks), and `Admin\Field_Renderer` renders a field for the default and the extra connections.
+- `wp smtp` commands only handle the default connection.
+
+### Sending limits
+
+- `Rate_Limits` only **reports** limits (`per_second`, `per_minute`, `per_hour`, `per_day`, `concurrency` for messages, and `recipients` with the interval keys). It never queues, delays or throttles email. They are configured values, not remaining capacity.
+- A limit resolves as: provider default (`rate_limits`), saved override of the active provider (`rate_limit_*` fields, shown in the Sending limits section of the Settings tab), then the `smtp_rate_limits` filter. `Rate_Limits::normalize()` keeps only known keys with positive whole numbers, so a missing key means no known limit.
+- Other plugins read them with `wp_smtp_get_rate_limits( $provider = '' )` (defined in `smtp.php`).
 
 ### Settings and credentials
 
@@ -112,7 +133,7 @@ This plugin replaces the SMTP plugin 1.x published under the same slug, so sites
 ### Email log
 
 - Table `{prefix}smtp_logs`, created with `dbDelta()` by `Log_Repository::maybe_upgrade()` (schema version in the `smtp_db_version` option).
-- Only metadata is stored: recipient, subject, status, error and provider. **Never store the message body, headers or attachments.**
+- Only metadata is stored: recipient, subject, status, error, provider and connection. **Never store the message body, headers or attachments.**
 - The `provider` column holds the slug of the provider that delivered the email, `default` for the WordPress mailer, or `other` when another plugin delivered it (it replaced `wp_mail()`, short-circuited it with `pre_wp_mail`, or changed PHPMailer after the provider configured it). `Delivery_Tracker` decides which; the Settings and Test tabs warn when another plugin controls outgoing email.
 - Entries older than 30 days are deleted daily by the `smtp_purge_logs` cron event.
 - `Failure_Notice` shows users with `manage_options` how many emails failed in the last 24 hours, on every admin screen except Tools > SMTP. Dismissing it stores the time in the `smtp_failures_dismissed` user meta, and it comes back when a newer email fails.
@@ -132,6 +153,9 @@ This plugin replaces the SMTP plugin 1.x published under the same slug, so sites
 - `smtp_log_enabled` (filter): return `false` to skip logging an email. Receives the mail data and the status.
 - `smtp_log_retention_days` (filter): days to keep log entries. Default `30`; `0` or less disables the purge.
 - `smtp_failure_notice_period` (filter): seconds the recent failures admin notice looks back. Default one day.
+- `smtp_rate_limits` (filter): change the sending limits of a provider. Receives the limits, the provider slug and the connection ID.
+- `smtp_connection_for_email` (filter): pick the connection an email is sent through. Receives the connection ID (`default`) and the mail data.
+- `smtp_connection_fallback` (action): an email asked for an unknown or incomplete connection and goes through the default one. Receives the ID asked for, the reason (`unknown` or `incomplete`) and the mail data.
 - `smtp_timeout` (filter): seconds PHPMailer waits for the SMTP server to connect and to answer each command. Default `15`; `0` or less keeps the PHPMailer default (300). Receives the provider slug.
 - `smtp_alert_channels` (filter): add alert channels (`Alert_Channel` instances).
 - `smtp_alert_enabled` (filter): return `false` to skip the alert for a failed email. Receives the `Alert`.
@@ -212,10 +236,16 @@ npm run test-php -- --filter Settings_Tests::test_sanitize_is_idempotent
 Current version: `1.2.0` (declared in the `smtp.php` header and the `WP_SMTP_VERSION` constant).
 
 1. Bump the version in the `smtp.php` header (`Version:`), and the `WP_SMTP_VERSION` constant in `smtp.php`. Keep both locations in sync.
-2. Update the `readme.txt` **Changelog** section with a summary of notable changes.
-3. Update the `readme.txt` **Stable tag** to match the new version, and **Tested up to** when needed.
-4. Build the distribution with production dependencies only: `composer install --no-dev -o`. Files excluded from the release are listed in `.distignore`.
-5. Open a pull request, get it merged into `trunk` and tag the release.
+2. Check every `@since` tag against the version actually being released. The version a contributor wrote when opening a PR can be wrong by release time (for example `@since 1.2.1` in a PR, but the release ships as `1.3.0`). Search with `grep -rnE "@since" --include=*.php smtp.php uninstall.php includes/` (also search `n.e.x.t`, `NEXT`, `x.x.x`, `TBD`) and:
+   - Replace any placeholder (`n.e.x.t`, `NEXT`, `x.x.x`, `TBD`) with the release version.
+   - Replace any `@since` that is higher than the release version, or that points to a version that is not this release, for code added in this release, with the release version.
+   - Confirm that no code added in this release carries an older version, and that `@since` of existing code was not changed. Use `git diff <previous-tag>...HEAD` to see what was added.
+   - Do the same for `@deprecated` and for versions mentioned in `_deprecated_*()` calls and in docblocks of hooks (`apply_filters`/`do_action`).
+   The release must not be tagged while any `@since` is a placeholder or a version that will never be published.
+3. Update the `readme.txt` **Changelog** section with a summary of notable changes.
+4. Update the `readme.txt` **Stable tag** to match the new version, and **Tested up to** when needed.
+5. Build the distribution with production dependencies only: `composer install --no-dev -o`. Files excluded from the release are listed in `.distignore`.
+6. Open a pull request, get it merged into `trunk` and tag the release.
 
 There is no deploy workflow in this repository yet: publishing to WordPress.org is done by the Plugins Team, not from CI. Do not add or describe an automated deploy until a workflow exists.
 

@@ -141,13 +141,23 @@ class Logger {
 		$recipients = array_filter( array_map( 'strval', array_filter( $recipients, 'is_scalar' ) ) );
 		$subject    = isset( $mail_data['subject'] ) && is_string( $mail_data['subject'] ) ? $mail_data['subject'] : '';
 
+		$provider = $this->tracker->get_provider();
+
+		// Only a connection that delivered the email is credited. The default connection stays empty, like
+		// the entries logged before there were connections.
+		$connection_id = $this->tracker->get_connection_id();
+		if ( Connections::DEFAULT_ID === $connection_id || in_array( $provider, array( Delivery_Tracker::PROVIDER_DEFAULT, Delivery_Tracker::PROVIDER_OTHER ), true ) ) {
+			$connection_id = '';
+		}
+
 		$this->repository->insert(
 			array(
-				'recipient' => $this->clean_text( implode( ', ', $recipients ) ),
-				'subject'   => $this->clean_text( $subject ),
-				'status'    => $status,
-				'error'     => $this->clean_text( $error ),
-				'provider'  => $this->tracker->get_provider(),
+				'recipient'     => $this->clean_text( implode( ', ', $recipients ) ),
+				'subject'       => $this->clean_text( $subject ),
+				'status'        => $status,
+				'error'         => $this->clean_text( $error ),
+				'provider'      => $provider,
+				'connection_id' => $connection_id,
 			)
 		);
 	}

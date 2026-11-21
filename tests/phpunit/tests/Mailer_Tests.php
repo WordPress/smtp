@@ -5,6 +5,7 @@
  * @package smtp
  */
 
+use WordPress\SMTP\Connections;
 use WordPress\SMTP\Credentials;
 use WordPress\SMTP\Delivery_Tracker;
 use WordPress\SMTP\Mailer;
@@ -513,5 +514,188 @@ class Mailer_Tests extends WP_UnitTestCase {
 		wp_mail( 'to@example.org', 'Subject', 'Body' );
 
 		$this->assertSame( array(), $this->reply_tos() );
+	}
+
+	private function add_connection( string $id = 'sponsors' ) {
+		( new Connections( new Provider_Registry(), new Credentials(), new Settings( new Provider_Registry(), new Credentials() ) ) )->save(
+			$id,
+			'Sponsors',
+			array(
+				'provider'   => 'smtp',
+				'host'       => 'smtp.sponsors.example',
+				'port'       => 2525,
+				'auth'       => '1',
+				'username'   => 'sponsors-user',
+				'password'   => 'sponsors-secret',
+				'from_email' => 'sponsors@example.org',
+				'from_name'  => 'Sponsors team',
+			)
+		);
+	}
+
+	private function mailer_with_connections(): Mailer {
+		$registry    = new Provider_Registry();
+		$credentials = new Credentials();
+		$settings    = new Settings( $registry, $credentials );
+		$mailer      = new Mailer( $settings, $registry, $this->tracker, new Connections( $registry, $credentials, $settings ) );
+		$mailer->add_hooks();
+
+		return $mailer;
+	}
+
+	public function test_add_hooks_registers_the_connection_hooks() {
+		$mailer = $this->mailer;
+		$mailer->add_hooks();
+
+		$this->assertSame( PHP_INT_MAX, has_filter( 'wp_mail', array( $mailer, 'select_connection' ) ) );
+		$this->assertSame( PHP_INT_MAX, has_action( 'wp_mail_succeeded', array( $mailer, 'reset_connection' ) ) );
+		$this->assertSame( PHP_INT_MAX, has_action( 'wp_mail_failed', array( $mailer, 'reset_connection' ) ) );
+	}
+
+	public function test_select_connection_returns_the_email_data_unchanged() {
+		$args = array( 'to' => 'a@example.org' );
+
+		$this->assertSame( $args, $this->mailer->select_connection( $args ) );
+	}
+
+	public function test_without_connections_the_default_settings_are_used() {
+		$this->configure( array( 'from_email' => 'team@example.com' ) );
+
+		$this->mailer->select_connection( array() );
+		$phpmailer = $this->get_phpmailer();
+		$this->mailer->configure( $phpmailer );
+
+		$this->assertSame( 'smtp.example.com', $phpmailer->Host );
+	}
+
+	public function test_a_selected_connection_configures_phpmailer_and_the_sender() {
+		$this->configure( array( 'from_email' => 'team@example.com' ) );
+		$this->add_connection();
+		add_filter(
+			'smtp_connection_for_email',
+			static function () {
+				return 'sponsors';
+			}
+		);
+		$this->mailer_with_connections();
+
+		wp_mail( 'to@example.org', 'Subject', 'Message' );
+
+		$phpmailer = tests_retrieve_phpmailer_instance();
+		$this->assertSame( 'smtp.sponsors.example', $phpmailer->Host );
+		$this->assertSame( 2525, $phpmailer->Port );
+		$this->assertSame( 'sponsors-user', $phpmailer->Username );
+		$this->assertSame( 'sponsors-secret', $phpmailer->Password );
+		$this->assertSame( 'sponsors@example.org', $phpmailer->From );
+		$this->assertSame( 'Sponsors team', $phpmailer->FromName );
+	}
+
+	public function test_the_default_connection_is_used_when_none_is_selected() {
+		$this->configure( array( 'from_email' => 'team@example.com' ) );
+		$this->add_connection();
+		$this->mailer_with_connections();
+
+		wp_mail( 'to@example.org', 'Subject', 'Message' );
+
+		$this->assertSame( 'smtp.example.com', tests_retrieve_phpmailer_instance()->Host );
+	}
+
+	public function test_the_connection_is_not_kept_for_the_next_email() {
+		$this->configure( array( 'from_email' => 'team@example.com' ) );
+		$this->add_connection();
+		$select = static function () {
+			return 'sponsors';
+		};
+		add_filter( 'smtp_connection_for_email', $select );
+		$this->mailer_with_connections();
+
+		wp_mail( 'to@example.org', 'Subject', 'Message' );
+		remove_filter( 'smtp_connection_for_email', $select );
+		reset_phpmailer_instance();
+		wp_mail( 'to@example.org', 'Subject', 'Message' );
+
+		$this->assertSame( 'smtp.example.com', tests_retrieve_phpmailer_instance()->Host );
+	}
+
+	public function test_an_unknown_connection_falls_back_to_the_default_one() {
+		$this->configure( array( 'from_email' => 'team@example.com' ) );
+		add_filter(
+			'smtp_connection_for_email',
+			static function () {
+				return 'missing';
+			}
+		);
+		$this->mailer_with_connections();
+
+		wp_mail( 'to@example.org', 'Subject', 'Message' );
+
+		$this->assertSame( 'smtp.example.com', tests_retrieve_phpmailer_instance()->Host );
+	}
+
+	public function test_the_log_credits_the_connection_that_sent_the_email() {
+		$this->configure( array( 'from_email' => 'team@example.com' ) );
+		$this->add_connection();
+		add_filter(
+			'smtp_connection_for_email',
+			static function () {
+				return 'sponsors';
+			}
+		);
+
+		wp_mail( 'to@example.org', 'Subject', 'Message' );
+
+		$entries = $this->get_logged_entries();
+		$this->assertCount( 1, $entries );
+		$this->assertSame( 'smtp', $entries[0]['provider'] );
+		$this->assertSame( 'sponsors', $entries[0]['connection_id'] );
+	}
+
+	public function test_wp_smtp_mail_sends_through_the_given_connection() {
+		$this->configure( array( 'from_email' => 'team@example.com' ) );
+		$this->add_connection();
+		$this->mailer_with_connections();
+
+		$sent = wp_smtp_mail( 'sponsors', 'to@example.org', 'Subject', 'Message' );
+
+		$this->assertTrue( $sent );
+		$this->assertSame( 'smtp.sponsors.example', tests_retrieve_phpmailer_instance()->Host );
+	}
+
+	public function test_wp_smtp_mail_does_not_change_the_connection_of_later_emails() {
+		$this->configure( array( 'from_email' => 'team@example.com' ) );
+		$this->add_connection();
+		$this->mailer_with_connections();
+
+		wp_smtp_mail( 'sponsors', 'to@example.org', 'Subject', 'Message' );
+		reset_phpmailer_instance();
+		wp_mail( 'to@example.org', 'Subject', 'Message' );
+
+		$this->assertFalse( has_filter( 'smtp_connection_for_email' ) );
+		$this->assertSame( 'smtp.example.com', tests_retrieve_phpmailer_instance()->Host );
+	}
+
+	public function test_wp_smtp_mail_wins_over_the_filter_of_other_code() {
+		$this->configure( array( 'from_email' => 'team@example.com' ) );
+		$this->add_connection( 'sponsors' );
+		$this->add_connection( 'volunteers' );
+		add_filter(
+			'smtp_connection_for_email',
+			static function () {
+				return 'volunteers';
+			}
+		);
+		$this->mailer_with_connections();
+
+		wp_smtp_mail( 'sponsors', 'to@example.org', 'Subject', 'Message' );
+
+		$this->assertSame( 'smtp.sponsors.example', tests_retrieve_phpmailer_instance()->Host );
+	}
+
+	public function test_wp_smtp_mail_with_an_unknown_connection_uses_the_default_one() {
+		$this->configure( array( 'from_email' => 'team@example.com' ) );
+		$this->mailer_with_connections();
+
+		$this->assertTrue( wp_smtp_mail( 'missing', 'to@example.org', 'Subject', 'Message' ) );
+		$this->assertSame( 'smtp.example.com', tests_retrieve_phpmailer_instance()->Host );
 	}
 }
