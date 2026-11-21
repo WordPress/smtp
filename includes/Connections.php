@@ -41,6 +41,14 @@ class Connections {
 	const MAX_ID_LENGTH = 50;
 
 	/**
+	 * Whether the `smtp_connection_fallback` action is running.
+	 *
+	 * @since 1.3.0
+	 * @var bool
+	 */
+	private static $falling_back = false;
+
+	/**
 	 * Provider registry.
 	 *
 	 * @since 1.3.0
@@ -95,7 +103,10 @@ class Connections {
 
 		$connections = array();
 		foreach ( $stored as $id => $connection ) {
-			if ( ! is_string( $id ) || self::DEFAULT_ID === $id || ! is_array( $connection ) ) {
+			// PHP turns an ID made only of digits, like "2024", into an integer key.
+			$id = (string) $id;
+
+			if ( self::sanitize_id( $id ) !== $id || ! is_array( $connection ) ) {
 				continue;
 			}
 
@@ -207,7 +218,7 @@ class Connections {
 	 * @return string[] Connection IDs.
 	 */
 	public function get_ids(): array {
-		return array_merge( array( self::DEFAULT_ID ), array_keys( self::get_stored() ) );
+		return array_merge( array( self::DEFAULT_ID ), array_map( 'strval', array_keys( self::get_stored() ) ) );
 	}
 
 	/**
@@ -345,7 +356,16 @@ class Connections {
 		 *                              but is not fully configured.
 		 * @param array  $mail_data     Email data: `to`, `subject`, `message`, `headers` and `attachments`.
 		 */
-		do_action( 'smtp_connection_fallback', $id, $settings ? 'incomplete' : 'unknown', $mail_data );
+		// A listener that sends an email routed to the same connection would fire the action again, without end.
+		if ( ! self::$falling_back ) {
+			self::$falling_back = true;
+
+			try {
+				do_action( 'smtp_connection_fallback', $id, $settings ? 'incomplete' : 'unknown', $mail_data );
+			} finally {
+				self::$falling_back = false;
+			}
+		}
 
 		return self::DEFAULT_ID;
 	}

@@ -78,6 +78,8 @@ class Delivery_Tracker_Tests extends WP_UnitTestCase {
 		$this->tracker->add_hooks();
 
 		$this->assertSame( PHP_INT_MAX, has_action( 'phpmailer_init', array( $this->tracker, 'inspect' ) ) );
+		$this->assertSame( PHP_INT_MIN, has_action( 'wp_mail_succeeded', array( $this->tracker, 'keep' ) ) );
+		$this->assertSame( PHP_INT_MIN, has_action( 'wp_mail_failed', array( $this->tracker, 'keep' ) ) );
 		$this->assertSame( PHP_INT_MAX, has_action( 'wp_mail_succeeded', array( $this->tracker, 'reset' ) ) );
 		$this->assertSame( PHP_INT_MAX, has_action( 'wp_mail_failed', array( $this->tracker, 'reset' ) ) );
 	}

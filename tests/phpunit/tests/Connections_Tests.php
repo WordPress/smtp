@@ -135,6 +135,25 @@ class Connections_Tests extends WP_UnitTestCase {
 		$this->assertTrue( $settings->is_configured() );
 	}
 
+	public function test_a_connection_with_a_numeric_id_is_kept() {
+		$id = $this->connections->generate_id( '2024' );
+		$this->add_connection( $id );
+		$this->add_connection( 'volunteers' );
+		add_filter(
+			'smtp_connection_for_email',
+			static function () use ( $id ) {
+				return $id;
+			}
+		);
+
+		$this->assertSame( '2024', $id );
+		$this->assertSame( array( 'default', '2024', 'volunteers' ), $this->connections->get_ids() );
+		$this->assertTrue( $this->connections->exists( '2024' ) );
+		$this->assertSame( 'Sponsors', $this->connections->get_label( '2024' ) );
+		$this->assertSame( 'smtp.sponsors.example', $this->connections->get_settings( '2024' )->get( 'host' ) );
+		$this->assertSame( '2024', $this->connections->resolve( array() ) );
+	}
+
 	public function test_save_returns_the_clean_id() {
 		$this->assertSame( 'sponsors', $this->connections->save( 'Sponsors', 'Sponsors', array( 'host' => 'smtp.example.com' ) ) );
 	}
@@ -255,7 +274,7 @@ class Connections_Tests extends WP_UnitTestCase {
 			array(
 				'default' => array( 'label' => 'x' ),
 				'broken'  => 'nope',
-				0         => array(),
+				'Not ID!' => array(),
 				'ok'      => array( 'label' => 'Ok' ),
 			)
 		);
@@ -293,6 +312,32 @@ class Connections_Tests extends WP_UnitTestCase {
 		);
 
 		$this->assertSame( 'default', $this->connections->resolve( array() ) );
+	}
+
+	public function test_the_fallback_action_does_not_fire_again_for_emails_sent_by_its_listeners() {
+		add_filter(
+			'smtp_connection_for_email',
+			static function () {
+				return 'missing';
+			}
+		);
+		$calls = 0;
+		add_action(
+			'smtp_connection_fallback',
+			function () use ( &$calls ) {
+				++$calls;
+				// Stands for a listener that sends an alert email, routed to the same connection.
+				if ( $calls < 5 ) {
+					$this->assertSame( 'default', $this->connections->resolve( array() ) );
+				}
+			}
+		);
+
+		$this->assertSame( 'default', $this->connections->resolve( array() ) );
+		$this->assertSame( 1, $calls );
+
+		$this->connections->resolve( array() );
+		$this->assertSame( 2, $calls, 'The action fires again for the next email.' );
 	}
 
 	public function test_resolve_falls_back_to_the_default_for_an_incomplete_connection() {

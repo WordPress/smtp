@@ -127,13 +127,22 @@ function wp_smtp_mail( string $connection, $to, string $subject, string $message
 		return $connection;
 	};
 
+	// Once the email is sent or failed, so the emails its listeners send pick their own connection.
+	$finish = static function () use ( $select ) {
+		remove_filter( 'smtp_connection_for_email', $select, PHP_INT_MAX );
+	};
+
 	// Runs last, so the connection chosen by the caller wins over the one of any other callback.
 	add_filter( 'smtp_connection_for_email', $select, PHP_INT_MAX );
+	add_action( 'wp_mail_succeeded', $finish, PHP_INT_MIN );
+	add_action( 'wp_mail_failed', $finish, PHP_INT_MIN );
 
 	try {
 		return wp_mail( $to, $subject, $message, $headers, $attachments );
 	} finally {
 		remove_filter( 'smtp_connection_for_email', $select, PHP_INT_MAX );
+		remove_action( 'wp_mail_succeeded', $finish, PHP_INT_MIN );
+		remove_action( 'wp_mail_failed', $finish, PHP_INT_MIN );
 	}
 }
 
