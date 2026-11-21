@@ -147,7 +147,7 @@ class Plugin_Main_Tests extends WP_UnitTestCase {
 		Plugin_Main::activate();
 
 		$this->assertNotFalse( wp_next_scheduled( Plugin_Main::PURGE_HOOK ) );
-		$this->assertSame( '1', get_option( 'smtp_db_version' ) );
+		$this->assertSame( Log_Repository::DB_VERSION, get_option( 'smtp_db_version' ) );
 	}
 
 	public function test_deactivate_clears_the_scheduled_purge() {

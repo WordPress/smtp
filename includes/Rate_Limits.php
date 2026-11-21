@@ -20,7 +20,8 @@ namespace WordPress\SMTP;
  * - `recipients` (array): the same interval keys, for providers that count recipients instead of messages.
  *
  * A limit resolves in this order: the default declared by the provider (`rate_limits`), the value saved by
- * the administrator for the active provider, then the `smtp_rate_limits` filter.
+ * the administrator for the active provider of the connection, then the `smtp_rate_limits` filter. An instance
+ * reports the limits of the connection its settings belong to.
  *
  * @since 1.2.0
  */
@@ -98,9 +99,10 @@ class Rate_Limits {
 		 * @param array  $limits   Limits: `per_second`, `per_minute`, `per_hour`, `per_day` and `concurrency`
 		 *                         for messages, and `recipients` with the interval keys for recipients. Keys
 		 *                         without a limit are missing.
-		 * @param string $provider Provider slug.
+		 * @param string $provider   Provider slug.
+		 * @param string $connection ID of the connection the limits are for, `default` for the default one.
 		 */
-		$limits = apply_filters( 'smtp_rate_limits', $limits, $slug );
+		$limits = apply_filters( 'smtp_rate_limits', $limits, $slug, $this->settings->get_connection_id() );
 
 		return self::normalize( $limits );
 	}

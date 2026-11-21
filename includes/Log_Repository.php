@@ -23,7 +23,7 @@ class Log_Repository {
 	 *
 	 * @since 1.2.0
 	 */
-	const DB_VERSION = '1';
+	const DB_VERSION = '2';
 
 	/**
 	 * Name of the option that stores the installed schema version.
@@ -85,6 +85,7 @@ class Log_Repository {
 				status varchar(10) NOT NULL,
 				error text NOT NULL,
 				provider varchar(50) NOT NULL,
+				connection_id varchar(50) NOT NULL DEFAULT '',
 				PRIMARY KEY  (id),
 				KEY status (status),
 				KEY created_at (created_at)
@@ -109,25 +110,33 @@ class Log_Repository {
 	 *
 	 * @since 1.2.0
 	 *
-	 * @param array $entry Entry with `recipient`, `subject`, `status`, `error` and `provider`.
+	 * @param array $entry Entry with `recipient`, `subject`, `status`, `error`, `provider` and, optionally, `connection_id`.
 	 */
 	public function insert( array $entry ) {
-		global $wpdb;
-
 		// Email sent before init, for example on plugins_loaded, arrives before the table is created.
 		// Once the table exists this only reads an autoloaded option.
 		$this->maybe_upgrade();
 
 		$row = array(
-			'created_at' => current_time( 'mysql', true ),
-			'recipient'  => $entry['recipient'],
-			'subject'    => $entry['subject'],
-			'status'     => $entry['status'],
-			'error'      => $entry['error'],
-			'provider'   => $entry['provider'],
+			'created_at'    => current_time( 'mysql', true ),
+			'recipient'     => $entry['recipient'],
+			'subject'       => $entry['subject'],
+			'status'        => $entry['status'],
+			'error'         => $entry['error'],
+			'provider'      => $entry['provider'],
+			'connection_id' => $entry['connection_id'] ?? '',
 		);
 
-		if ( false !== $wpdb->insert( $this->get_table_name(), $row, array( '%s', '%s', '%s', '%s', '%s', '%s' ) ) || $this->table_exists() ) {
+		if ( false !== $this->insert_row( $row ) ) {
+			return;
+		}
+
+		if ( $this->table_exists() ) {
+			// The table can still have the version 1 schema while another request upgrades it, and
+			// it has no `connection_id` column yet. The entry is kept without it instead of lost.
+			unset( $row['connection_id'] );
+			$this->insert_row( $row );
+
 			return;
 		}
 
@@ -136,8 +145,22 @@ class Log_Repository {
 		$this->maybe_upgrade();
 
 		if ( $this->table_exists() ) {
-			$wpdb->insert( $this->get_table_name(), $row, array( '%s', '%s', '%s', '%s', '%s', '%s' ) );
+			$this->insert_row( $row );
 		}
+	}
+
+	/**
+	 * Inserts a row of the log table.
+	 *
+	 * @since 1.3.0
+	 *
+	 * @param array $row Column values, all strings.
+	 * @return int|false Number of rows inserted, or false on error.
+	 */
+	private function insert_row( array $row ) {
+		global $wpdb;
+
+		return $wpdb->insert( $this->get_table_name(), $row, array_fill( 0, count( $row ), '%s' ) );
 	}
 
 	/**

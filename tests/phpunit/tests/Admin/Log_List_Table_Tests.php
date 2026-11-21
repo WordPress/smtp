@@ -5,6 +5,9 @@
  * @package smtp
  */
 
+use WordPress\SMTP\Settings;
+use WordPress\SMTP\Credentials;
+use WordPress\SMTP\Connections;
 use WordPress\SMTP\Admin\Log_List_Table;
 use WordPress\SMTP\Log_Repository;
 use WordPress\SMTP\Provider_Registry;
@@ -163,5 +166,77 @@ class Log_List_Table_Tests extends WP_UnitTestCase {
 		$this->assertStringContainsString( 'WordPress default', $html );
 		$this->assertStringContainsString( 'Another plugin', $html );
 		$this->assertStringContainsString( 'unknown-provider', $html );
+	}
+
+	private function get_connections(): Connections {
+		$registry    = new Provider_Registry();
+		$credentials = new Credentials();
+
+		return new Connections( $registry, $credentials, new Settings( $registry, $credentials ) );
+	}
+
+	private function render_table_with( Connections $connections ): string {
+		$table = new Log_List_Table( $this->repository, new Provider_Registry(), $connections );
+		$table->prepare_items();
+
+		ob_start();
+		$table->display();
+
+		return ob_get_clean();
+	}
+
+	public function test_the_connection_column_is_hidden_without_other_connections() {
+		$table = new Log_List_Table( $this->repository, new Provider_Registry(), $this->get_connections() );
+
+		$this->assertArrayNotHasKey( 'connection', $table->get_columns() );
+	}
+
+	public function test_the_connection_column_is_shown_with_other_connections() {
+		$connections = $this->get_connections();
+		$connections->save( 'sponsors', 'Sponsors', array( 'host' => 'smtp.example.com' ) );
+		$table = new Log_List_Table( $this->repository, new Provider_Registry(), $connections );
+
+		$this->assertSame(
+			array( 'created_at', 'recipient', 'subject', 'status', 'error', 'provider', 'connection' ),
+			array_keys( $table->get_columns() )
+		);
+	}
+
+	public function test_entries_show_the_connection_that_sent_them() {
+		$connections = $this->get_connections();
+		$connections->save( 'sponsors', 'Sponsors team', array( 'host' => 'smtp.example.com' ) );
+		$base = array(
+			'recipient' => 'to@example.org',
+			'subject'   => 'Subject',
+			'status'    => 'sent',
+			'error'     => '',
+		);
+		$this->repository->insert(
+			array_merge(
+				$base,
+				array(
+					'provider'      => 'smtp',
+					'connection_id' => 'sponsors',
+				)
+			)
+		);
+		$this->repository->insert( array_merge( $base, array( 'provider' => 'smtp' ) ) );
+		$this->repository->insert( array_merge( $base, array( 'provider' => 'other' ) ) );
+		$this->repository->insert(
+			array_merge(
+				$base,
+				array(
+					'provider'      => 'smtp',
+					'connection_id' => 'removed',
+				)
+			)
+		);
+
+		$html = $this->render_table_with( $connections );
+
+		$this->assertStringContainsString( '>Sponsors team<', $html );
+		$this->assertStringContainsString( '>Default<', $html );
+		$this->assertStringContainsString( '>removed<', $html );
+		$this->assertStringContainsString( '>—<', $html );
 	}
 }

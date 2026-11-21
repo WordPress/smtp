@@ -91,6 +91,44 @@ Fields of type `password` are stored apart from the other settings, are never pr
 
 Providers with an invalid definition (no label, or a `configure` that is not callable) are ignored. Providers that talk to an HTTP API instead of SMTP are not supported yet, see [#1](https://github.com/WordPress/smtp/issues/1).
 
+## Multiple connections
+
+A connection is a provider with its own settings, credentials, From address and sending limits. The settings saved under _Tools > SMTP > Settings_ are the **default connection**, so existing sites keep working unchanged. Add the others from the same _Settings_ tab with **Add connection**: the ID used in code (such as `sponsors`) is generated from the name.
+
+Emails use the default connection, unless the connection is picked for that email:
+
+```php
+// Send one email through a connection.
+wp_smtp_mail( 'sponsors', 'recipient@example.com', 'Subject', 'Message' );
+
+// Or route emails you do not send yourself, such as the ones of another plugin.
+add_filter( 'smtp_connection_for_email', function ( $connection_id, $mail_data ) {
+	if ( false !== strpos( (string) $mail_data['subject'], 'Sponsor' ) ) {
+		return 'sponsors';
+	}
+
+	return $connection_id;
+}, 10, 2 );
+```
+
+`wp_smtp_mail()` takes the connection ID first and then the arguments of `wp_mail()`. The filter receives the connection ID (`default` unless another callback changed it) and the email data (`to`, `subject`, `message`, `headers` and `attachments`). An unknown connection, or one that is not fully configured, falls back to the default connection, so the email is still sent. The `smtp_connection_fallback` action fires in that case, with the ID that was asked for and the reason (`unknown` or `incomplete`), so you can log it or alert someone.
+
+Other plugins list the connections without any access to the credentials:
+
+```php
+foreach ( wp_smtp_get_connections() as $id => $connection ) {
+	// $connection['label'], ['provider'], ['configured'] and ['rate_limits'].
+}
+```
+
+Notes:
+
+- The mailbox used to authenticate (the username) and the From address are separate fields, so a connection can send from a different address than the one it logs in with. A provider can still reject From addresses it does not own.
+- Constants such as `SMTP_HOST` only configure the default connection.
+- Each connection has its own sending limits, see [Sending limits](#sending-limits). The `smtp_rate_limits` filter also receives the connection ID.
+- The email log has a **Connection** column once there is more than one connection.
+- Deleting a connection also deletes its saved credentials. `wp smtp` commands only handle the default connection for now.
+
 ## Sending limits
 
 Email providers limit how much you can send. A provider can declare its limits with the optional `rate_limits` key, and every value is optional, since not every provider publishes a limit for every interval:
@@ -122,7 +160,7 @@ Limits resolve in this order:
 2. The value saved under _Tools > SMTP > Sending limits_, for the active provider. It covers the message limits and `concurrency`, since the right values often depend on the account or plan.
 3. The `smtp_rate_limits` filter, which receives `$limits` and the provider slug.
 
-Other plugins read the result with `wp_smtp_get_rate_limits( $provider = '' )`, which defaults to the active provider. Keys without a known limit are missing, so the result is an empty array when there are none:
+Other plugins read the result with `wp_smtp_get_rate_limits( $provider = '' )`, which defaults to the active provider of the default connection. For the limits of each connection use `wp_smtp_get_connections()`. Keys without a known limit are missing, so the result is an empty array when there are none:
 
 ```php
 if ( function_exists( 'wp_smtp_get_rate_limits' ) ) {
@@ -161,7 +199,9 @@ Passwords cannot be passed as arguments, since those end up in the shell history
 | `smtp_log_enabled` | Return `false` to skip logging an email. Receives `$enabled`, `$mail_data` and `$status` (`sent` or `failed`). |
 | `smtp_log_retention_days` | Number of days log entries are kept. Default `30`. A value of `0` or less disables the purge. |
 | `smtp_failure_notice_period` | Seconds the admin notice about failed emails looks back. Default one day. |
-| `smtp_rate_limits` | Change the sending limits of a provider. Receives `$limits` and the provider slug. See [Sending limits](#sending-limits). |
+| `smtp_rate_limits` | Change the sending limits of a provider. Receives `$limits`, the provider slug and the connection ID. See [Sending limits](#sending-limits). |
+| `smtp_connection_for_email` | Pick the connection an email is sent through. Receives `$connection_id` (`default`) and `$mail_data`. See [Multiple connections](#multiple-connections). |
+| `smtp_connection_fallback` | Action. Fires when an email asked for a connection that does not exist or is not fully configured and goes through the default one. Receives `$connection_id`, `$reason` (`unknown` or `incomplete`) and `$mail_data`. |
 | `smtp_timeout` | Seconds to wait for the SMTP server to connect and to answer each command. Default `15`. A value of `0` or less keeps the PHPMailer default of 300 seconds. |
 | `smtp_alert_channels` | Add alert channels. Receives an array of `WordPress\SMTP\Alerts\Alert_Channel` instances. |
 | `smtp_alert_enabled` | Return `false` to skip the alert for a failed email. Receives `$enabled` and the `Alert`. |

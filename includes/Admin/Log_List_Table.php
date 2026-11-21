@@ -7,6 +7,7 @@
 
 namespace WordPress\SMTP\Admin;
 
+use WordPress\SMTP\Connections;
 use WordPress\SMTP\Delivery_Tracker;
 use WordPress\SMTP\Log_Repository;
 use WordPress\SMTP\Provider_Registry;
@@ -42,14 +43,23 @@ class Log_List_Table extends \WP_List_Table {
 	private $registry;
 
 	/**
+	 * Connections, or null when the connection of each email is not shown.
+	 *
+	 * @since 1.3.0
+	 * @var Connections|null
+	 */
+	private $connections;
+
+	/**
 	 * Constructor.
 	 *
 	 * @since 1.2.0
 	 *
-	 * @param Log_Repository    $repository Log repository.
-	 * @param Provider_Registry $registry   Provider registry.
+	 * @param Log_Repository    $repository  Log repository.
+	 * @param Provider_Registry $registry    Provider registry.
+	 * @param Connections|null  $connections Optional. Connections. Default null. The Connection column is shown when there is more than one.
 	 */
-	public function __construct( Log_Repository $repository, Provider_Registry $registry ) {
+	public function __construct( Log_Repository $repository, Provider_Registry $registry, ?Connections $connections = null ) {
 		parent::__construct(
 			array(
 				'singular' => 'email',
@@ -58,8 +68,9 @@ class Log_List_Table extends \WP_List_Table {
 			)
 		);
 
-		$this->repository = $repository;
-		$this->registry   = $registry;
+		$this->repository  = $repository;
+		$this->registry    = $registry;
+		$this->connections = $connections;
 	}
 
 	/**
@@ -70,7 +81,7 @@ class Log_List_Table extends \WP_List_Table {
 	 * @return string[] Column labels keyed by column slug.
 	 */
 	public function get_columns() {
-		return array(
+		$columns = array(
 			'created_at' => __( 'Date', 'smtp' ),
 			'recipient'  => __( 'To', 'smtp' ),
 			'subject'    => __( 'Subject', 'smtp' ),
@@ -78,6 +89,13 @@ class Log_List_Table extends \WP_List_Table {
 			'error'      => __( 'Error', 'smtp' ),
 			'provider'   => __( 'Provider', 'smtp' ),
 		);
+
+		// Single connection sites keep the table they always had.
+		if ( $this->connections && $this->connections->has_extra() ) {
+			$columns['connection'] = __( 'Connection', 'smtp' );
+		}
+
+		return $columns;
 	}
 
 	/**
@@ -153,6 +171,9 @@ class Log_List_Table extends \WP_List_Table {
 			case 'provider':
 				return esc_html( $this->get_provider_label( (string) $item['provider'] ) );
 
+			case 'connection':
+				return esc_html( $this->get_connection_label( $item ) );
+
 			case 'recipient':
 			case 'subject':
 			case 'error':
@@ -191,6 +212,35 @@ class Log_List_Table extends \WP_List_Table {
 		$definition = $this->registry->get( $provider );
 
 		return $definition ? (string) $definition['label'] : $provider;
+	}
+
+	/**
+	 * Returns the name of the connection that sent an email.
+	 *
+	 * @since 1.3.0
+	 *
+	 * @param array $item Log entry.
+	 * @return string Connection name, or a dash when no connection delivered the email.
+	 */
+	private function get_connection_label( array $item ): string {
+		if ( ! $this->connections ) {
+			return '';
+		}
+
+		$id = (string) ( $item['connection_id'] ?? '' );
+
+		if ( '' !== $id ) {
+			return $this->connections->get_label( $id );
+		}
+
+		// Entries of the default connection have no ID. Those that went through the WordPress mailer or
+		// another plugin did not use a connection at all.
+		$provider = (string) $item['provider'];
+		if ( in_array( $provider, array( Delivery_Tracker::PROVIDER_DEFAULT, Delivery_Tracker::PROVIDER_OTHER ), true ) ) {
+			return '—';
+		}
+
+		return $this->connections->get_label( Connections::DEFAULT_ID );
 	}
 
 	/**

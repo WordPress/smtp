@@ -5,6 +5,8 @@
  * @package smtp
  */
 
+use WordPress\SMTP\Admin\Connections_Tab;
+use WordPress\SMTP\Connections;
 use WordPress\SMTP\Admin\Admin_Page;
 use WordPress\SMTP\Admin\Alerts_Tab;
 use WordPress\SMTP\Alerts\Alert_Channel_Registry;
@@ -101,6 +103,28 @@ class Admin_Page_Tests extends WP_UnitTestCase {
 			array( 'provider', 'host', 'port', 'encryption', 'auth', 'username', 'password', 'from_email', 'from_name', 'force_from' ),
 			$fields
 		);
+	}
+
+	public function test_the_sending_limits_start_hidden_behind_a_checkbox() {
+		$html = $this->render( 'settings' );
+
+		$this->assertStringContainsString( 'id="smtp-customize-limits"', $html );
+		$this->assertStringContainsString( 'Customize sending limits', $html );
+		$this->assertDoesNotMatchRegularExpression( '/id="smtp-customize-limits"[^>]*checked/', $html );
+	}
+
+	public function test_the_sending_limits_checkbox_is_checked_when_a_limit_is_saved() {
+		update_option( Settings::OPTION, array( 'rate_limit_per_minute' => 30 ) );
+
+		$this->assertMatchesRegularExpression( '/id="smtp-customize-limits"[^>]*checked/', $this->render( 'settings' ) );
+	}
+
+	public function test_enqueue_script_only_loads_on_the_smtp_screen() {
+		$this->admin_page->enqueue_script( 'index.php' );
+		$this->assertFalse( wp_script_is( 'smtp-limits', 'enqueued' ) );
+
+		$this->admin_page->enqueue_script( 'tools_page_smtp' );
+		$this->assertTrue( wp_script_is( 'smtp-limits', 'enqueued' ) );
 	}
 
 	public function test_register_settings_puts_the_rate_limits_in_their_own_section() {
@@ -466,5 +490,79 @@ class Admin_Page_Tests extends WP_UnitTestCase {
 		preg_match_all( '/tab=([a-z]+)"\s+class="nav-tab/', $this->render(), $matches );
 
 		$this->assertSame( array( 'settings', 'log', 'test', 'alerts' ), $matches[1] );
+	}
+
+	private function use_connections_tab() {
+		$registry    = new Provider_Registry();
+		$credentials = new Credentials();
+		$settings    = new Settings( $registry, $credentials );
+		$connections = new Connections( $registry, $credentials, $settings );
+
+		$this->admin_page = new Admin_Page(
+			$settings,
+			$registry,
+			new Log_Repository(),
+			WP_SMTP_MAIN_FILE,
+			new Delivery_Tracker( $settings ),
+			null,
+			new Connections_Tab( $connections, $registry, $credentials )
+		);
+
+		return $connections;
+	}
+
+	public function test_there_is_no_connections_tab() {
+		$this->use_connections_tab();
+
+		$this->assertSame( array( 'settings', 'log', 'test' ), $this->get_tab_slugs( $this->render() ) );
+	}
+
+	public function test_the_settings_tab_links_to_the_connections() {
+		$connections = $this->use_connections_tab();
+		$connections->save( 'sponsors', 'Sponsors team', array( 'host' => 'smtp.example.com' ) );
+
+		$html = $this->render( 'settings' );
+
+		$this->assertStringContainsString( 'Add connection', $html );
+		$this->assertStringContainsString( 'connection=sponsors', $html );
+		$this->assertStringContainsString( 'name="smtp_settings[host]"', $html );
+	}
+
+	public function test_the_settings_tab_shows_the_form_of_the_requested_connection() {
+		$connections = $this->use_connections_tab();
+		$connections->save( 'sponsors', 'Sponsors team', array( 'host' => 'smtp.example.com' ) );
+		$_GET['connection'] = 'sponsors';
+
+		$html = $this->render( 'settings' );
+		unset( $_GET['connection'] );
+
+		$this->assertStringContainsString( 'name="connection_label"', $html );
+		$this->assertStringContainsString( 'value="smtp_save_connection"', $html );
+	}
+
+	public function test_the_connections_tab_is_unknown() {
+		$this->use_connections_tab();
+
+		$this->assertStringContainsString( 'name="smtp_settings[host]"', $this->render( 'connections' ) );
+	}
+
+	public function test_the_test_tab_asks_for_the_connection_when_there_are_several() {
+		$connections = $this->use_connections_tab();
+
+		$this->assertStringNotContainsString( 'name="connection"', $this->render( 'test' ) );
+
+		$connections->save( 'sponsors', 'Sponsors team', array( 'host' => 'smtp.example.com' ) );
+
+		$html = $this->render( 'test' );
+		$this->assertStringContainsString( 'name="connection"', $html );
+		$this->assertStringContainsString( 'value="sponsors"', $html );
+		$this->assertStringContainsString( 'Sponsors team', $html );
+	}
+
+	public function test_the_log_tab_shows_the_connection_column_when_there_are_several_connections() {
+		$connections = $this->use_connections_tab();
+		$connections->save( 'sponsors', 'Sponsors team', array( 'host' => 'smtp.example.com' ) );
+
+		$this->assertStringContainsString( '>Connection<', $this->render( 'log' ) );
 	}
 }

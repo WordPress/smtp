@@ -5,6 +5,7 @@
  * @package smtp
  */
 
+use WordPress\SMTP\Connections;
 use WordPress\SMTP\Alerts\Alert_Dispatcher;
 use WordPress\SMTP\Alerts\Alert_Settings;
 use WordPress\SMTP\Credentials;
@@ -159,5 +160,21 @@ class Uninstall_Tests extends WP_UnitTestCase {
 			$this->assertFalse( get_option( Settings::OPTION ), "Site {$site_id} was not cleaned." );
 			restore_current_blog();
 		}
+	}
+
+	public function test_uninstall_removes_the_connections() {
+		update_option(
+			Connections::OPTION,
+			array(
+				'sponsors' => array(
+					'label'    => 'Sponsors',
+					'settings' => array(),
+				),
+			)
+		);
+
+		$this->run_uninstall();
+
+		$this->assertFalse( get_option( Connections::OPTION ) );
 	}
 }
