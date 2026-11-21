@@ -178,10 +178,19 @@ class Alert_Dispatcher {
 			return;
 		}
 
-		$result = $channel->send( $alert->with_failures( $state['suppressed'] + 1 ), $this->settings->get_channel_values( $channel ) );
+		$failures = $state['suppressed'] + 1;
 
+		// Saved before sending: the request can take seconds, and failures in the meantime must be
+		// throttled. This is best effort, without a lock two failures at the same moment can both send.
 		$state['last_sent']  = $now;
 		$state['suppressed'] = 0;
+		$this->save_state( $id, $state );
+
+		$result = $channel->send( $alert->with_failures( $failures ), $this->settings->get_channel_values( $channel ) );
+
+		// Read again, without the copy cached in this request, to keep failures counted by other requests meanwhile.
+		wp_cache_delete( self::STATE_OPTION, 'options' );
+		$state = $this->get_state( $id );
 
 		if ( is_wp_error( $result ) ) {
 			$state['last_error']      = sanitize_text_field( $result->get_error_message() );

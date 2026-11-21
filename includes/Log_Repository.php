@@ -41,6 +41,13 @@ class Log_Repository {
 	const UPGRADE_LOCK = 'smtp_db_upgrade_lock';
 
 	/**
+	 * Number of entries deleted per query by the purge.
+	 *
+	 * @since 1.3.0
+	 */
+	const PURGE_BATCH_SIZE = 1000;
+
+	/**
 	 * Returns the full table name.
 	 *
 	 * @since 1.2.0
@@ -327,17 +334,33 @@ class Log_Repository {
 	/**
 	 * Deletes entries older than the given number of days.
 	 *
+	 * Entries are deleted in batches: on a large log one query could lock the table for a long time,
+	 * or time out and delete nothing. Each batch is kept even if a later one fails.
+	 *
 	 * @since 1.2.0
+	 * @since 1.3.0 Deletes in batches and returns the number of deleted entries.
 	 *
 	 * @param int $days Number of days to keep.
+	 * @return int|false Number of deleted entries, or false when a query failed.
 	 */
 	public function purge( int $days ) {
 		global $wpdb;
 
-		$cutoff = gmdate( 'Y-m-d H:i:s', time() - ( $days * DAY_IN_SECONDS ) );
-		$table  = $this->get_table_name();
+		$cutoff  = gmdate( 'Y-m-d H:i:s', time() - ( $days * DAY_IN_SECONDS ) );
+		$table   = $this->get_table_name();
+		$deleted = 0;
 
-		$wpdb->query( $wpdb->prepare( "DELETE FROM {$table} WHERE created_at < %s", $cutoff ) );
+		do {
+			$count = $wpdb->query( $wpdb->prepare( "DELETE FROM {$table} WHERE created_at < %s LIMIT %d", $cutoff, self::PURGE_BATCH_SIZE ) );
+
+			if ( false === $count ) {
+				return false;
+			}
+
+			$deleted += $count;
+		} while ( self::PURGE_BATCH_SIZE === $count );
+
+		return $deleted;
 	}
 
 	/**

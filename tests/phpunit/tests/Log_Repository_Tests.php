@@ -151,6 +151,49 @@ class Log_Repository_Tests extends WP_UnitTestCase {
 		$this->assertSame( array( 'Recent' ), wp_list_pluck( $this->get_logged_entries(), 'subject' ) );
 	}
 
+	public function test_purge_deletes_in_batches() {
+		global $wpdb;
+
+		$table  = $this->repository->get_table_name();
+		$old    = gmdate( 'Y-m-d H:i:s', time() - ( 40 * DAY_IN_SECONDS ) );
+		$values = implode( ',', array_fill( 0, Log_Repository::PURGE_BATCH_SIZE + 1, $wpdb->prepare( "(%s, 'to@example.org', 'Old', 'sent', '', 'smtp')", $old ) ) );
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared
+		$wpdb->query( "INSERT INTO {$table} (created_at, recipient, subject, status, error, provider) VALUES {$values}" );
+		$this->repository->insert( $this->entry( 'sent', 'Recent' ) );
+
+		$deletes = array();
+		$record  = static function ( $query ) use ( &$deletes ) {
+			if ( 0 === stripos( $query, 'DELETE' ) ) {
+				$deletes[] = $query;
+			}
+			return $query;
+		};
+		add_filter( 'query', $record );
+		$deleted = $this->repository->purge( 30 );
+		remove_filter( 'query', $record );
+
+		$this->assertSame( Log_Repository::PURGE_BATCH_SIZE + 1, $deleted );
+		$this->assertCount( 2, $deletes );
+		$this->assertSame( array( 'Recent' ), wp_list_pluck( $this->get_logged_entries(), 'subject' ) );
+	}
+
+	public function test_purge_returns_false_when_a_query_fails() {
+		global $wpdb;
+
+		$this->repository->insert( $this->entry( 'sent', 'Old' ) );
+
+		$break = static function ( $query ) {
+			return 0 === stripos( $query, 'DELETE' ) ? 'DELETE FROM smtp_no_such_table' : $query;
+		};
+		add_filter( 'query', $break );
+		$suppress = $wpdb->suppress_errors();
+		$result   = $this->repository->purge( -1 );
+		$wpdb->suppress_errors( $suppress );
+		remove_filter( 'query', $break );
+
+		$this->assertFalse( $result );
+	}
+
 	public function test_count_failed_since_counts_only_newer_failures() {
 		global $wpdb;
 
@@ -192,7 +235,9 @@ class Log_Repository_Tests extends WP_UnitTestCase {
 
 		$entry                  = $this->entry( 'sent', 'Early email' );
 		$entry['connection_id'] = 'sponsors';
+		$suppress               = $wpdb->suppress_errors();
 		$this->repository->insert( $entry );
+		$wpdb->suppress_errors( $suppress );
 
 		$this->assertSame( 'Early email', $this->get_logged_entries()[0]['subject'] );
 	}
@@ -206,6 +251,8 @@ class Log_Repository_Tests extends WP_UnitTestCase {
 	}
 
 	public function test_maybe_upgrade_keeps_the_version_unsaved_when_the_table_cannot_be_created() {
+		global $wpdb;
+
 		$this->drop_table();
 		delete_option( Log_Repository::DB_VERSION_OPTION );
 		delete_transient( Log_Repository::UPGRADE_LOCK );
@@ -215,7 +262,9 @@ class Log_Repository_Tests extends WP_UnitTestCase {
 			return false !== stripos( $query, 'CREATE' ) && false !== strpos( $query, 'smtp_logs' ) ? 'SELECT * FROM smtp_no_such_table' : $query;
 		};
 		add_filter( 'query', $block );
+		$suppress = $wpdb->suppress_errors();
 		$this->repository->maybe_upgrade();
+		$wpdb->suppress_errors( $suppress );
 		remove_filter( 'query', $block );
 
 		$this->assertFalse( get_option( Log_Repository::DB_VERSION_OPTION ) );
