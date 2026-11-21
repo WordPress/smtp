@@ -227,17 +227,33 @@ class Test_Email {
 	 * @return string Connection log without credentials.
 	 */
 	private function redact( string $text, string $connection_id = Connections::DEFAULT_ID ): string {
-		$settings = $this->connections ? $this->connections->get_settings( $connection_id ) : null;
-		$values   = ( $settings ?? $this->settings )->get_provider_values();
+		// The fields and the values must come from the same connection: another provider has other field keys.
+		$settings = ( $this->connections ? $this->connections->get_settings( $connection_id ) : null ) ?? $this->settings;
+		$fields   = $settings->get_fields();
+		$values   = $settings->get_provider_values();
 		$username = isset( $values['username'] ) ? (string) $values['username'] : '';
-		$password = isset( $values['password'] ) ? (string) $values['password'] : '';
 		$secrets  = array();
 
-		if ( '' !== $password ) {
-			$secrets[] = $password;
-			$secrets[] = base64_encode( $password ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode -- Needed to match the SMTP AUTH exchange.
-			$secrets[] = base64_encode( "\0" . $username . "\0" . $password ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode -- Needed to match the SMTP AUTH exchange.
+		// Every password field is a secret, not only the one named `password`: providers added
+		// through the smtp_providers filter may call it `api_key` or `token`.
+		foreach ( $values as $key => $value ) {
+			$value = (string) $value;
+			if ( '' === $value || ! isset( $fields[ $key ] ) || 'password' !== $fields[ $key ]['type'] ) {
+				continue;
+			}
+
+			$secrets[] = $value;
+			$secrets[] = base64_encode( $value ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode -- Needed to match the SMTP AUTH exchange.
+			$secrets[] = base64_encode( "\0" . $username . "\0" . $value ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode -- Needed to match the SMTP AUTH exchange.
 		}
+
+		// Longest first, so a secret that contains another one is replaced as a whole.
+		usort(
+			$secrets,
+			static function ( $a, $b ) {
+				return strlen( $b ) - strlen( $a );
+			}
+		);
 
 		return str_replace( $secrets, '[redacted]', $text );
 	}

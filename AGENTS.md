@@ -76,7 +76,7 @@ smtp/
 A provider is an array registered through the `smtp_providers` filter:
 
 - `label` (string): human readable name.
-- `fields` (array): settings fields keyed by field key. Each field accepts `label`, `type` (`text`, `number`, `email`, `password`, `select`, `checkbox`), `default`, `options`, `description` and `constant`.
+- `fields` (array): settings fields keyed by field key. Each field accepts `label`, `type` (`text`, `number`, `email`, `password`, `select`, `checkbox`), `default`, `options`, `description`, `constant` and `max` (highest accepted value of a `number` field, shared by the settings screen, the CLI and the HTML input).
 - `required` (string[]): field keys that must have a value before the provider is used.
 - `required_if` (array): `field => condition field` pairs. The field must have a value when the condition field is enabled. Generic SMTP uses it for `username` and `password` when `auth` is on.
 - `configure` (callable): receives the `PHPMailer` instance and the resolved field values.
@@ -168,7 +168,8 @@ Enforced by `phpcs.xml.dist` (WordPress, WordPress-Extra, WordPress-Docs and PHP
 - Sanitize input, escape output, and use `$wpdb->prepare()` for every query with dynamic values.
 - PHPMailer exposes camelCase properties (`$phpmailer->SMTPSecure`); wrap those lines with the `UsedPropertyNotSnakeCase` `phpcs:disable`/`phpcs:enable` comments, as in `Provider_Registry::configure_generic()`.
 - All user-facing text must be in English and translatable.
-- Ensure `composer lint` passes before considering a change complete.
+- Ensure `composer lint` and `composer phpstan` pass before considering a change complete.
+- Don't add new entries to `phpstan-baseline.neon`; fix the error instead.
 
 ## Development Commands
 
@@ -178,6 +179,7 @@ All commands run from the plugin root.
 |---|---|
 | `composer install` | Install PHP dependencies, including the PHPCS tooling and PHPUnit |
 | `composer lint` | Run PHPCS with `phpcs.xml.dist` |
+| `composer phpstan` | Run PHPStan (level 5) with `phpstan.neon.dist` |
 | `composer format` | Fix coding standards issues with PHPCBF |
 | `npm ci` | Install Node dependencies (`@wordpress/env`) |
 | `npm run wp-env:start:tests` | Start the Docker based test stack (requires Docker) |
@@ -210,7 +212,7 @@ npm run test-php -- --filter Settings_Tests::test_sanitize_is_idempotent
 - Security-sensitive behavior must always be covered: secrets are never printed or logged, output is escaped, capability and nonce checks reject unauthorized requests, and credentials are redacted from the test email connection log.
 - CI runs on every pull request to `trunk` and `feature/**`:
   - `php-test.yml` runs the PHPUnit suite on PHP 7.4, 8.0, 8.1, 8.2 and 8.3 with the latest WordPress, on PHP 7.4 with WordPress 6.3, and on PHP 8.4 with WordPress trunk (experimental, allowed to fail).
-  - `php-lint.yml` runs `composer lint`.
+  - `php-lint.yml` runs `composer lint` and `composer phpstan`.
 - Both workflows must be green before merging. Configure them as required status checks in the branch protection rules of `trunk`.
 - Never skip, delete or weaken a test to make a change pass. Fix the code or discuss the test change in the pull request.
 
@@ -236,7 +238,7 @@ There is no deploy workflow in this repository yet: publishing to WordPress.org 
 
 ## CI/CD
 
-- `.github/workflows/php-lint.yml` — runs `composer lint` on pushes to `trunk` and on pull requests when PHP or PHPCS files change.
+- `.github/workflows/php-lint.yml` — runs `composer lint` and `composer phpstan` on pushes to `trunk` and on pull requests when PHP, PHPCS or PHPStan files change.
 - `.github/workflows/php-test.yml` — starts the `wp-env` test stack and runs `npm run test-php` across the PHP and WordPress matrix, when PHP, test or tooling files change.
 - `.github/workflows/props-bot.yml` — runs [Props Bot](https://github.com/WordPress/props-bot-action) on pull requests to comment the list of contributors to credit. Add the `props-bot` label to refresh it.
 - Documentation goes in `/docs/` (if added) and must be listed in `.distignore`.

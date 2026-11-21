@@ -8,8 +8,12 @@
   },
   "require-dev": {
     "dealerdirect/phpcodesniffer-composer-installer": "^1.0.0",
+    "php-stubs/wp-cli-stubs": "^2.12",
     "phpcompatibility/phpcompatibility-wp": "^2.1",
+    "phpstan/extension-installer": "^1.4",
+    "phpstan/phpstan": "^2.3",
     "phpunit/phpunit": "^9.6",
+    "szepeviktor/phpstan-wordpress": "^2.0",
     "wp-coding-standards/wpcs": "^3.2.0",
     "yoast/phpunit-polyfills": "^4.0.0"
   },
@@ -20,7 +24,8 @@
   },
   "config": {
     "allow-plugins": {
-      "dealerdirect/phpcodesniffer-composer-installer": true
+      "dealerdirect/phpcodesniffer-composer-installer": true,
+      "phpstan/extension-installer": true
     },
     "platform": {
       "php": "7.4"
@@ -30,11 +35,13 @@
   },
   "scripts": {
     "format": "phpcbf --standard=phpcs.xml.dist",
-    "lint": "phpcs --standard=phpcs.xml.dist"
+    "lint": "phpcs --standard=phpcs.xml.dist",
+    "phpstan": "phpstan analyse --memory-limit=1G"
   },
   "scripts-descriptions": {
     "format": "Detect and automatically fix most coding standards issues",
-    "lint": "Detect coding standards issues"
+    "lint": "Detect coding standards issues",
+    "phpstan": "Run static analysis with PHPStan"
   },
   "autoload-dev": {
     "psr-4": {

@@ -219,6 +219,19 @@ class Settings_Command_Tests extends WP_UnitTestCase {
 		);
 	}
 
+	public function test_set_uses_the_max_of_the_field_definition() {
+		add_filter(
+			'smtp_providers',
+			static function ( $providers ) {
+				$providers['smtp']['fields']['port']['max'] = 1000;
+
+				return $providers;
+			}
+		);
+
+		$this->assert_set_fails( array( 'host=smtp.example.com', 'port=1001' ), 'Invalid value for "port"' );
+	}
+
 	public function test_set_accepts_the_highest_port() {
 		$this->run_set( array( 'host=smtp.example.com', 'port=65535' ) );
 

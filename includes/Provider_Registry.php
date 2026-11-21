@@ -15,7 +15,8 @@ namespace WordPress\SMTP;
  * - `label` (string): Human readable name.
  * - `fields` (array): Settings fields, keyed by field key. Each field accepts `label`, `type`
  *   (`text`, `number`, `email`, `password`, `select`, `checkbox`), `default`, `options` (for
- *   `select`), `description` and `constant` (name of a constant that overrides the value).
+ *   `select`), `description`, `constant` (name of a constant that overrides the value) and `max`
+ *   (highest accepted value of a `number` field).
  * - `required` (string[]): Field keys that must have a value for the provider to be usable.
  * - `required_if` (array): Field keys that must have a value when another field is enabled, as
  *   `field => condition field` pairs. For example `array( 'password' => 'auth' )`.
@@ -129,6 +130,7 @@ class Provider_Registry {
 					'label'    => __( 'Port', 'smtp' ),
 					'type'     => 'number',
 					'default'  => 587,
+					'max'      => 65535,
 					'constant' => 'SMTP_PORT',
 				),
 				'encryption' => array(

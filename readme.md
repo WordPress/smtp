@@ -1,5 +1,13 @@
 # SMTP
 
+![SMTP](.wordpress-org/banner-1544x500.png)
+
+![Required PHP Version](https://img.shields.io/wordpress/plugin/required-php/smtp?label=Requires%20PHP) ![Required WordPress Version](https://img.shields.io/wordpress/plugin/wp-version/smtp?label=Requires%20WordPress) ![WordPress Tested Up To](https://img.shields.io/wordpress/plugin/tested/smtp?label=WordPress) [![GPL-2.0-or-later License](https://img.shields.io/github/license/wordpress/smtp.svg?label=License)](https://www.gnu.org/licenses/gpl-2.0.html)
+
+![Plugin Version](https://img.shields.io/wordpress/plugin/v/smtp?label=Version) ![WordPress.org Rating](https://img.shields.io/wordpress/plugin/rating/smtp?label=WP.org%20Rating) ![WordPress Plugin Downloads](https://img.shields.io/wordpress/plugin/dt/smtp?label=WP.org%20Downloads) ![WordPress Plugin Active Installs](https://img.shields.io/wordpress/plugin/installs/smtp?label=WP.org%20Active%20Installs)
+
+[![PHP Unit Testing](https://github.com/WordPress/smtp/actions/workflows/php-test.yml/badge.svg)](https://github.com/WordPress/smtp/actions/workflows/php-test.yml) [![PHP Linting](https://github.com/WordPress/smtp/actions/workflows/php-lint.yml/badge.svg)](https://github.com/WordPress/smtp/actions/workflows/php-lint.yml)
+
 Send WordPress emails through an SMTP server, with an extensible provider API and a simple email log.
 
 This is the technical documentation for developers. The user-facing description lives in [`readme.txt`](readme.txt).
@@ -75,6 +83,7 @@ Each field accepts:
 | `options` | Value => label pairs, for `select`. |
 | `description` | Help text. |
 | `constant` | Name of a constant that overrides the value and locks the field. |
+| `max` | Highest accepted value of a `number` field. Higher values are rejected by `wp smtp settings set` and reset to the default on the settings screen, with a notice. |
 
 Fields of type `password` are stored apart from the other settings, are never printed back into the page, and are redacted from the connection log of the test email.
 
@@ -174,7 +183,7 @@ wp smtp status --format=json
 | Command | Description |
 |---|---|
 | `wp smtp settings set <setting>...` | Changes the given settings and keeps the others. Nothing is saved when a value is invalid. |
-| `wp smtp test [<to>] [--connection-log]` | Sends a test email, to the admin email by default. Exits with a non-zero code on failure. |
+| `wp smtp test [<to>] [--connection-log]` | Sends a test email, to the admin email by default. Exits with a non-zero code on failure, with a hint on what to check when the problem is recognized. |
 | `wp smtp status [--format=<format>]` | Shows the active provider, each setting and whether it comes from a constant, the database or the default. |
 
 Like saving the admin form, `settings set` saves every field, so afterwards `status` reports `database` for all of them. The exceptions are fields set by a constant, which show `constant`, and passwords that were never set, which show `default`.

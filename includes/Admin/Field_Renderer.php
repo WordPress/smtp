@@ -114,6 +114,12 @@ class Field_Renderer {
 					id="<?php echo esc_attr( $id ); ?>"
 					name="<?php echo esc_attr( $name ); ?>"
 					value="<?php echo esc_attr( 'number' === $field['type'] && ! (int) $value ? '' : (string) $value ); ?>"
+					<?php if ( 'number' === $type ) : ?>
+						min="1"
+						<?php if ( (int) $field['max'] > 0 ) : ?>
+							max="<?php echo esc_attr( (string) (int) $field['max'] ); ?>"
+						<?php endif; ?>
+					<?php endif; ?>
 					<?php disabled( $locked ); ?>
 				/>
 				<?php

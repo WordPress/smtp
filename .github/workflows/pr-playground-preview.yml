@@ -1,0 +1,115 @@
+name: PR Playground Preview
+
+# Runs after "Build Plugin Zip" finished. This workflow has write permissions, so it must
+# never check out or run code from the pull request: it only uses the built artifact and
+# values GitHub provides about the run.
+on:
+  workflow_run:
+    workflows: ['Build Plugin Zip']
+    types:
+      - completed
+
+# Disable permissions for all available scopes by default.
+# Any needed permissions are set at the job level.
+permissions: {}
+
+jobs:
+  playground-preview:
+    name: Add Playground preview to the PR
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    # Only when the build succeeded and was started by a pull request.
+    if: >
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.conclusion == 'success'
+    permissions:
+      actions: read # Required to download the artifact from the build run.
+      contents: write # Required to upload the zip to the ci-artifacts pre-release.
+      pull-requests: write # Required to add the button to the PR description.
+    steps:
+      - name: Resolve trusted PR metadata
+        id: pr-metadata
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            // The build ran untrusted PR code; the run's head SHA is the only trusted value.
+            const trustedSha = context.payload.workflow_run.head_sha;
+
+            // Narrow the list to the head owner and branch, then match the trusted head SHA.
+            const pulls = await github.paginate(github.rest.pulls.list, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              head: `${context.payload.workflow_run.head_repository.owner.login}:${context.payload.workflow_run.head_branch}`,
+              per_page: 100,
+            });
+            const pr = pulls.find(p => p.head.sha === trustedSha);
+            if (!pr) {
+              throw new Error(`Could not find an open pull request for head SHA ${trustedSha}`);
+            }
+
+            // Match the artifact by the exact name the build uses.
+            const expectedName = `smtp-zip-pr${pr.number}-${trustedSha}`;
+            const artifacts = await github.paginate(github.rest.actions.listWorkflowRunArtifacts, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: context.payload.workflow_run.id,
+            });
+            const artifact = artifacts.find(a => a.name === expectedName);
+            if (!artifact) {
+              throw new Error(`Could not find the plugin artifact named ${expectedName}`);
+            }
+
+            core.setOutput('pr-number', String(pr.number));
+            core.setOutput('commit-sha', trustedSha);
+            core.setOutput('artifact-name', artifact.name);
+
+      - name: Expose the zip on a public URL
+        id: expose
+        uses: WordPress/action-wp-playground-pr-preview/.github/actions/expose-artifact-on-public-url@1b15093d61b5e98cdfeb31466f34ade495762cd7 # v4.0.0
+        with:
+          artifact-name: ${{ steps.pr-metadata.outputs.artifact-name }}
+          artifact-filename: smtp.zip
+          pr-number: ${{ steps.pr-metadata.outputs.pr-number }}
+          commit-sha: ${{ steps.pr-metadata.outputs.commit-sha }}
+          artifact-source-run-id: ${{ github.event.workflow_run.id }}
+          artifacts-to-keep: '2'
+
+      - name: Generate the Playground blueprint
+        id: blueprint
+        run: |
+          node - <<'NODE' >> "$GITHUB_OUTPUT"
+          const url = process.env.ARTIFACT_URL;
+          if (!url) {
+            throw new Error('ARTIFACT_URL is required');
+          }
+
+          const blueprint = {
+            preferredVersions: {
+              wp: 'latest',
+            },
+            login: true,
+            landingPage: '/wp-admin/tools.php?page=smtp',
+            steps: [
+              {
+                step: 'installPlugin',
+                pluginData: {
+                  resource: 'url',
+                  url,
+                },
+              },
+            ],
+          };
+
+          console.log(`blueprint=${JSON.stringify(blueprint)}`);
+          NODE
+        env:
+          ARTIFACT_URL: ${{ steps.expose.outputs.artifact-url }}
+
+      - name: Add the Playground preview button
+        uses: WordPress/action-wp-playground-pr-preview@1b15093d61b5e98cdfeb31466f34ade495762cd7 # v4.0.0
+        with:
+          mode: append-to-description
+          blueprint: ${{ steps.blueprint.outputs.blueprint }}
+          pr-number: ${{ steps.pr-metadata.outputs.pr-number }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
