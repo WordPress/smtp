@@ -87,6 +87,11 @@ class Command {
 				'value'  => $this->settings->is_configured() ? 'yes' : 'no',
 				'source' => '',
 			),
+			array(
+				'field'  => 'secret_storage',
+				'value'  => $this->settings->get_secret_storage(),
+				'source' => '',
+			),
 		);
 
 		foreach ( $this->settings->get_fields() as $key => $field ) {

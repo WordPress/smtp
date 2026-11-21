@@ -8,6 +8,8 @@
 use WordPress\SMTP\Alerts\Alert_Channel_Registry;
 use WordPress\SMTP\Alerts\Alert_Settings;
 use WordPress\SMTP\Credentials;
+use WordPress\SMTP\Settings;
+use WordPress\SMTP\Test_Utils\Fake_Secrets_API;
 use WordPress\SMTP\Test_Utils\Alerts\Fake_Channel;
 
 class Alert_Settings_Tests extends WP_UnitTestCase {
@@ -87,6 +89,28 @@ class Alert_Settings_Tests extends WP_UnitTestCase {
 			$clean
 		);
 		$this->assertSame( 'secret-token', $this->credentials->get( 'alert_fake_token' ) );
+	}
+
+	public function test_sanitize_reports_a_secret_that_could_not_be_saved() {
+		require_once ABSPATH . 'wp-admin/includes/template.php';
+
+		$api            = new Fake_Secrets_API();
+		$api->set_error = new WP_Error( 'secret_key_unavailable', 'The key is missing.' );
+		$settings       = new Alert_Settings( new Alert_Channel_Registry(), new Credentials( $api ) );
+
+		$settings->sanitize(
+			array(
+				'channel'  => 'fake',
+				'channels' => array(
+					'fake' => array( 'token' => 'secret-token' ),
+				),
+			)
+		);
+
+		$errors = get_settings_errors( Settings::OPTION );
+
+		$this->assertSame( 'Token was not saved: The key is missing.', end( $errors )['message'] );
+		$this->assertFalse( get_option( Credentials::OPTION ) );
 	}
 
 	public function test_an_empty_secret_keeps_the_saved_one() {
