@@ -97,12 +97,101 @@ class Admin_Page_Tests extends WP_UnitTestCase {
 
 		$this->assertArrayHasKey( Settings::OPTION, get_registered_settings() );
 
-		$fields = array_keys( $GLOBALS['wp_settings_fields'][ Admin_Page::PAGE_SLUG ]['smtp_main'] );
+		$fields = $GLOBALS['wp_settings_fields'][ Admin_Page::PAGE_SLUG ];
 
-		$this->assertSame(
-			array( 'provider', 'host', 'port', 'encryption', 'auth', 'username', 'password', 'from_email', 'from_name', 'force_from_email', 'force_from_name', 'return_path', 'reply_to', 'force_reply_to', 'reply_to_sender' ),
-			$fields
+		$this->assertSame( array( 'provider', 'host', 'port', 'encryption', 'auth', 'username', 'password' ), array_keys( $fields['smtp_connection'] ) );
+		$this->assertSame( array( 'from_email', 'from_name' ), array_keys( $fields['smtp_sender'] ) );
+		$this->assertSame( array( 'reply_to', 'return_path' ), array_keys( $fields['smtp_replies'] ) );
+	}
+
+	public function test_register_settings_adds_titled_sections_in_order() {
+		$this->admin_page->register_settings();
+
+		$sections = $GLOBALS['wp_settings_sections'][ Admin_Page::PAGE_SLUG ];
+
+		$this->assertSame( array( 'smtp_connection', 'smtp_sender', 'smtp_replies', 'smtp_limits' ), array_keys( $sections ) );
+		$this->assertSame( 'Connection', $sections['smtp_connection']['title'] );
+		$this->assertSame( 'Sender', $sections['smtp_sender']['title'] );
+		$this->assertSame( 'Replies and bounces', $sections['smtp_replies']['title'] );
+	}
+
+	public function test_a_field_of_an_unknown_section_goes_to_the_connection_section() {
+		add_filter(
+			'smtp_providers',
+			static function ( $providers ) {
+				$providers['smtp']['fields']['host']['section'] = 'unknown';
+
+				return $providers;
+			}
 		);
+		$this->admin_page->register_settings();
+
+		$this->assertArrayHasKey( 'host', $GLOBALS['wp_settings_fields'][ Admin_Page::PAGE_SLUG ]['smtp_connection'] );
+	}
+
+	public function test_checkbox_rows_have_no_row_label() {
+		$this->admin_page->register_settings();
+
+		$fields = $GLOBALS['wp_settings_fields'][ Admin_Page::PAGE_SLUG ];
+
+		$this->assertArrayNotHasKey( 'label_for', $fields['smtp_replies']['return_path']['args'] );
+		$this->assertArrayNotHasKey( 'label_for', $fields['smtp_connection']['auth']['args'] );
+		$this->assertSame( 'smtp-from_email', $fields['smtp_sender']['from_email']['args']['label_for'] );
+	}
+
+	public function test_force_checkboxes_are_rendered_once_inside_the_row_of_their_field() {
+		$this->admin_page->register_settings();
+
+		$html = $this->render( 'settings' );
+
+		foreach ( array( 'force_from_email', 'force_from_name', 'force_reply_to', 'reply_to_sender' ) as $key ) {
+			$this->assertSame( 1, substr_count( $html, 'id="smtp-' . $key . '"' ), $key );
+		}
+		$this->assertMatchesRegularExpression( '/name="smtp_settings\[from_email\]".*?<fieldset>\s*<legend class="screen-reader-text">\s*From email options\s*<\/legend>.*?id="smtp-force_from_email"/s', $html );
+		$this->assertMatchesRegularExpression( '/name="smtp_settings\[reply_to\]".*?id="smtp-force_reply_to".*?id="smtp-reply_to_sender".*?name="smtp_settings\[return_path\]"/s', $html );
+		$this->assertStringContainsString( 'Also replace addresses set by other plugins', $html );
+	}
+
+	public function test_a_checkbox_row_is_a_fieldset_with_a_hidden_legend() {
+		$this->admin_page->register_settings();
+
+		$html = $this->render( 'settings' );
+
+		$this->assertMatchesRegularExpression( '/<fieldset>\s*<legend class="screen-reader-text">Return-Path<\/legend>\s*<label for="smtp-return_path">/', $html );
+		$this->assertStringContainsString( 'Bounces go to it and SPF checks match its domain.', $html );
+	}
+
+	public function test_fields_declare_what_they_depend_on() {
+		$this->admin_page->register_settings();
+
+		$html = $this->render( 'settings' );
+
+		$this->assertMatchesRegularExpression( '/id="smtp-force_from_email"[^>]*data-smtp-enabled-by="smtp-from_email"/', $html );
+		$this->assertMatchesRegularExpression( '/id="smtp-reply_to_sender"[^>]*data-smtp-enabled-by="smtp-force_from_email"[^>]*data-smtp-disabled-by="smtp-force_reply_to"/', $html );
+		$this->assertMatchesRegularExpression( '/name="smtp_settings\[username\]"[^>]*data-smtp-enabled-by="smtp-auth"/s', $html );
+	}
+
+	public function test_a_force_checkbox_locked_by_a_constant_is_disabled() {
+		if ( ! defined( 'SMTP_TESTS_ADMIN_LOCKED_FORCE' ) ) {
+			define( 'SMTP_TESTS_ADMIN_LOCKED_FORCE', true );
+		}
+
+		$registry = new Provider_Registry();
+		$settings = $this->getMockBuilder( Settings::class )
+			->setConstructorArgs( array( $registry, new Credentials() ) )
+			->onlyMethods( array( 'get_fields' ) )
+			->getMock();
+		$fields   = ( new Settings( $registry, new Credentials() ) )->get_fields();
+
+		$fields['force_from_email']['constant'] = 'SMTP_TESTS_ADMIN_LOCKED_FORCE';
+		$settings->method( 'get_fields' )->willReturn( $fields );
+
+		ob_start();
+		\WordPress\SMTP\Admin\Field_Renderer::render( 'from_email', $fields['from_email'], $settings, 'smtp_settings[from_email]' );
+		$html = ob_get_clean();
+
+		$this->assertMatchesRegularExpression( '/id="smtp-force_from_email"[^>]*disabled/', $html );
+		$this->assertStringContainsString( 'SMTP_TESTS_ADMIN_LOCKED_FORCE', $html );
 	}
 
 	public function test_the_sending_limits_start_hidden_behind_a_checkbox() {
@@ -122,9 +211,11 @@ class Admin_Page_Tests extends WP_UnitTestCase {
 	public function test_enqueue_script_only_loads_on_the_smtp_screen() {
 		$this->admin_page->enqueue_script( 'index.php' );
 		$this->assertFalse( wp_script_is( 'smtp-limits', 'enqueued' ) );
+		$this->assertFalse( wp_script_is( 'smtp-fields', 'enqueued' ) );
 
 		$this->admin_page->enqueue_script( 'tools_page_smtp' );
 		$this->assertTrue( wp_script_is( 'smtp-limits', 'enqueued' ) );
+		$this->assertTrue( wp_script_is( 'smtp-fields', 'enqueued' ) );
 	}
 
 	public function test_register_settings_puts_the_rate_limits_in_their_own_section() {

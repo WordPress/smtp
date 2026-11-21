@@ -8,6 +8,7 @@
 use WordPress\SMTP\Connections;
 use WordPress\SMTP\Credentials;
 use WordPress\SMTP\Provider_Registry;
+use WordPress\SMTP\Mailer;
 use WordPress\SMTP\Settings;
 
 class Settings_Tests extends WP_UnitTestCase {
@@ -88,13 +89,13 @@ class Settings_Tests extends WP_UnitTestCase {
 				'username',
 				'password',
 				'from_email',
-				'from_name',
 				'force_from_email',
+				'from_name',
 				'force_from_name',
-				'return_path',
 				'reply_to',
 				'force_reply_to',
 				'reply_to_sender',
+				'return_path',
 				'rate_limit_per_second',
 				'rate_limit_per_minute',
 				'rate_limit_per_hour',
@@ -118,13 +119,13 @@ class Settings_Tests extends WP_UnitTestCase {
 		$this->assertSame(
 			array(
 				'from_email',
-				'from_name',
 				'force_from_email',
+				'from_name',
 				'force_from_name',
-				'return_path',
 				'reply_to',
 				'force_reply_to',
 				'reply_to_sender',
+				'return_path',
 				'rate_limit_per_second',
 				'rate_limit_per_minute',
 				'rate_limit_per_hour',
@@ -759,6 +760,58 @@ class Settings_Tests extends WP_UnitTestCase {
 		$this->settings->maybe_upgrade();
 
 		$this->assertSame( $saved, get_option( Settings::OPTION ) );
+	}
+
+	public function test_sender_fields_are_grouped_in_sections() {
+		$fields = $this->settings->get_fields();
+
+		$this->assertSame( 'connection', $fields['host']['section'] );
+		$this->assertSame( 'sender', $fields['from_email']['section'] );
+		$this->assertSame( 'sender', $fields['from_name']['section'] );
+		$this->assertSame( 'replies', $fields['reply_to']['section'] );
+		$this->assertSame( 'replies', $fields['return_path']['section'] );
+		$this->assertSame( 'limits', $fields['rate_limit_per_day']['section'] );
+	}
+
+	public function test_force_checkboxes_belong_to_the_field_they_change() {
+		$fields = $this->settings->get_fields();
+
+		$this->assertSame( 'from_email', $fields['force_from_email']['parent'] );
+		$this->assertSame( 'from_name', $fields['force_from_name']['parent'] );
+		$this->assertSame( 'reply_to', $fields['force_reply_to']['parent'] );
+		$this->assertSame( 'reply_to', $fields['reply_to_sender']['parent'] );
+		$this->assertSame( '', $fields['return_path']['parent'] );
+	}
+
+	public function test_options_that_can_not_take_effect_declare_what_they_depend_on() {
+		$fields = $this->settings->get_fields();
+
+		$this->assertSame( 'from_email', $fields['force_from_email']['enabled_by'] );
+		$this->assertSame( 'from_name', $fields['force_from_name']['enabled_by'] );
+		$this->assertSame( 'reply_to', $fields['force_reply_to']['enabled_by'] );
+		$this->assertSame( 'force_from_email', $fields['reply_to_sender']['enabled_by'] );
+		$this->assertSame( 'force_reply_to', $fields['reply_to_sender']['disabled_by'] );
+		$this->assertSame( 'auth', $fields['username']['enabled_by'] );
+		$this->assertSame( 'auth', $fields['password']['enabled_by'] );
+		$this->assertSame( '', $fields['host']['enabled_by'] );
+	}
+
+	public function test_keep_the_sender_as_reply_to_can_be_set_with_a_constant() {
+		$this->assertSame( 'SMTP_REPLY_TO_SENDER', $this->settings->get_fields()['reply_to_sender']['constant'] );
+	}
+
+	public function test_from_email_description_shows_the_wordpress_default_address() {
+		$description = $this->settings->get_fields()['from_email']['description'];
+
+		$this->assertStringContainsString( Mailer::get_default_from_email(), $description );
+		$this->assertStringNotContainsString( 'above', $description );
+	}
+
+	public function test_return_path_describes_the_from_address_of_each_email() {
+		$field = $this->settings->get_fields()['return_path'];
+
+		$this->assertSame( "Use each email's From address as Return-Path", $field['checkbox_label'] );
+		$this->assertSame( 'Bounces go to it and SPF checks match its domain.', $field['description'] );
 	}
 
 	public function test_the_default_settings_belong_to_the_default_connection() {

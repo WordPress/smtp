@@ -7,7 +7,7 @@ This file provides context for AI coding agents (Claude Code, OpenAI Codex, Gemi
 **SMTP** is a minimal, community-maintained WordPress plugin that sends the emails of a site through an SMTP server. It is designed to follow WordPress.org canonical plugin conventions (slug and text domain `smtp`, owned by `wordpressdotorg`).
 
 - Settings under _Tools > SMTP_: provider, host, port, encryption, authentication, From email and name (each can be forced), Return-Path and Reply-To.
-- Credentials can be defined as constants in `wp-config.php` (`SMTP_HOST`, `SMTP_PORT`, `SMTP_ENCRYPTION`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM_EMAIL`, `SMTP_FROM_NAME`, `SMTP_FORCE_FROM_EMAIL`, `SMTP_FORCE_FROM_NAME`, `SMTP_RETURN_PATH`, `SMTP_REPLY_TO`, `SMTP_FORCE_REPLY_TO`). A constant overrides the saved value and locks the field.
+- Credentials can be defined as constants in `wp-config.php` (`SMTP_HOST`, `SMTP_PORT`, `SMTP_ENCRYPTION`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM_EMAIL`, `SMTP_FROM_NAME`, `SMTP_FORCE_FROM_EMAIL`, `SMTP_FORCE_FROM_NAME`, `SMTP_RETURN_PATH`, `SMTP_REPLY_TO`, `SMTP_FORCE_REPLY_TO`, `SMTP_REPLY_TO_SENDER`). A constant overrides the saved value and locks the field.
 - Extensible through the `smtp_providers` filter. Generic SMTP is registered through the same filter.
 - Metadata-only email log (no message body, no attachments) with automatic retention.
 - A test email tab that shows the connection log with credentials redacted.
@@ -25,6 +25,7 @@ smtp/
 ├── uninstall.php             # Removes options, the log table and the cron event
 ├── readme.txt                # WordPress.org readme (Stable tag, changelog)
 ├── assets/js/alerts.js       # Shows the fields of the selected alert channel, enqueued by Alerts_Tab
+├── assets/js/fields.js       # Disables settings fields that can not take effect (`enabled_by`, `disabled_by`), enqueued by Admin_Page
 ├── includes/                 # PSR-4 autoloaded under WordPress\SMTP\
 │   ├── Plugin_Main.php       # Wires every component, activation/deactivation, purge schedule
 │   ├── Provider_Registry.php # smtp_providers filter, provider validation, Generic SMTP provider
@@ -76,7 +77,7 @@ smtp/
 A provider is an array registered through the `smtp_providers` filter:
 
 - `label` (string): human readable name.
-- `fields` (array): settings fields keyed by field key. Each field accepts `label`, `type` (`text`, `number`, `email`, `password`, `select`, `checkbox`), `default`, `options`, `description`, `constant` and `max` (highest accepted value of a `number` field, shared by the settings screen, the CLI and the HTML input).
+- `fields` (array): settings fields keyed by field key. Each field accepts `label`, `type` (`text`, `number`, `email`, `password`, `select`, `checkbox`), `default`, `options`, `description`, `constant`, `max` (highest accepted value of a `number` field, shared by the settings screen, the CLI and the HTML input) and `enabled_by` (key of a field that must be checked or filled in for this one to be editable on the settings screen).
 - `required` (string[]): field keys that must have a value before the provider is used.
 - `required_if` (array): `field => condition field` pairs. The field must have a value when the condition field is enabled. Generic SMTP uses it for `username` and `password` when `auth` is on.
 - `configure` (callable): receives the `PHPMailer` instance and the resolved field values.
@@ -111,8 +112,9 @@ A provider is an array registered through the `smtp_providers` filter:
 ### Sender
 
 - `force_from_email` and `force_from_name` force each part of the From separately. `Settings::maybe_upgrade()` turns the `force_from` setting of 1.2 into both, once.
-- `return_path` sets `$phpmailer->Sender` to the From email. On by default for new sites; sites upgraded from 1.2 or imported from the legacy plugin keep it off.
+- `return_path` sets `$phpmailer->Sender` to the From address of each email. On by default for new sites; sites upgraded from 1.2 or imported from the legacy plugin keep it off.
 - Reply-To order, highest first: forced Reply-To (`force_reply_to` with `reply_to`), the Reply-To of the email, the original sender (`reply_to_sender`, only when Force From email replaced it), the default Reply-To (`reply_to`). See `Mailer::apply_sender()`.
+- On the settings screen the fields are grouped by their `section` (`Field_Renderer::get_sections()`), and a checkbox with a `parent` is rendered in the row of that field. `enabled_by` and `disabled_by` make `assets/js/fields.js` disable a field that can not take effect.
 
 ### Legacy plugin migration
 

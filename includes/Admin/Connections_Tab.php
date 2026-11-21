@@ -302,6 +302,7 @@ class Connections_Tab {
 			<?php else : ?>
 				<input type="hidden" name="connection_id" value="<?php echo esc_attr( $id ); ?>" />
 			<?php endif; ?>
+			<h3><?php echo esc_html( Field_Renderer::get_sections()['connection'] ); ?></h3>
 			<table class="form-table" role="presentation">
 				<tr>
 					<th scope="row"><label for="smtp-connection-label"><?php esc_html_e( 'Name', 'smtp' ); ?></label></th>
@@ -314,7 +315,7 @@ class Connections_Tab {
 							value="<?php echo esc_attr( $is_new ? '' : $this->connections->get_label( $id ) ); ?>"
 							required
 						/>
-						<p class="description">
+						<p class="description" style="max-width: 600px;">
 							<?php
 							echo $is_new
 								? esc_html__( 'The ID used in code to pick this connection is generated from the name, for example "sponsors".', 'smtp' )
@@ -336,26 +337,45 @@ class Connections_Tab {
 								</option>
 							<?php endforeach; ?>
 						</select>
-						<p class="description">
+						<p class="description" style="max-width: 600px;">
 							<?php esc_html_e( 'After changing the provider, save the connection to see its fields.', 'smtp' ); ?>
 						</p>
 					</td>
 				</tr>
 				<?php
-				$limits_toggled = false;
+				$sections = Field_Renderer::get_sections();
+				$current  = 'connection';
+
 				foreach ( $settings->get_fields() as $key => $field ) {
-					if ( ! $limits_toggled && 0 === strpos( $key, 'rate_limit_' ) ) {
-						$limits_toggled = true;
+					if ( ! Field_Renderer::has_row( $field ) ) {
+						continue;
+					}
+
+					$section = isset( $sections[ $field['section'] ] ) ? $field['section'] : 'connection';
+
+					// Same sections as the Settings tab, each one in its own table.
+					if ( $section !== $current ) {
+						$current = $section;
 						?>
-						<tr>
-							<th scope="row"><?php esc_html_e( 'Sending limits', 'smtp' ); ?></th>
-							<td><?php Field_Renderer::render_limits_toggle( $settings ); ?></td>
-						</tr>
+						</table>
+						<h3><?php echo esc_html( $sections[ $section ] ); ?></h3>
+						<?php
+						if ( 'limits' === $section ) {
+							Field_Renderer::render_limits_toggle( $settings );
+						}
+						?>
+						<table class="form-table" role="presentation">
 						<?php
 					}
 					?>
 					<tr>
-						<th scope="row"><label for="<?php echo esc_attr( 'smtp-' . $key ); ?>"><?php echo esc_html( $field['label'] ); ?></label></th>
+						<th scope="row">
+							<?php if ( Field_Renderer::uses_row_label( $field ) ) : ?>
+								<label for="<?php echo esc_attr( 'smtp-' . $key ); ?>"><?php echo esc_html( $field['label'] ); ?></label>
+							<?php else : ?>
+								<?php echo esc_html( $field['label'] ); ?>
+							<?php endif; ?>
+						</th>
 						<td><?php Field_Renderer::render( $key, $field, $settings, Settings::OPTION . '[' . $key . ']' ); ?></td>
 					</tr>
 					<?php

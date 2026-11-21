@@ -178,36 +178,50 @@ class Admin_Page {
 			)
 		);
 
-		add_settings_section( 'smtp_main', '', '__return_empty_string', self::PAGE_SLUG );
-		add_settings_section( 'smtp_limits', __( 'Sending limits', 'smtp' ), array( $this, 'render_limits_section' ), self::PAGE_SLUG );
+		$sections = Field_Renderer::get_sections();
+
+		foreach ( $sections as $section => $title ) {
+			add_settings_section(
+				'smtp_' . $section,
+				$title,
+				'limits' === $section ? array( $this, 'render_limits_section' ) : '__return_empty_string',
+				self::PAGE_SLUG
+			);
+		}
 
 		add_settings_field(
 			'provider',
 			__( 'Provider', 'smtp' ),
 			array( $this, 'render_provider_field' ),
 			self::PAGE_SLUG,
-			'smtp_main',
+			'smtp_connection',
 			array( 'label_for' => 'smtp-provider' )
 		);
 
 		foreach ( $this->settings->get_fields() as $key => $field ) {
-			add_settings_field(
-				$key,
-				$field['label'],
-				array( $this, 'render_field' ),
-				self::PAGE_SLUG,
-				0 === strpos( $key, 'rate_limit_' ) ? 'smtp_limits' : 'smtp_main',
-				array(
-					'key'       => $key,
-					'field'     => $field,
-					'label_for' => 'smtp-' . $key,
-				)
+			if ( ! Field_Renderer::has_row( $field ) ) {
+				continue;
+			}
+
+			$args = array(
+				'key'   => $key,
+				'field' => $field,
 			);
+
+			if ( Field_Renderer::uses_row_label( $field ) ) {
+				$args['label_for'] = 'smtp-' . $key;
+			}
+
+			// A field of an unknown section would not be rendered at all.
+			$section = isset( $sections[ $field['section'] ] ) ? $field['section'] : 'connection';
+
+			add_settings_field( $key, $field['label'], array( $this, 'render_field' ), self::PAGE_SLUG, 'smtp_' . $section, $args );
 		}
 	}
 
 	/**
-	 * Adds the script that shows the sending limits when they are customized.
+	 * Adds the scripts that show the sending limits when they are customized, and disable the
+	 * fields that can not take effect.
 	 *
 	 * @since 1.3.0
 	 *
@@ -219,6 +233,7 @@ class Admin_Page {
 		}
 
 		wp_enqueue_script( 'smtp-limits', plugins_url( 'assets/js/limits.js', $this->main_file ), array(), WP_SMTP_VERSION, true );
+		wp_enqueue_script( 'smtp-fields', plugins_url( 'assets/js/fields.js', $this->main_file ), array(), WP_SMTP_VERSION, true );
 	}
 
 	/**
@@ -322,7 +337,7 @@ class Admin_Page {
 				</option>
 			<?php endforeach; ?>
 		</select>
-		<p class="description">
+		<p class="description" style="max-width: 600px;">
 			<?php esc_html_e( 'After changing the provider, save the settings to see its fields.', 'smtp' ); ?>
 		</p>
 		<?php

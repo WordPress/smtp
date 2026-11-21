@@ -218,7 +218,7 @@ This plugin replaces the SMTP plugin by Sorin Iclanzan (1.x) that was published 
 | `smtp_secure` (`''`, `ssl`, `tls`) | Encryption (`none`, `ssl`, `tls`) |
 | `username` | Username. Authentication is on when it is not empty, like before |
 | `password` | Password, decrypted and stored as a secret |
-| *(always the first user)* | From email and From name of user 1, with "Force from" on |
+| *(always the first user)* | From email and From name of user 1, with "Force From email" and "Force From name" on |
 
 - Nothing is imported when `smtp_settings` already exists, or when the legacy plugin still has its activation placeholder (`http://localhost`, no username).
 - The legacy option is never modified. It is deleted on uninstall, together with `smtp_legacy_migrated` and `smtp_migration_notice`.

@@ -263,7 +263,7 @@ class Mailer {
 			return $email;
 		}
 
-		$default = $this->get_default_from_email() === $email;
+		$default = self::get_default_from_email() === $email;
 
 		if ( $settings->get( 'force_from_email' ) || $default ) {
 			// The WordPress default address is not a real sender, so replies never go to it.
@@ -327,10 +327,11 @@ class Mailer {
 	 * Returns the From email address WordPress uses when none is set.
 	 *
 	 * @since 1.2.0
+	 * @since 1.3.0 Public and static, so the settings screen can show the address.
 	 *
 	 * @return string Default From email address.
 	 */
-	private function get_default_from_email(): string {
+	public static function get_default_from_email(): string {
 		$sitename = wp_parse_url( network_home_url(), PHP_URL_HOST );
 
 		if ( is_string( $sitename ) && 0 === strpos( $sitename, 'www.' ) ) {

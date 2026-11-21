@@ -55,7 +55,7 @@ class Error_Hints {
 		}
 
 		if ( false !== strpos( $log, 'MAIL FROM command failed' ) ) {
-			return __( 'The server rejected the sender. Set the From email to an address your provider has verified, and turn on Force from if another plugin changes it.', 'smtp' );
+			return __( 'The server rejected the sender. Set the From email to an address your provider has verified, and check "Also replace addresses set by other plugins" under From email if another plugin changes it.', 'smtp' );
 		}
 
 		if ( false !== strpos( $log, 'RCPT TO command failed' ) ) {

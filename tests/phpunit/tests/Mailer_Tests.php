@@ -590,6 +590,32 @@ class Mailer_Tests extends WP_UnitTestCase {
 		$this->assertSame( 'Sponsors team', $phpmailer->FromName );
 	}
 
+	public function test_the_sender_options_of_the_selected_connection_are_used() {
+		reset_phpmailer_instance();
+		$this->configure(
+			array(
+				'from_email' => 'team@example.com',
+				'reply_to'   => 'help@example.com',
+			)
+		);
+		// Saved without Return-Path and Reply-To, unlike the default connection.
+		$this->add_connection();
+		add_filter(
+			'smtp_connection_for_email',
+			static function () {
+				return 'sponsors';
+			}
+		);
+		$this->mailer_with_connections();
+
+		wp_mail( 'to@example.org', 'Subject', 'Message' );
+
+		$phpmailer = tests_retrieve_phpmailer_instance();
+		$this->assertSame( 'sponsors@example.org', $phpmailer->From );
+		$this->assertSame( '', $phpmailer->Sender );
+		$this->assertSame( array(), $this->reply_tos() );
+	}
+
 	public function test_the_default_connection_is_used_when_none_is_selected() {
 		$this->configure( array( 'from_email' => 'team@example.com' ) );
 		$this->add_connection();

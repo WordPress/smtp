@@ -15,8 +15,9 @@ namespace WordPress\SMTP;
  * - `label` (string): Human readable name.
  * - `fields` (array): Settings fields, keyed by field key. Each field accepts `label`, `type`
  *   (`text`, `number`, `email`, `password`, `select`, `checkbox`), `default`, `options` (for
- *   `select`), `description`, `constant` (name of a constant that overrides the value) and `max`
- *   (highest accepted value of a `number` field).
+ *   `select`), `description`, `constant` (name of a constant that overrides the value), `max`
+ *   (highest accepted value of a `number` field) and `enabled_by` (key of a field that must be
+ *   checked or filled in for this one to be editable on the settings screen).
  * - `required` (string[]): Field keys that must have a value for the provider to be usable.
  * - `required_if` (array): Field keys that must have a value when another field is enabled, as
  *   `field => condition field` pairs. For example `array( 'password' => 'auth' )`.
@@ -151,14 +152,16 @@ class Provider_Registry {
 					'description' => __( 'Use a username and password to authenticate.', 'smtp' ),
 				),
 				'username'   => array(
-					'label'    => __( 'Username', 'smtp' ),
-					'type'     => 'text',
-					'constant' => 'SMTP_USER',
+					'label'      => __( 'Username', 'smtp' ),
+					'type'       => 'text',
+					'constant'   => 'SMTP_USER',
+					'enabled_by' => 'auth',
 				),
 				'password'   => array(
-					'label'    => __( 'Password', 'smtp' ),
-					'type'     => 'password',
-					'constant' => 'SMTP_PASSWORD',
+					'label'      => __( 'Password', 'smtp' ),
+					'type'       => 'password',
+					'constant'   => 'SMTP_PASSWORD',
+					'enabled_by' => 'auth',
 				),
 			),
 			'configure'   => array( $this, 'configure_generic' ),
