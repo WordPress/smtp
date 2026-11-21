@@ -229,10 +229,16 @@ npm run test-php -- --filter Settings_Tests::test_sanitize_is_idempotent
 Current version: `1.2.0` (declared in the `smtp.php` header and the `WP_SMTP_VERSION` constant).
 
 1. Bump the version in the `smtp.php` header (`Version:`), and the `WP_SMTP_VERSION` constant in `smtp.php`. Keep both locations in sync.
-2. Update the `readme.txt` **Changelog** section with a summary of notable changes.
-3. Update the `readme.txt` **Stable tag** to match the new version, and **Tested up to** when needed.
-4. Build the distribution with production dependencies only: `composer install --no-dev -o`. Files excluded from the release are listed in `.distignore`.
-5. Open a pull request, get it merged into `trunk` and tag the release.
+2. Check every `@since` tag against the version actually being released. The version a contributor wrote when opening a PR can be wrong by release time (for example `@since 1.2.1` in a PR, but the release ships as `1.3.0`). Search with `grep -rnE "@since" --include=*.php smtp.php uninstall.php includes/` (also search `n.e.x.t`, `NEXT`, `x.x.x`, `TBD`) and:
+   - Replace any placeholder (`n.e.x.t`, `NEXT`, `x.x.x`, `TBD`) with the release version.
+   - Replace any `@since` that is higher than the release version, or that points to a version that is not this release, for code added in this release, with the release version.
+   - Confirm that no code added in this release carries an older version, and that `@since` of existing code was not changed. Use `git diff <previous-tag>...HEAD` to see what was added.
+   - Do the same for `@deprecated` and for versions mentioned in `_deprecated_*()` calls and in docblocks of hooks (`apply_filters`/`do_action`).
+   The release must not be tagged while any `@since` is a placeholder or a version that will never be published.
+3. Update the `readme.txt` **Changelog** section with a summary of notable changes.
+4. Update the `readme.txt` **Stable tag** to match the new version, and **Tested up to** when needed.
+5. Build the distribution with production dependencies only: `composer install --no-dev -o`. Files excluded from the release are listed in `.distignore`.
+6. Open a pull request, get it merged into `trunk` and tag the release.
 
 There is no deploy workflow in this repository yet: publishing to WordPress.org is done by the Plugins Team, not from CI. Do not add or describe an automated deploy until a workflow exists.
 
