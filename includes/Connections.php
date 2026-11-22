@@ -286,7 +286,8 @@ class Connections {
 	 * @since 1.3.0
 	 *
 	 * @return array[] Entries keyed by connection ID, each with `label`, `provider` (slug),
-	 *                 `configured` (bool) and `rate_limits` (see {@see Rate_Limits}).
+	 *                 `configured` (bool) and `rate_limits` (see {@see Rate_Limits}). PHP turns a key
+	 *                 made only of digits, like `2024`, into an integer.
 	 */
 	public function describe(): array {
 		$connections = array();
@@ -348,6 +349,9 @@ class Connections {
 		 *
 		 * The email is not dropped, but it leaves from the mailbox of the default connection instead of the one
 		 * that was asked for. Use it to log the mismatch or to alert someone.
+		 *
+		 * It does not fire for emails sent while a listener of this action runs, even when they ask for
+		 * another connection that can not be used. Those emails still go through the default connection.
 		 *
 		 * @since 1.3.0
 		 *

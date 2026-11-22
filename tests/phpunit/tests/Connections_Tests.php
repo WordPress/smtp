@@ -457,6 +457,21 @@ class Connections_Tests extends WP_UnitTestCase {
 		$this->assertStringNotContainsString( 'sponsors-secret', wp_json_encode( $described ) );
 	}
 
+	public function test_describe_lists_a_connection_with_a_numeric_id_under_an_integer_key() {
+		$this->add_connection( '2024' );
+
+		$id = array_keys( $this->connections->describe() )[1];
+		add_filter(
+			'smtp_connection_for_email',
+			static function () use ( $id ) {
+				return (string) $id;
+			}
+		);
+
+		$this->assertSame( 2024, $id, 'PHP turns the key into an integer, as documented.' );
+		$this->assertSame( '2024', $this->connections->resolve( array() ), 'The ID works once cast to a string.' );
+	}
+
 	public function test_each_connection_has_its_own_rate_limits() {
 		add_filter(
 			'smtp_providers',

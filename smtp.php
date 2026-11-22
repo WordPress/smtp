@@ -91,7 +91,9 @@ function wp_smtp_get_rate_limits( string $provider = '' ): array {
  *
  * @return array[] Connections keyed by ID. The default connection is first, with the ID `default`. Each one has:
  *                 `label` (string), `provider` (provider slug), `configured` (bool, whether it can send mail)
- *                 and `rate_limits` (array, see wp_smtp_get_rate_limits()).
+ *                 and `rate_limits` (array, see wp_smtp_get_rate_limits()). PHP turns an ID made
+ *                 only of digits, like `2024`, into an integer key: cast it with `(string)` before
+ *                 returning it from the `smtp_connection_for_email` filter.
  */
 function wp_smtp_get_connections(): array {
 	// The classes are not loaded when a requirement check failed.

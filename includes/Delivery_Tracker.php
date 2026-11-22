@@ -101,12 +101,18 @@ class Delivery_Tracker {
 	/**
 	 * Sets the connection the current email is sent through.
 	 *
+	 * It runs when an email starts, so it also forgets what the tracker knew about the previous email.
+	 *
 	 * @since 1.3.0
 	 *
 	 * @param string   $id       Connection ID.
 	 * @param Settings $settings Settings of the connection.
 	 */
 	public function set_connection( string $id, Settings $settings ) {
+		// A listener that threw skips reset(), so the state of its email, or a stale one restored from
+		// the stack, must not be read for this one. The state of an outer email is safe in the stack.
+		$this->snapshot            = null;
+		$this->state               = null;
 		$this->connection_settings = Connections::DEFAULT_ID === $id ? null : $settings;
 	}
 
