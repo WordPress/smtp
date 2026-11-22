@@ -21,8 +21,15 @@ namespace WordPress\SMTP;
  * - `required_if` (array): Field keys that must have a value when another field is enabled, as
  *   `field => condition field` pairs. For example `array( 'password' => 'auth' )`.
  * - `configure` (callable): Receives the `PHPMailer` instance and the resolved field values.
+ * - `send` (callable): Optional, for providers that do not use SMTP. Receives the `PHPMailer` instance,
+ *   ready to send, and the resolved field values, and delivers the email itself, usually with
+ *   `wp_remote_request()` and `$phpmailer->Timeout` as timeout. Returns true, or a `WP_Error` on failure.
+ *   It must never call `wp_mail()`. Declare API keys as `password` fields: their values are redacted
+ *   from error messages.
  * - `rate_limits` (array): Optional default sending limits, see {@see Rate_Limits}. For example
  *   `array( 'per_second' => 2, 'per_minute' => 60 )`.
+ *
+ * A provider needs `configure`, `send` or both.
  *
  * @since 1.2.0
  */
@@ -57,7 +64,11 @@ class Provider_Registry {
 			if ( empty( $provider['label'] ) || ! is_string( $provider['label'] ) ) {
 				continue;
 			}
-			if ( empty( $provider['configure'] ) || ! is_callable( $provider['configure'] ) ) {
+			$provider['configure'] = $provider['configure'] ?? null;
+			$provider['send']      = $provider['send'] ?? null;
+			if ( ( null !== $provider['configure'] && ! is_callable( $provider['configure'] ) )
+				|| ( null !== $provider['send'] && ! is_callable( $provider['send'] ) )
+				|| ( null === $provider['configure'] && null === $provider['send'] ) ) {
 				continue;
 			}
 
