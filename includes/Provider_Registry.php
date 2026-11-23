@@ -40,7 +40,7 @@ class Provider_Registry {
 	 *
 	 * @since 1.3.0
 	 */
-	const BUILT_IN = array( 'smtp', 'google' );
+	const BUILT_IN = array( 'smtp', 'google', 'brevo' );
 
 	/**
 	 * Returns all valid providers.
@@ -62,6 +62,7 @@ class Provider_Registry {
 			array(
 				'smtp'   => $this->get_generic_provider(),
 				'google' => ( new Providers\Google() )->get_provider(),
+				'brevo'  => ( new Providers\Brevo() )->get_provider(),
 			)
 		);
 

@@ -17,6 +17,7 @@ SMTP is a minimal, community-maintained plugin that sends the emails of your sit
 
 * **Simple settings:** host, port, encryption, authentication, From email and From name under _Tools > SMTP_.
 * **Google (Gmail API):** send through a Google Workspace or Gmail account over the Gmail API with OAuth 2.0, without SMTP passwords.
+* **Brevo:** send through the Brevo API with an API key, also where SMTP ports are blocked.
 * **Constants support:** define `SMTP_HOST`, `SMTP_PORT`, `SMTP_ENCRYPTION`, `SMTP_USER`, `SMTP_PASSWORD` and `SMTP_FROM_EMAIL` in `wp-config.php` to override the saved values. Recommended for production, so credentials stay out of the database.
 * **Email log:** every email sent with `wp_mail()` is logged with its recipient, subject, status and error. The message body and attachments are never stored. Entries are deleted after 30 days.
 * **Alerts:** get a Slack message when an email fails to send, so a broken mailer does not go unnoticed. Developers can add more channels.
@@ -51,9 +52,17 @@ No. When this version loads for the first time it imports your host, port, encry
 
 Gmail sends from the account of the refresh token. Another From address only works when it is one of the verified _Send mail as_ addresses of that account. Refresh tokens of OAuth clients in _Testing_ publishing status expire after 7 days.
 
+= How do I send through Brevo? =
+
+1. In Brevo, verify the sender or the domain of your From email.
+2. Under _SMTP & API > API keys_, create an API key.
+3. Under _Tools > SMTP_, pick _Brevo (API)_ and enter the API key, or define `SMTP_BREVO_API_KEY` in `wp-config.php`.
+
+The plugin sends through the Brevo API, not over SMTP, so it also works on hosts that block SMTP ports. To use the Brevo SMTP relay instead, pick _Generic SMTP_ with `smtp-relay.brevo.com`, port 587, your SMTP login and SMTP key.
+
 = Does it support providers that use an HTTP API instead of SMTP? =
 
-Yes, for developers. A provider can send the email through an API instead of SMTP, while the email log, the alerts and the test email keep working. The plugin ships with Generic SMTP and Google (Gmail API). See the technical documentation on [GitHub](https://github.com/wordpress/smtp).
+Yes, for developers. A provider can send the email through an API instead of SMTP, while the email log, the alerts and the test email keep working. The plugin ships with Generic SMTP, Google (Gmail API) and Brevo. See the technical documentation on [GitHub](https://github.com/wordpress/smtp).
 
 == Contributing ==
 
@@ -67,6 +76,7 @@ SMTP is developed in the open. Bug reports, ideas and pull requests are welcome 
 * Developers can react when an email falls back to the default connection with the `smtp_connection_fallback` action.
 * Developers can add providers that send through an HTTP API instead of SMTP, with the new `send` callback. The email log, alerts and test email work with them too.
 * New Google (Gmail API) provider: send through a Google account with OAuth 2.0.
+* New Brevo provider: send through the Brevo API with an API key.
 
 = 1.2.0 =
 
