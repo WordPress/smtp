@@ -33,7 +33,7 @@ Constants defined in `wp-config.php` override the saved value and lock the field
 
 ## Adding a provider
 
-Providers are added with the `smtp_providers` filter. A provider configures the `PHPMailer` instance used by `wp_mail()`, so it works with any service that offers SMTP. Providers that send through an HTTP API are supported too, see below. The built-in Generic SMTP provider is registered through the same filter.
+Providers are added with the `smtp_providers` filter. A provider configures the `PHPMailer` instance used by `wp_mail()`, so it works with any service that offers SMTP. Providers that send through an HTTP API are supported too, see below. The built-in Generic SMTP and Google (Gmail API) providers are registered through the same filter.
 
 ```php
 add_filter( 'smtp_providers', function ( $providers ) {
@@ -130,6 +130,20 @@ A provider that does not use SMTP sets a `send` callback. `wp_mail()` still buil
 - Use `$phpmailer->Timeout` (see `smtp_timeout`) as the request timeout. There are no automatic retries.
 - Never call `wp_mail()` from `send`. That email fails, so the one in progress is not changed.
 - The plugin only uses its own PHPMailer when `wp_mail()` would create the default one. If another plugin already replaced it, the email is sent by that plugin, without the provider.
+
+The built-in Google provider (`includes/Providers/Google.php`) is a complete example: it exchanges a refresh token for an OAuth access token, caches it in a transient, and posts the raw MIME message to the Gmail API.
+
+### Google (Gmail API)
+
+Slug `google`. Fields and constants:
+
+| Field | Constant | Type |
+| --- | --- | --- |
+| `google_client_id` | `SMTP_GOOGLE_CLIENT_ID` | text |
+| `google_client_secret` | `SMTP_GOOGLE_CLIENT_SECRET` | password |
+| `google_refresh_token` | `SMTP_GOOGLE_REFRESH_TOKEN` | password |
+
+The refresh token needs the `https://www.googleapis.com/auth/gmail.send` scope. Access tokens are cached per client ID and refresh token in `smtp_google_token_*` transients, until a minute before they expire, and dropped when Gmail answers 401. Gmail sends from the account of the refresh token, or from one of its verified _Send mail as_ addresses.
 
 ## Multiple connections
 

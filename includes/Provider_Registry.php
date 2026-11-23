@@ -50,7 +50,13 @@ class Provider_Registry {
 		 *
 		 * @param array[] $providers Providers keyed by slug.
 		 */
-		$providers = apply_filters( 'smtp_providers', array( 'smtp' => $this->get_generic_provider() ) );
+		$providers = apply_filters(
+			'smtp_providers',
+			array(
+				'smtp'   => $this->get_generic_provider(),
+				'google' => ( new Providers\Google() )->get_provider(),
+			)
+		);
 
 		if ( ! is_array( $providers ) ) {
 			return array();

@@ -32,6 +32,17 @@ $smtp_uninstall_site = static function () {
 
 	wp_clear_scheduled_hook( 'smtp_purge_logs' );
 
+	// Cached Google access tokens. Their names depend on the credentials, and they expire within
+	// the hour anyway, also when an object cache keeps them out of the options table.
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+	$wpdb->query(
+		$wpdb->prepare(
+			"DELETE FROM {$wpdb->options} WHERE option_name LIKE %s OR option_name LIKE %s",
+			$wpdb->esc_like( '_transient_smtp_google_token_' ) . '%',
+			$wpdb->esc_like( '_transient_timeout_smtp_google_token_' ) . '%'
+		)
+	);
+
 	// The table name is built from the trusted `$wpdb->prefix` only.
 	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.SchemaChange, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 	$wpdb->query( "DROP TABLE IF EXISTS {$wpdb->prefix}smtp_logs" );

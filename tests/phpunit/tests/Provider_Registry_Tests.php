@@ -91,6 +91,23 @@ class Provider_Registry_Tests extends WP_UnitTestCase {
 		$this->assertSame( '__return_true', $provider['send'] );
 	}
 
+	public function test_google_is_registered_as_an_api_provider() {
+		$provider = $this->registry->get( 'google' );
+
+		$this->assertIsArray( $provider );
+		$this->assertSame( 'Google (Gmail API)', $provider['label'] );
+		$this->assertNull( $provider['configure'] );
+		$this->assertTrue( is_callable( $provider['send'] ) );
+		$this->assertSame( array( 'google_client_id', 'google_client_secret', 'google_refresh_token' ), $provider['required'] );
+		$this->assertSame( 'password', $provider['fields']['google_client_secret']['type'] );
+		$this->assertSame( 'password', $provider['fields']['google_refresh_token']['type'] );
+		$this->assertSame( 'SMTP_GOOGLE_REFRESH_TOKEN', $provider['fields']['google_refresh_token']['constant'] );
+	}
+
+	public function test_the_default_provider_is_still_generic_smtp() {
+		$this->assertSame( 'smtp', $this->registry->get_default_slug() );
+	}
+
 	public function test_smtp_providers_have_no_send_callback() {
 		$this->assertNull( $this->registry->get( 'smtp' )['send'] );
 	}
@@ -137,7 +154,7 @@ class Provider_Registry_Tests extends WP_UnitTestCase {
 			}
 		);
 
-		$this->assertSame( array( 'smtp' ), array_keys( $this->registry->get_all() ) );
+		$this->assertSame( array( 'smtp', 'google' ), array_keys( $this->registry->get_all() ) );
 	}
 
 	public function test_filter_returning_a_non_array_leaves_no_providers() {

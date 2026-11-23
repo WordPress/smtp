@@ -253,6 +253,15 @@ class Mailer_Tests extends WP_UnitTestCase {
 	}
 
 	public function test_use_transport_does_nothing_for_smtp_providers() {
+		// Leaves only SMTP providers registered: the built-in Google provider sends through an API.
+		add_filter(
+			'smtp_providers',
+			static function ( $providers ) {
+				unset( $providers['google'] );
+
+				return $providers;
+			}
+		);
 		$this->configure();
 		$GLOBALS['phpmailer'] = null;
 
