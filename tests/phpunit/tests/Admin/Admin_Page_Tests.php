@@ -100,7 +100,7 @@ class Admin_Page_Tests extends WP_UnitTestCase {
 		$fields = array_keys( $GLOBALS['wp_settings_fields'][ Admin_Page::PAGE_SLUG ]['smtp_main'] );
 
 		$this->assertSame(
-			array( 'provider', 'host', 'port', 'encryption', 'auth', 'username', 'password', 'from_email', 'from_name', 'force_from' ),
+			array( 'provider', 'host', 'port', 'encryption', 'auth', 'username', 'password', 'google_client_id', 'google_client_secret', 'google_refresh_token', 'from_email', 'from_name', 'force_from' ),
 			$fields
 		);
 	}
@@ -125,6 +125,62 @@ class Admin_Page_Tests extends WP_UnitTestCase {
 
 		$this->admin_page->enqueue_script( 'tools_page_smtp' );
 		$this->assertTrue( wp_script_is( 'smtp-limits', 'enqueued' ) );
+		$this->assertTrue( wp_script_is( 'smtp-provider-fields', 'enqueued' ) );
+	}
+
+	public function test_the_fields_of_the_other_providers_are_rendered_hidden_and_disabled() {
+		$this->admin_page->register_settings();
+
+		$html = $this->render( 'settings' );
+
+		$this->assertStringNotContainsString( 'save the settings to see its fields', $html );
+		$this->assertMatchesRegularExpression( '/<tr class="hidden"><th scope="row"><label for="smtp-google_client_id">/', $html );
+		$this->assertMatchesRegularExpression( '/id="smtp-google_client_id"[^>]*disabled=\'disabled\'[^>]*data-smtp-provider="google"/s', $html );
+		$this->assertMatchesRegularExpression( '/id="smtp-host"[^>]*data-smtp-provider="smtp"/s', $html );
+		$this->assertDoesNotMatchRegularExpression( '/id="smtp-host"[^>]*disabled/s', $html );
+	}
+
+	public function test_the_fields_of_the_selected_provider_are_enabled() {
+		update_option( Settings::OPTION, array( 'provider' => 'google' ) );
+		$this->admin_page->register_settings();
+
+		$html = $this->render( 'settings' );
+
+		$this->assertDoesNotMatchRegularExpression( '/id="smtp-google_client_id"[^>]*disabled/s', $html );
+		$this->assertMatchesRegularExpression( '/<tr class="hidden"><th scope="row"><label for="smtp-host">/', $html );
+		$this->assertMatchesRegularExpression( '/id="smtp-host"[^>]*disabled=\'disabled\'/s', $html );
+	}
+
+	public function test_a_secret_of_another_provider_is_never_printed() {
+		( new Credentials() )->set( 'google_refresh_token', 'google-refresh-secret' );
+		$this->admin_page->register_settings();
+
+		$html = $this->render( 'settings' );
+
+		$this->assertStringNotContainsString( 'google-refresh-secret', $html );
+		$this->assertMatchesRegularExpression( '/id="smtp-google_refresh_token"[^>]*placeholder="(•)+"/su', $html );
+	}
+
+	public function test_a_key_shared_by_two_providers_gets_unique_ids() {
+		add_filter(
+			'smtp_providers',
+			static function ( $providers ) {
+				$providers['other'] = array(
+					'label'     => 'Other',
+					'fields'    => array( 'host' => array( 'label' => 'Other host' ) ),
+					'configure' => '__return_null',
+				);
+
+				return $providers;
+			}
+		);
+		$this->admin_page->register_settings();
+
+		$html = $this->render( 'settings' );
+
+		$this->assertSame( 1, substr_count( $html, 'id="smtp-host"' ) );
+		$this->assertStringContainsString( 'id="smtp-other-host"', $html );
+		$this->assertStringContainsString( 'for="smtp-other-host"', $html );
 	}
 
 	public function test_register_settings_puts_the_rate_limits_in_their_own_section() {

@@ -108,11 +108,47 @@ class Settings {
 			$slug = $this->get_provider_slug();
 		}
 
+		return array_merge( $this->get_provider_fields( $slug ), self::normalize_fields( $this->get_general_fields() ) );
+	}
+
+	/**
+	 * Returns the normalized fields of a provider, without the general fields.
+	 *
+	 * @since 1.3.0
+	 *
+	 * @param string $slug Provider slug.
+	 * @return array[] Fields keyed by field key, empty for an unknown provider.
+	 */
+	public function get_provider_fields( string $slug ): array {
 		$provider = $this->registry->get( $slug );
-		$fields   = $provider ? $provider['fields'] : array();
 
-		$fields = array_merge( $fields, $this->get_general_fields() );
+		return self::normalize_fields( $provider ? $provider['fields'] : array() );
+	}
 
+	/**
+	 * Returns the resolved value of a field of any provider, also one that is not the active one.
+	 *
+	 * Values of another provider are not saved, so only constants and stored secrets are found.
+	 *
+	 * @since 1.3.0
+	 *
+	 * @param string $key   Field key.
+	 * @param array  $field Normalized field.
+	 * @return string|int|bool Field value.
+	 */
+	public function get_field_value( string $key, array $field ) {
+		return $this->resolve( $key, $field );
+	}
+
+	/**
+	 * Fills the missing keys of field definitions.
+	 *
+	 * @since 1.3.0
+	 *
+	 * @param array $fields Fields keyed by field key.
+	 * @return array[] Normalized fields.
+	 */
+	private static function normalize_fields( array $fields ): array {
 		foreach ( $fields as $key => $field ) {
 			$fields[ $key ] = wp_parse_args(
 				is_array( $field ) ? $field : array(),

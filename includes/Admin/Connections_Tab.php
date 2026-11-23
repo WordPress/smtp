@@ -336,14 +336,35 @@ class Connections_Tab {
 								</option>
 							<?php endforeach; ?>
 						</select>
-						<p class="description">
-							<?php esc_html_e( 'After changing the provider, save the connection to see its fields.', 'smtp' ); ?>
-						</p>
 					</td>
 				</tr>
 				<?php
+				// The fields of every provider, so changing the provider shows its fields without saving.
+				foreach ( Field_Renderer::get_provider_field_rows( $settings, $this->registry ) as $row ) {
+					?>
+					<tr<?php echo $row['inactive'] ? ' class="hidden"' : ''; ?>>
+						<th scope="row"><label for="<?php echo esc_attr( $row['id'] ); ?>"><?php echo esc_html( $row['field']['label'] ); ?></label></th>
+						<td>
+							<?php
+							Field_Renderer::render(
+								$row['key'],
+								$row['field'],
+								$settings,
+								Settings::OPTION . '[' . $row['key'] . ']',
+								array(
+									'id'       => $row['id'],
+									'provider' => $row['provider'],
+									'inactive' => $row['inactive'],
+								)
+							);
+							?>
+						</td>
+					</tr>
+					<?php
+				}
+
 				$limits_toggled = false;
-				foreach ( $settings->get_fields() as $key => $field ) {
+				foreach ( Field_Renderer::get_general_fields( $settings ) as $key => $field ) {
 					if ( ! $limits_toggled && 0 === strpos( $key, 'rate_limit_' ) ) {
 						$limits_toggled = true;
 						?>

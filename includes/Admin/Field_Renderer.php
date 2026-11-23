@@ -7,6 +7,7 @@
 
 namespace WordPress\SMTP\Admin;
 
+use WordPress\SMTP\Provider_Registry;
 use WordPress\SMTP\Rate_Limits;
 use WordPress\SMTP\Settings;
 
@@ -57,17 +58,42 @@ class Field_Renderer {
 	 * @param array    $field    Normalized field.
 	 * @param Settings $settings Settings the value is read from.
 	 * @param string   $name     Value of the `name` attribute of the input.
+	 * @param array    $args     {
+	 *     Optional. Rendering options.
+	 *
+	 *     @type string $id       Value of the `id` attribute. Default `smtp-{$key}`.
+	 *     @type string $provider Slug of the provider the field belongs to, for the provider switch
+	 *                            script. Default empty, for general fields.
+	 *     @type bool   $inactive Whether the field belongs to a provider that is not selected. It is
+	 *                            rendered disabled, so it is not submitted. Default false.
+	 * }
 	 */
-	public static function render( string $key, array $field, Settings $settings, string $name ) {
-		$id     = 'smtp-' . $key;
-		$locked = $settings->is_locked( $field );
-		$value  = $settings->get( $key );
+	public static function render( string $key, array $field, Settings $settings, string $name, array $args = array() ) {
+		$args     = wp_parse_args(
+			$args,
+			array(
+				'id'       => 'smtp-' . $key,
+				'provider' => '',
+				'inactive' => false,
+			)
+		);
+		$id       = (string) $args['id'];
+		$locked   = $settings->is_locked( $field );
+		$value    = $settings->get_field_value( $key, $field );
+		$disabled = $locked || $args['inactive'];
+
+		// Attributes read by assets/js/provider-fields.js to switch the provider fields without saving.
+		$data = '' === $args['provider'] ? '' : sprintf(
+			' data-smtp-provider="%s"%s',
+			esc_attr( (string) $args['provider'] ),
+			$locked ? ' data-smtp-locked="1"' : ''
+		);
 
 		switch ( $field['type'] ) {
 			case 'checkbox':
 				?>
 				<label for="<?php echo esc_attr( $id ); ?>">
-					<input type="checkbox" id="<?php echo esc_attr( $id ); ?>" name="<?php echo esc_attr( $name ); ?>" value="1" <?php checked( (bool) $value ); ?> <?php disabled( $locked ); ?> />
+					<input type="checkbox" id="<?php echo esc_attr( $id ); ?>" name="<?php echo esc_attr( $name ); ?>" value="1" <?php checked( (bool) $value ); ?> <?php disabled( $disabled ); ?><?php echo $data; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped when built. ?> />
 					<?php echo esc_html( $field['description'] ); ?>
 				</label>
 				<?php
@@ -76,7 +102,7 @@ class Field_Renderer {
 
 			case 'select':
 				?>
-				<select id="<?php echo esc_attr( $id ); ?>" name="<?php echo esc_attr( $name ); ?>" <?php disabled( $locked ); ?>>
+				<select id="<?php echo esc_attr( $id ); ?>" name="<?php echo esc_attr( $name ); ?>" <?php disabled( $disabled ); ?><?php echo $data; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped when built. ?>>
 					<?php foreach ( $field['options'] as $option_value => $option_label ) : ?>
 						<option value="<?php echo esc_attr( $option_value ); ?>" <?php selected( $value, (string) $option_value ); ?>>
 							<?php echo esc_html( $option_label ); ?>
@@ -97,7 +123,7 @@ class Field_Renderer {
 					value=""
 					autocomplete="new-password"
 					placeholder="<?php echo '' !== $value ? esc_attr( str_repeat( '•', 8 ) ) : ''; ?>"
-					<?php disabled( $locked ); ?>
+					<?php disabled( $disabled ); ?><?php echo $data; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped when built. ?>
 				/>
 				<?php
 				if ( '' !== $value && ! $locked ) {
@@ -120,7 +146,7 @@ class Field_Renderer {
 							max="<?php echo esc_attr( (string) (int) $field['max'] ); ?>"
 						<?php endif; ?>
 					<?php endif; ?>
-					<?php disabled( $locked ); ?>
+					<?php disabled( $disabled ); ?><?php echo $data; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped when built. ?>
 				/>
 				<?php
 		}
@@ -145,5 +171,53 @@ class Field_Renderer {
 			<p class="description"><?php echo esc_html( $field['description'] ); ?></p>
 			<?php
 		}
+	}
+
+	/**
+	 * Returns the fields of every provider, the selected provider first.
+	 *
+	 * Every provider is rendered so the form can switch providers without saving. A key used by more
+	 * than one provider gets a provider-specific `id` after its first use, so ids stay unique.
+	 *
+	 * @since 1.3.0
+	 *
+	 * @param Settings          $settings Settings of the form.
+	 * @param Provider_Registry $registry Provider registry.
+	 * @return array[] Rows with `provider`, `key`, `field`, `id` and `inactive`.
+	 */
+	public static function get_provider_field_rows( Settings $settings, Provider_Registry $registry ): array {
+		$current = $settings->get_provider_slug();
+		$slugs   = array_keys( $registry->get_all() );
+		$slugs   = array_merge( array( $current ), array_diff( $slugs, array( $current ) ) );
+
+		$rows = array();
+		$used = array();
+		foreach ( $slugs as $slug ) {
+			foreach ( $settings->get_provider_fields( $slug ) as $key => $field ) {
+				$rows[] = array(
+					'provider' => $slug,
+					'key'      => $key,
+					'field'    => $field,
+					'id'       => isset( $used[ $key ] ) ? 'smtp-' . sanitize_html_class( $slug ) . '-' . $key : 'smtp-' . $key,
+					'inactive' => $slug !== $current,
+				);
+
+				$used[ $key ] = true;
+			}
+		}
+
+		return $rows;
+	}
+
+	/**
+	 * Returns the fields shared by every provider, like the From address and the sending limits.
+	 *
+	 * @since 1.3.0
+	 *
+	 * @param Settings $settings Settings of the form.
+	 * @return array[] Normalized fields keyed by field key.
+	 */
+	public static function get_general_fields( Settings $settings ): array {
+		return array_diff_key( $settings->get_fields(), $settings->get_provider_fields( $settings->get_provider_slug() ) );
 	}
 }
