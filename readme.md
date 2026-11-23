@@ -33,7 +33,7 @@ Constants defined in `wp-config.php` override the saved value and lock the field
 
 ## Adding a provider
 
-Providers are added with the `smtp_providers` filter. A provider configures the `PHPMailer` instance used by `wp_mail()`, so it works with any service that offers SMTP. Providers that send through an HTTP API are supported too, see below. The built-in Generic SMTP and Google (Gmail API) providers are registered through the same filter.
+Providers are added with the `smtp_providers` filter. A provider configures the `PHPMailer` instance used by `wp_mail()`, so it works with any service that offers SMTP. Providers that send through an HTTP API are supported too, see below. The built-in Generic SMTP, Google (Gmail API) and Brevo providers are registered through the same filter.
 
 ```php
 add_filter( 'smtp_providers', function ( $providers ) {
@@ -144,6 +144,16 @@ Slug `google`. Fields and constants:
 | `google_refresh_token` | `SMTP_GOOGLE_REFRESH_TOKEN` | password |
 
 The refresh token needs the `https://www.googleapis.com/auth/gmail.send` scope. Access tokens are cached per client ID and refresh token in `smtp_google_token_*` transients, until a minute before they expire, and dropped when Gmail answers 401. Gmail sends from the account of the refresh token, or from one of its verified _Send mail as_ addresses.
+
+### Brevo
+
+Slug `brevo`. Fields and constants:
+
+| Field | Constant | Type |
+| --- | --- | --- |
+| `brevo_api_key` | `SMTP_BREVO_API_KEY` | password |
+
+Sends through the [Brevo transactional email API](https://developers.brevo.com/reference/sendtransacemail) (`POST /v3/smtp/email`), with the API key in the `api-key` header. The API does not take a raw MIME message, so the request is built from the PHPMailer recipients, Reply-To (only the first one, Brevo accepts one), custom headers, content and attachments. Inline (`cid:`) images are sent as regular attachments. The From email must be a sender or domain verified in Brevo.
 
 ## Multiple connections
 

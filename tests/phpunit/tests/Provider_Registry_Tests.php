@@ -104,6 +104,18 @@ class Provider_Registry_Tests extends WP_UnitTestCase {
 		$this->assertSame( 'SMTP_GOOGLE_REFRESH_TOKEN', $provider['fields']['google_refresh_token']['constant'] );
 	}
 
+	public function test_brevo_is_registered_as_an_api_provider() {
+		$provider = $this->registry->get( 'brevo' );
+
+		$this->assertIsArray( $provider );
+		$this->assertSame( 'Brevo (API)', $provider['label'] );
+		$this->assertNull( $provider['configure'] );
+		$this->assertTrue( is_callable( $provider['send'] ) );
+		$this->assertSame( array( 'brevo_api_key' ), $provider['required'] );
+		$this->assertSame( 'password', $provider['fields']['brevo_api_key']['type'] );
+		$this->assertSame( 'SMTP_BREVO_API_KEY', $provider['fields']['brevo_api_key']['constant'] );
+	}
+
 	public function test_the_default_provider_is_still_generic_smtp() {
 		$this->assertSame( 'smtp', $this->registry->get_default_slug() );
 	}
@@ -154,7 +166,7 @@ class Provider_Registry_Tests extends WP_UnitTestCase {
 			}
 		);
 
-		$this->assertSame( array( 'smtp', 'google' ), array_keys( $this->registry->get_all() ) );
+		$this->assertSame( array( 'smtp', 'google', 'brevo' ), array_keys( $this->registry->get_all() ) );
 	}
 
 	public function test_filter_returning_a_non_array_leaves_no_providers() {
