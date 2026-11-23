@@ -253,15 +253,6 @@ class Mailer_Tests extends WP_UnitTestCase {
 	}
 
 	public function test_use_transport_does_nothing_for_smtp_providers() {
-		// Leaves only SMTP providers registered: the built-in Google provider sends through an API.
-		add_filter(
-			'smtp_providers',
-			static function ( $providers ) {
-				unset( $providers['google'] );
-
-				return $providers;
-			}
-		);
 		$this->configure();
 		$GLOBALS['phpmailer'] = null;
 
@@ -310,25 +301,36 @@ class Mailer_Tests extends WP_UnitTestCase {
 		$this->assertInstanceOf( Transport_PHPMailer::class, $GLOBALS['phpmailer'], 'Another wp_mail callback may still pick the API provider.' );
 	}
 
-	public function test_configure_leaves_the_smtp_time_limit_alone_for_api_providers() {
-		$this->configure_api_provider();
-		$this->get_phpmailer();
+	public function test_use_transport_keeps_phpmailer_when_no_connection_uses_the_google_provider() {
+		$this->configure();
+		$GLOBALS['phpmailer'] = null;
 
-		$phpmailer = new Transport_PHPMailer( true );
-		$this->mailer->configure( $phpmailer );
+		$this->mailer->use_transport( array() );
 
-		$this->assertSame( 15, $phpmailer->Timeout );
-		$this->assertSame( 300, $phpmailer->getSMTPInstance()->Timelimit );
+		$this->assertNull( $GLOBALS['phpmailer'], 'Sites that only send through SMTP must keep the PHPMailer of WordPress.' );
 	}
 
-	public function test_configure_credits_another_plugin_when_its_phpmailer_sends() {
-		$this->configure_api_provider();
+	public function test_use_transport_replaces_phpmailer_when_a_connection_uses_the_google_provider() {
+		$this->configure();
+		( new Connections( new Provider_Registry(), new Credentials(), new Settings( new Provider_Registry(), new Credentials() ) ) )->save(
+			'newsletter',
+			'Newsletter',
+			array( 'provider' => 'google' )
+		);
+		$GLOBALS['phpmailer'] = null;
 
-		$phpmailer = $this->get_phpmailer();
-		$this->mailer->configure( $phpmailer );
-		$this->tracker->inspect( $phpmailer );
+		$this->mailer_with_connections()->use_transport( array() );
 
-		$this->assertSame( 'other', $this->tracker->get_provider() );
+		$this->assertInstanceOf( Transport_PHPMailer::class, $GLOBALS['phpmailer'], 'Another wp_mail callback may still pick the Google connection.' );
+	}
+
+	public function test_use_transport_replaces_phpmailer_when_the_default_connection_uses_google() {
+		$this->configure( array( 'provider' => 'google' ) );
+		$GLOBALS['phpmailer'] = null;
+
+		$this->mailer->use_transport( array() );
+
+		$this->assertInstanceOf( Transport_PHPMailer::class, $GLOBALS['phpmailer'] );
 	}
 
 	public function test_use_transport_validates_addresses_with_is_email() {

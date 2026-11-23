@@ -36,6 +36,13 @@ namespace WordPress\SMTP;
 class Provider_Registry {
 
 	/**
+	 * Slugs of the providers that ship with the plugin.
+	 *
+	 * @since 1.3.0
+	 */
+	const BUILT_IN = array( 'smtp', 'google' );
+
+	/**
 	 * Returns all valid providers.
 	 *
 	 * @since 1.2.0
