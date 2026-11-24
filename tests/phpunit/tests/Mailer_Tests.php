@@ -342,6 +342,15 @@ class Mailer_Tests extends WP_UnitTestCase {
 		$this->assertInstanceOf( Transport_PHPMailer::class, $GLOBALS['phpmailer'] );
 	}
 
+	public function test_use_transport_replaces_phpmailer_when_the_default_connection_uses_microsoft() {
+		$this->configure( array( 'provider' => 'microsoft' ) );
+		$GLOBALS['phpmailer'] = null;
+
+		$this->mailer->use_transport( array() );
+
+		$this->assertInstanceOf( Transport_PHPMailer::class, $GLOBALS['phpmailer'] );
+	}
+
 	public function test_use_transport_validates_addresses_with_is_email() {
 		$this->configure_api_provider();
 		$GLOBALS['phpmailer'] = null;

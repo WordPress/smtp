@@ -33,7 +33,7 @@ Constants defined in `wp-config.php` override the saved value and lock the field
 
 ## Adding a provider
 
-Providers are added with the `smtp_providers` filter. A provider configures the `PHPMailer` instance used by `wp_mail()`, so it works with any service that offers SMTP. Providers that send through an HTTP API are supported too, see below. The built-in Generic SMTP, Google (Gmail API) and Brevo providers are registered through the same filter.
+Providers are added with the `smtp_providers` filter. A provider configures the `PHPMailer` instance used by `wp_mail()`, so it works with any service that offers SMTP. Providers that send through an HTTP API are supported too, see below. The built-in Generic SMTP, Google (Gmail API), Brevo and Microsoft (Graph API) providers are registered through the same filter.
 
 ```php
 add_filter( 'smtp_providers', function ( $providers ) {
@@ -154,6 +154,19 @@ Slug `brevo`. Fields and constants:
 | `brevo_api_key` | `SMTP_BREVO_API_KEY` | password |
 
 Sends through the [Brevo transactional email API](https://developers.brevo.com/reference/sendtransacemail) (`POST /v3/smtp/email`), with the API key in the `api-key` header. The API does not take a raw MIME message, so the request is built from the PHPMailer recipients, Reply-To (only the first one, Brevo accepts one), custom headers, content and attachments. Inline (`cid:`) images are sent as regular attachments. The From email must be a sender or domain verified in Brevo.
+
+### Microsoft
+
+Slug `microsoft`. Fields and constants:
+
+| Field | Constant | Type |
+| --- | --- | --- |
+| `microsoft_tenant` | `SMTP_MICROSOFT_TENANT` | text (default `common`) |
+| `microsoft_client_id` | `SMTP_MICROSOFT_CLIENT_ID` | text |
+| `microsoft_client_secret` | `SMTP_MICROSOFT_CLIENT_SECRET` | password |
+| `microsoft_refresh_token` | `SMTP_MICROSOFT_REFRESH_TOKEN` | password |
+
+Sends through the [Microsoft Graph `sendMail` API](https://learn.microsoft.com/graph/api/user-sendmail) (`POST /me/sendMail`) as a base64 encoded MIME message, for Microsoft 365 and Outlook.com accounts. It needs an app registered in Microsoft Entra ID with the delegated `Mail.Send` permission. The refresh token needs the `Mail.Send` and `offline_access` scopes. Access tokens are cached per tenant, client ID and refresh token in `smtp_microsoft_token_*` transients, until a minute before they expire, and dropped when Graph answers 401. Microsoft sends from the account of the refresh token, or from an alias it may send as. It replaces SMTP AUTH (basic authentication), which Exchange Online is retiring.
 
 ## Multiple connections
 

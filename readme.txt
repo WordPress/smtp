@@ -18,6 +18,7 @@ SMTP is a minimal, community-maintained plugin that sends the emails of your sit
 * **Simple settings:** host, port, encryption, authentication, From email and From name under _Tools > SMTP_.
 * **Google (Gmail API):** send through a Google Workspace or Gmail account over the Gmail API with OAuth 2.0, without SMTP passwords.
 * **Brevo:** send through the Brevo API with an API key, also where SMTP ports are blocked.
+* **Microsoft 365 / Outlook:** send through the Microsoft Graph API with OAuth 2.0, without SMTP passwords.
 * **Constants support:** define `SMTP_HOST`, `SMTP_PORT`, `SMTP_ENCRYPTION`, `SMTP_USER`, `SMTP_PASSWORD` and `SMTP_FROM_EMAIL` in `wp-config.php` to override the saved values. Recommended for production, so credentials stay out of the database.
 * **Email log:** every email sent with `wp_mail()` is logged with its recipient, subject, status and error. The message body and attachments are never stored. Entries are deleted after 30 days.
 * **Alerts:** get a Slack message when an email fails to send, so a broken mailer does not go unnoticed. Developers can add more channels.
@@ -60,9 +61,17 @@ Gmail sends from the account of the refresh token. Another From address only wor
 
 The plugin sends through the Brevo API, not over SMTP, so it also works on hosts that block SMTP ports. To use the Brevo SMTP relay instead, pick _Generic SMTP_ with `smtp-relay.brevo.com`, port 587, your SMTP login and SMTP key.
 
+= How do I send through Microsoft 365 or Outlook.com? =
+
+1. In Microsoft Entra ID, register an app and add the delegated _Mail.Send_ permission of Microsoft Graph.
+2. Create a client secret and get a refresh token for the account that sends the email, with the `Mail.Send` and `offline_access` scopes.
+3. Under _Tools > SMTP_, pick _Microsoft 365 / Outlook (Graph API)_ and enter the tenant, client ID, client secret and refresh token, or define the `SMTP_MICROSOFT_*` constants in `wp-config.php`.
+
+Microsoft sends from the account of the refresh token, or from an alias it may send as. Because it uses the Graph API, it does not depend on SMTP AUTH.
+
 = Does it support providers that use an HTTP API instead of SMTP? =
 
-Yes, for developers. A provider can send the email through an API instead of SMTP, while the email log, the alerts and the test email keep working. The plugin ships with Generic SMTP, Google (Gmail API) and Brevo. See the technical documentation on [GitHub](https://github.com/wordpress/smtp).
+Yes, for developers. A provider can send the email through an API instead of SMTP, while the email log, the alerts and the test email keep working. The plugin ships with Generic SMTP, Google (Gmail API), Brevo and Microsoft (Graph API). See the technical documentation on [GitHub](https://github.com/wordpress/smtp).
 
 == Contributing ==
 
@@ -77,6 +86,7 @@ SMTP is developed in the open. Bug reports, ideas and pull requests are welcome 
 * Developers can add providers that send through an HTTP API instead of SMTP, with the new `send` callback. The email log, alerts and test email work with them too.
 * New Google (Gmail API) provider: send through a Google account with OAuth 2.0.
 * New Brevo provider: send through the Brevo API with an API key.
+* New Microsoft provider: send through Microsoft 365 or Outlook.com with the Graph API and OAuth 2.0.
 
 = 1.2.0 =
 

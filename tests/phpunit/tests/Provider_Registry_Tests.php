@@ -116,6 +116,19 @@ class Provider_Registry_Tests extends WP_UnitTestCase {
 		$this->assertSame( 'SMTP_BREVO_API_KEY', $provider['fields']['brevo_api_key']['constant'] );
 	}
 
+	public function test_microsoft_is_registered_as_an_api_provider() {
+		$provider = $this->registry->get( 'microsoft' );
+
+		$this->assertIsArray( $provider );
+		$this->assertSame( 'Microsoft 365 / Outlook (Graph API)', $provider['label'] );
+		$this->assertNull( $provider['configure'] );
+		$this->assertTrue( is_callable( $provider['send'] ) );
+		$this->assertSame( array( 'microsoft_client_id', 'microsoft_client_secret', 'microsoft_refresh_token' ), $provider['required'] );
+		$this->assertSame( 'common', $provider['fields']['microsoft_tenant']['default'] );
+		$this->assertSame( 'password', $provider['fields']['microsoft_client_secret']['type'] );
+		$this->assertSame( 'SMTP_MICROSOFT_REFRESH_TOKEN', $provider['fields']['microsoft_refresh_token']['constant'] );
+	}
+
 	public function test_the_default_provider_is_still_generic_smtp() {
 		$this->assertSame( 'smtp', $this->registry->get_default_slug() );
 	}
@@ -166,7 +179,7 @@ class Provider_Registry_Tests extends WP_UnitTestCase {
 			}
 		);
 
-		$this->assertSame( array( 'smtp', 'google', 'brevo' ), array_keys( $this->registry->get_all() ) );
+		$this->assertSame( array( 'smtp', 'google', 'brevo', 'microsoft' ), array_keys( $this->registry->get_all() ) );
 	}
 
 	public function test_filter_returning_a_non_array_leaves_no_providers() {
