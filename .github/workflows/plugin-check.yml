@@ -1,0 +1,72 @@
+name: Plugin Check
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - trunk
+  pull_request:
+    branches:
+      - trunk
+      - 'feature/**'
+    types:
+      - opened
+      - reopened
+      - synchronize
+
+# Cancels all previous workflow runs for pull requests that have not completed.
+concurrency:
+  # The workflow name and the branch name for pull requests, or the commit hash for anything else.
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.head_ref || github.sha }}
+  cancel-in-progress: true
+
+# Disable permissions for all available scopes by default.
+# Any needed permissions are set at the job level.
+permissions: {}
+
+jobs:
+  plugin-check:
+    name: Run Plugin Check
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read # Required to clone the repo.
+      pull-requests: write # Required to post the results as a PR comment.
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2.40.0
+        with:
+          php-version: '8.3'
+          coverage: none
+
+      # Same Composer options as deploy.yml, so the check sees what WordPress.org gets.
+      - name: Install PHP dependencies
+        uses: ramsey/composer-install@65e4f84970763564f46a70b8a54b90d033b3bdda # v4.0.0
+        with:
+          composer-options: '--prefer-dist --no-dev'
+
+      # Copy the files that ship, honoring .distignore, like the deploy action does.
+      # The folder is named "smtp" so the plugin is installed under its real slug.
+      # .distignore already excludes "build", so the copy doesn't include itself.
+      - name: Build the plugin as released
+        run: |
+          mkdir -p build/smtp
+          rsync -a --exclude-from=.distignore ./ build/smtp/
+          echo "Files that will be checked:"
+          find build/smtp -type f -not -path 'build/smtp/vendor/*' | sort
+
+      # The action writes its own .wp-env.json in the working directory. Remove ours so
+      # it can't be merged in and mount the repository as a second copy of the plugin.
+      - name: Remove the development wp-env config
+        run: rm -f .wp-env.json .wp-env.override.json
+
+      - name: Run Plugin Check
+        uses: wordpress/plugin-check-action@10857da14b6c2246d15402b3e69f777edcf8c12e # v1.1.9
+        with:
+          build-dir: build/smtp
+          wp-version: 'latest'
