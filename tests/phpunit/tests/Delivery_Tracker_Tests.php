@@ -78,6 +78,8 @@ class Delivery_Tracker_Tests extends WP_UnitTestCase {
 		$this->tracker->add_hooks();
 
 		$this->assertSame( PHP_INT_MAX, has_action( 'phpmailer_init', array( $this->tracker, 'inspect' ) ) );
+		$this->assertSame( PHP_INT_MIN, has_action( 'wp_mail_succeeded', array( $this->tracker, 'keep' ) ) );
+		$this->assertSame( PHP_INT_MIN, has_action( 'wp_mail_failed', array( $this->tracker, 'keep' ) ) );
 		$this->assertSame( PHP_INT_MAX, has_action( 'wp_mail_succeeded', array( $this->tracker, 'reset' ) ) );
 		$this->assertSame( PHP_INT_MAX, has_action( 'wp_mail_failed', array( $this->tracker, 'reset' ) ) );
 	}
@@ -251,5 +253,29 @@ class Delivery_Tracker_Tests extends WP_UnitTestCase {
 		$this->tracker->reset();
 
 		$this->assertSame( 'default', $this->tracker->get_connection_id() );
+	}
+
+	public function test_an_email_whose_listener_threw_does_not_change_the_next_emails() {
+		$default_settings = new Settings( $this->registry, new Credentials() );
+		$phpmailer        = $this->configured_phpmailer();
+
+		// A listener throws and the exception is caught: reset() never runs for this email.
+		$this->tracker->set_connection( 'default', $default_settings );
+		$this->tracker->remember( $phpmailer );
+		$this->tracker->inspect( $phpmailer );
+		$this->tracker->keep();
+
+		// The next email finishes normally, so reset() restores the state left in the stack.
+		$this->tracker->set_connection( 'default', $default_settings );
+		$this->tracker->remember( $phpmailer );
+		$this->tracker->inspect( $phpmailer );
+		$this->tracker->keep();
+		$this->tracker->reset();
+
+		// An email sent by the default WordPress mailer, as the plugin is not configured.
+		$this->tracker->set_connection( 'default', $default_settings );
+		$this->tracker->inspect( $this->get_phpmailer() );
+
+		$this->assertSame( Delivery_Tracker::PROVIDER_DEFAULT, $this->tracker->get_provider() );
 	}
 }

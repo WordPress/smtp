@@ -91,7 +91,9 @@ function wp_smtp_get_rate_limits( string $provider = '' ): array {
  *
  * @return array[] Connections keyed by ID. The default connection is first, with the ID `default`. Each one has:
  *                 `label` (string), `provider` (provider slug), `configured` (bool, whether it can send mail)
- *                 and `rate_limits` (array, see wp_smtp_get_rate_limits()).
+ *                 and `rate_limits` (array, see wp_smtp_get_rate_limits()). PHP turns an ID made
+ *                 only of digits, like `2024`, into an integer key: cast it with `(string)` before
+ *                 returning it from the `smtp_connection_for_email` filter.
  */
 function wp_smtp_get_connections(): array {
 	// The classes are not loaded when a requirement check failed.
@@ -127,13 +129,22 @@ function wp_smtp_mail( string $connection, $to, string $subject, string $message
 		return $connection;
 	};
 
+	// Once the email is sent or failed, so the emails its listeners send pick their own connection.
+	$finish = static function () use ( $select ) {
+		remove_filter( 'smtp_connection_for_email', $select, PHP_INT_MAX );
+	};
+
 	// Runs last, so the connection chosen by the caller wins over the one of any other callback.
 	add_filter( 'smtp_connection_for_email', $select, PHP_INT_MAX );
+	add_action( 'wp_mail_succeeded', $finish, PHP_INT_MIN );
+	add_action( 'wp_mail_failed', $finish, PHP_INT_MIN );
 
 	try {
 		return wp_mail( $to, $subject, $message, $headers, $attachments );
 	} finally {
 		remove_filter( 'smtp_connection_for_email', $select, PHP_INT_MAX );
+		remove_action( 'wp_mail_succeeded', $finish, PHP_INT_MIN );
+		remove_action( 'wp_mail_failed', $finish, PHP_INT_MIN );
 	}
 }
 

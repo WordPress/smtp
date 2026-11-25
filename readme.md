@@ -175,6 +175,8 @@ foreach ( wp_smtp_get_connections() as $id => $connection ) {
 }
 ```
 
+PHP turns an ID made only of digits, like `2024`, into an integer array key. Cast it with `(string) $id` before you return it from the `smtp_connection_for_email` filter.
+
 Notes:
 
 - The mailbox used to authenticate (the username) and the From address are separate fields, so a connection can send from a different address than the one it logs in with. A provider can still reject From addresses it does not own.
@@ -255,7 +257,7 @@ Passwords cannot be passed as arguments, since those end up in the shell history
 | `smtp_failure_notice_period` | Seconds the admin notice about failed emails looks back. Default one day. |
 | `smtp_rate_limits` | Change the sending limits of a provider. Receives `$limits`, the provider slug and the connection ID. See [Sending limits](#sending-limits). |
 | `smtp_connection_for_email` | Pick the connection an email is sent through. Receives `$connection_id` (`default`) and `$mail_data`. See [Multiple connections](#multiple-connections). |
-| `smtp_connection_fallback` | Action. Fires when an email asked for a connection that does not exist or is not fully configured and goes through the default one. Receives `$connection_id`, `$reason` (`unknown` or `incomplete`) and `$mail_data`. |
+| `smtp_connection_fallback` | Action. Fires when an email asked for a connection that does not exist or is not fully configured and goes through the default one. Receives `$connection_id`, `$reason` (`unknown` or `incomplete`) and `$mail_data`. It does not fire for emails sent while one of its listeners runs. |
 | `smtp_timeout` | Seconds to wait for the SMTP server to connect and to answer each command. Default `15`. A value of `0` or less keeps the PHPMailer default of 300 seconds. |
 | `smtp_alert_channels` | Add alert channels. Receives an array of `WordPress\SMTP\Alerts\Alert_Channel` instances. |
 | `smtp_alert_enabled` | Return `false` to skip the alert for a failed email. Receives `$enabled` and the `Alert`. |

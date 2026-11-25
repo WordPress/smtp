@@ -153,7 +153,7 @@ This plugin replaces the SMTP plugin 1.x published under the same slug, so sites
 - `smtp_failure_notice_period` (filter): seconds the recent failures admin notice looks back. Default one day.
 - `smtp_rate_limits` (filter): change the sending limits of a provider. Receives the limits, the provider slug and the connection ID.
 - `smtp_connection_for_email` (filter): pick the connection an email is sent through. Receives the connection ID (`default`) and the mail data.
-- `smtp_connection_fallback` (action): an email asked for an unknown or incomplete connection and goes through the default one. Receives the ID asked for, the reason (`unknown` or `incomplete`) and the mail data.
+- `smtp_connection_fallback` (action): an email asked for an unknown or incomplete connection and goes through the default one. Receives the ID asked for, the reason (`unknown` or `incomplete`) and the mail data. It does not fire for emails sent while one of its listeners runs.
 - `smtp_timeout` (filter): seconds PHPMailer waits for the SMTP server to connect and to answer each command. Default `15`; `0` or less keeps the PHPMailer default (300). Receives the provider slug.
 - `smtp_alert_channels` (filter): add alert channels (`Alert_Channel` instances).
 - `smtp_alert_enabled` (filter): return `false` to skip the alert for a failed email. Receives the `Alert`.

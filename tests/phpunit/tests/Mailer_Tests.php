@@ -579,6 +579,57 @@ class Mailer_Tests extends WP_UnitTestCase {
 		$this->assertSame( 'sponsors', $entries[0]['connection_id'] );
 	}
 
+	public function test_an_email_sent_by_a_listener_does_not_change_the_log_of_the_current_email() {
+		$this->configure( array( 'from_email' => 'team@example.com' ) );
+		$this->add_connection();
+		add_filter(
+			'smtp_connection_for_email',
+			static function ( $connection_id, $mail_data ) {
+				return 'Outer' === $mail_data['subject'] ? 'sponsors' : $connection_id;
+			},
+			10,
+			2
+		);
+		add_action(
+			'wp_mail_succeeded',
+			static function ( $mail_data ) {
+				if ( 'Outer' === $mail_data['subject'] ) {
+					wp_mail( 'ops@example.org', 'Nested', 'Message' );
+				}
+			},
+			5
+		);
+
+		wp_mail( 'to@example.org', 'Outer', 'Message' );
+
+		$entries = array_column( $this->get_logged_entries(), null, 'subject' );
+		$this->assertCount( 2, $entries );
+		$this->assertSame( 'smtp', $entries['Outer']['provider'] );
+		$this->assertSame( 'sponsors', $entries['Outer']['connection_id'] );
+		$this->assertSame( 'smtp', $entries['Nested']['provider'] );
+		$this->assertSame( '', $entries['Nested']['connection_id'] );
+	}
+
+	public function test_wp_smtp_mail_does_not_change_the_connection_of_emails_sent_by_listeners() {
+		$this->configure( array( 'from_email' => 'team@example.com' ) );
+		$this->add_connection();
+		add_action(
+			'wp_mail_succeeded',
+			static function ( $mail_data ) {
+				if ( 'Outer' === $mail_data['subject'] ) {
+					wp_mail( 'ops@example.org', 'Nested', 'Message' );
+				}
+			},
+			5
+		);
+
+		wp_smtp_mail( 'sponsors', 'to@example.org', 'Outer', 'Message' );
+
+		$entries = array_column( $this->get_logged_entries(), null, 'subject' );
+		$this->assertSame( 'sponsors', $entries['Outer']['connection_id'] );
+		$this->assertSame( '', $entries['Nested']['connection_id'] );
+	}
+
 	public function test_wp_smtp_mail_sends_through_the_given_connection() {
 		$this->configure( array( 'from_email' => 'team@example.com' ) );
 		$this->add_connection();

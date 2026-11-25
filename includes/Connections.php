@@ -41,6 +41,14 @@ class Connections {
 	const MAX_ID_LENGTH = 50;
 
 	/**
+	 * Whether the `smtp_connection_fallback` action is running.
+	 *
+	 * @since 1.3.0
+	 * @var bool
+	 */
+	private static $falling_back = false;
+
+	/**
 	 * Provider registry.
 	 *
 	 * @since 1.3.0
@@ -95,7 +103,10 @@ class Connections {
 
 		$connections = array();
 		foreach ( $stored as $id => $connection ) {
-			if ( ! is_string( $id ) || self::DEFAULT_ID === $id || ! is_array( $connection ) ) {
+			// PHP turns an ID made only of digits, like "2024", into an integer key.
+			$id = (string) $id;
+
+			if ( self::sanitize_id( $id ) !== $id || ! is_array( $connection ) ) {
 				continue;
 			}
 
@@ -207,7 +218,7 @@ class Connections {
 	 * @return string[] Connection IDs.
 	 */
 	public function get_ids(): array {
-		return array_merge( array( self::DEFAULT_ID ), array_keys( self::get_stored() ) );
+		return array_merge( array( self::DEFAULT_ID ), array_map( 'strval', array_keys( self::get_stored() ) ) );
 	}
 
 	/**
@@ -275,7 +286,8 @@ class Connections {
 	 * @since 1.3.0
 	 *
 	 * @return array[] Entries keyed by connection ID, each with `label`, `provider` (slug),
-	 *                 `configured` (bool) and `rate_limits` (see {@see Rate_Limits}).
+	 *                 `configured` (bool) and `rate_limits` (see {@see Rate_Limits}). PHP turns a key
+	 *                 made only of digits, like `2024`, into an integer.
 	 */
 	public function describe(): array {
 		$connections = array();
@@ -338,6 +350,9 @@ class Connections {
 		 * The email is not dropped, but it leaves from the mailbox of the default connection instead of the one
 		 * that was asked for. Use it to log the mismatch or to alert someone.
 		 *
+		 * It does not fire for emails sent while a listener of this action runs, even when they ask for
+		 * another connection that can not be used. Those emails still go through the default connection.
+		 *
 		 * @since 1.3.0
 		 *
 		 * @param string $connection_id ID that was asked for.
@@ -345,7 +360,16 @@ class Connections {
 		 *                              but is not fully configured.
 		 * @param array  $mail_data     Email data: `to`, `subject`, `message`, `headers` and `attachments`.
 		 */
-		do_action( 'smtp_connection_fallback', $id, $settings ? 'incomplete' : 'unknown', $mail_data );
+		// A listener that sends an email routed to the same connection would fire the action again, without end.
+		if ( ! self::$falling_back ) {
+			self::$falling_back = true;
+
+			try {
+				do_action( 'smtp_connection_fallback', $id, $settings ? 'incomplete' : 'unknown', $mail_data );
+			} finally {
+				self::$falling_back = false;
+			}
+		}
 
 		return self::DEFAULT_ID;
 	}

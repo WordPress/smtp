@@ -79,6 +79,15 @@ class Delivery_Tracker {
 	private $connection_settings = null;
 
 	/**
+	 * State of the emails being finished, innermost last, while their `wp_mail_succeeded` or
+	 * `wp_mail_failed` listeners run.
+	 *
+	 * @since 1.3.0
+	 * @var array[]
+	 */
+	private $finishing = array();
+
+	/**
 	 * Constructor.
 	 *
 	 * @since 1.2.0
@@ -92,12 +101,18 @@ class Delivery_Tracker {
 	/**
 	 * Sets the connection the current email is sent through.
 	 *
+	 * It runs when an email starts, so it also forgets what the tracker knew about the previous email.
+	 *
 	 * @since 1.3.0
 	 *
 	 * @param string   $id       Connection ID.
 	 * @param Settings $settings Settings of the connection.
 	 */
 	public function set_connection( string $id, Settings $settings ) {
+		// A listener that threw skips reset(), so the state of its email, or a stale one restored from
+		// the stack, must not be read for this one. The state of an outer email is safe in the stack.
+		$this->snapshot            = null;
+		$this->state               = null;
 		$this->connection_settings = Connections::DEFAULT_ID === $id ? null : $settings;
 	}
 
@@ -119,6 +134,8 @@ class Delivery_Tracker {
 	 */
 	public function add_hooks() {
 		add_action( 'phpmailer_init', array( $this, 'inspect' ), PHP_INT_MAX );
+		add_action( 'wp_mail_succeeded', array( $this, 'keep' ), PHP_INT_MIN );
+		add_action( 'wp_mail_failed', array( $this, 'keep' ), PHP_INT_MIN );
 		add_action( 'wp_mail_succeeded', array( $this, 'reset' ), PHP_INT_MAX );
 		add_action( 'wp_mail_failed', array( $this, 'reset' ), PHP_INT_MAX );
 	}
@@ -153,14 +170,29 @@ class Delivery_Tracker {
 	}
 
 	/**
+	 * Keeps the state of the email being finished, before its listeners run.
+	 *
+	 * A listener can send another email, which replaces the state. It is restored once that email
+	 * finished, so the current one is still logged with the provider and connection that delivered it.
+	 *
+	 * @since 1.3.0
+	 */
+	public function keep() {
+		$this->finishing[] = array( $this->snapshot, $this->state, $this->connection_settings );
+	}
+
+	/**
 	 * Forgets the current email, once it was logged.
+	 *
+	 * When the email was sent by a listener of another email, the state of that one comes back.
 	 *
 	 * @since 1.2.0
 	 */
 	public function reset() {
-		$this->snapshot            = null;
-		$this->state               = null;
-		$this->connection_settings = null;
+		array_pop( $this->finishing );
+		$outer = end( $this->finishing );
+
+		list( $this->snapshot, $this->state, $this->connection_settings ) = false === $outer ? array( null, null, null ) : $outer;
 	}
 
 	/**
