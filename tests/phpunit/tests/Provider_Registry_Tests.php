@@ -154,7 +154,7 @@ class Provider_Registry_Tests extends WP_UnitTestCase {
 			}
 		);
 
-		$this->assertSame( array( 'smtp', 'google' ), array_keys( $this->registry->get_all() ) );
+		$this->assertSame( array( 'smtp', 'google', 'werkmail' ), array_keys( $this->registry->get_all() ) );
 	}
 
 	public function test_filter_returning_a_non_array_leaves_no_providers() {

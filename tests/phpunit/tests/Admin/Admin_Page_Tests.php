@@ -100,7 +100,7 @@ class Admin_Page_Tests extends WP_UnitTestCase {
 		$fields = array_keys( $GLOBALS['wp_settings_fields'][ Admin_Page::PAGE_SLUG ]['smtp_main'] );
 
 		$this->assertSame(
-			array( 'provider', 'host', 'port', 'encryption', 'auth', 'username', 'password', 'google_client_id', 'google_client_secret', 'google_refresh_token', 'from_email', 'from_name', 'force_from' ),
+			array( 'provider', 'host', 'port', 'encryption', 'auth', 'username', 'password', 'google_client_id', 'google_client_secret', 'google_refresh_token', 'smtp-werkmail-port', 'smtp-werkmail-username', 'smtp-werkmail-password', 'from_email', 'from_name', 'force_from' ),
 			$fields
 		);
 	}
