@@ -30,10 +30,12 @@ Constants defined in `wp-config.php` override the saved value and lock the field
 | `SMTP_USER` | Username |
 | `SMTP_PASSWORD` | Password |
 | `SMTP_FROM_EMAIL` | From email |
+| `SMTP_SENDLAYER_USER` | SMTP username of the SendLayer provider |
+| `SMTP_SENDLAYER_PASSWORD` | SMTP password of the SendLayer provider |
 
 ## Adding a provider
 
-Providers are added with the `smtp_providers` filter. A provider configures the `PHPMailer` instance used by `wp_mail()`, so it works with any service that offers SMTP. Providers that send through an HTTP API are supported too, see below. The built-in Generic SMTP provider is registered through the same filter.
+Providers are added with the `smtp_providers` filter. A provider configures the `PHPMailer` instance used by `wp_mail()`, so it works with any service that offers SMTP. Providers that send through an HTTP API are supported too, see below. The built-in Generic SMTP and SendLayer providers are registered through the same filter.
 
 ```php
 add_filter( 'smtp_providers', function ( $providers ) {

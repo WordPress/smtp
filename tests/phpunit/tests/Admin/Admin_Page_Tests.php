@@ -263,6 +263,26 @@ class Admin_Page_Tests extends WP_UnitTestCase {
 		$this->assertStringContainsString( 'A password is saved. Leave empty to keep it.', $html );
 	}
 
+	public function test_the_saved_sendlayer_password_is_never_printed() {
+		update_option(
+			Settings::OPTION,
+			array(
+				'provider'           => 'sendlayer',
+				'sendlayer_username' => 'sendlayer-user',
+			)
+		);
+		( new Credentials() )->set( 'sendlayer_password', 'top-secret-password' );
+		$this->admin_page->register_settings();
+
+		$html = $this->render( 'settings' );
+
+		$this->assertStringContainsString( 'SendLayer', $html );
+		$this->assertStringContainsString( 'sendlayer-user', $html );
+		$this->assertStringContainsString( 'under Settings &gt; SMTP Credentials.', $html );
+		$this->assertStringNotContainsString( 'top-secret-password', $html );
+		$this->assertStringContainsString( 'A password is saved. Leave empty to keep it.', $html );
+	}
+
 	public function test_saved_values_are_escaped() {
 		update_option( Settings::OPTION, array( 'host' => '"><script>alert(1)</script>' ) );
 		$this->admin_page->register_settings();

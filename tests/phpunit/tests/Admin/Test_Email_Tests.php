@@ -538,4 +538,33 @@ class Test_Email_Tests extends WP_UnitTestCase {
 
 		$this->assertSame( 'key [redacted], token [redacted]', $this->redact( 'key abc-def-ghi, token abc' ) );
 	}
+
+	public function test_send_redacts_the_auth_plain_form_whatever_the_username_field_is_called() {
+		update_option(
+			Settings::OPTION,
+			array(
+				'provider'           => 'sendlayer',
+				'sendlayer_username' => 'sl-user',
+			)
+		);
+		( new Credentials() )->set( 'sendlayer_password', 'sl-secret' );
+
+		$plain = base64_encode( "\0sl-user\0sl-secret" ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode
+
+		// Print what PHPMailer prints above debug level 2, through the output the test email captures.
+		add_action(
+			'wp_mail_succeeded',
+			static function () use ( $plain ) {
+				global $phpmailer;
+				call_user_func( $phpmailer->Debugoutput, 'CLIENT -> SERVER: AUTH PLAIN ' . $plain, 3 );
+			}
+		);
+
+		$result = $this->test_email->send( 'to@example.org' );
+
+		$this->assertTrue( $result['success'] );
+		$this->assertStringContainsString( 'AUTH PLAIN [redacted]', $result['debug'] );
+		$this->assertStringNotContainsString( $plain, $result['debug'] );
+		$this->assertStringNotContainsString( 'sl-secret', $result['debug'] );
+	}
 }

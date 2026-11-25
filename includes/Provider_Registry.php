@@ -50,7 +50,13 @@ class Provider_Registry {
 		 *
 		 * @param array[] $providers Providers keyed by slug.
 		 */
-		$providers = apply_filters( 'smtp_providers', array( 'smtp' => $this->get_generic_provider() ) );
+		$providers = apply_filters(
+			'smtp_providers',
+			array(
+				'smtp'      => $this->get_generic_provider(),
+				'sendlayer' => $this->get_sendlayer_provider(),
+			)
+		);
 
 		if ( ! is_array( $providers ) ) {
 			return array();
@@ -173,6 +179,47 @@ class Provider_Registry {
 				),
 			),
 			'configure'   => array( $this, 'configure_generic' ),
+		);
+	}
+
+	/**
+	 * Returns the built-in SendLayer provider, which sends through the SendLayer SMTP server.
+	 *
+	 * @since 1.3.0
+	 *
+	 * @return array Provider definition.
+	 */
+	private function get_sendlayer_provider(): array {
+		return array(
+			'label'     => __( 'SendLayer', 'smtp' ),
+			'required'  => array( 'sendlayer_username', 'sendlayer_password' ),
+			// The fields and constants are not shared with Generic SMTP, so the credentials of another server are never sent to this one.
+			'fields'    => array(
+				'sendlayer_username' => array(
+					'label'       => __( 'SMTP username', 'smtp' ),
+					'type'        => 'text',
+					'constant'    => 'SMTP_SENDLAYER_USER',
+					'description' => __( 'Find your SMTP username and password in your SendLayer account, under Settings > SMTP Credentials.', 'smtp' ),
+				),
+				'sendlayer_password' => array(
+					'label'    => __( 'SMTP password', 'smtp' ),
+					'type'     => 'password',
+					'constant' => 'SMTP_SENDLAYER_PASSWORD',
+				),
+			),
+			'configure' => function ( $phpmailer, array $values ) {
+				$this->configure_generic(
+					$phpmailer,
+					array(
+						'host'       => 'smtp.sendlayer.net',
+						'port'       => 587,
+						'encryption' => 'tls',
+						'auth'       => true,
+						'username'   => $values['sendlayer_username'],
+						'password'   => $values['sendlayer_password'],
+					)
+				);
+			},
 		);
 	}
 
