@@ -85,8 +85,9 @@ class Plugin_Main {
 
 		// Sites updating from the 1.x plugin never run the activation hook, and cron or front-end
 		// requests send mail without admin_init. Priority 0 creates the table before most mail is sent.
-		add_action( 'init', array( $repository, 'maybe_upgrade' ), 0 );
+		// The settings first: they tell a new site from an existing one by the log table version.
 		add_action( 'init', array( $settings, 'maybe_upgrade' ), 0 );
+		add_action( 'init', array( $repository, 'maybe_upgrade' ), 0 );
 		add_action( 'init', array( $this, 'schedule_purge' ) );
 
 		if ( is_admin() ) {
@@ -142,6 +143,7 @@ class Plugin_Main {
 	 * @since 1.2.0
 	 */
 	public static function activate() {
+		( new Settings( new Provider_Registry(), new Credentials() ) )->maybe_upgrade();
 		( new Log_Repository() )->maybe_upgrade();
 		( new Migration( new Credentials() ) )->maybe_migrate();
 

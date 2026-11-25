@@ -161,6 +161,28 @@ class Plugin_Main_Tests extends WP_UnitTestCase {
 		$this->assertSame( Log_Repository::DB_VERSION, get_option( 'smtp_db_version' ) );
 	}
 
+	public function test_activate_on_a_new_site_keeps_the_return_path_default() {
+		delete_option( Settings::OPTION );
+		delete_option( Settings::VERSION_OPTION );
+		delete_option( Log_Repository::DB_VERSION_OPTION );
+
+		Plugin_Main::activate();
+
+		$this->assertSame( Settings::VERSION, get_option( Settings::VERSION_OPTION ) );
+		$this->assertTrue( ( new Settings( new Provider_Registry(), new Credentials() ) )->get( 'return_path' ) );
+	}
+
+	public function test_the_settings_upgrade_runs_before_the_log_table_upgrade() {
+		$names = array();
+		foreach ( $GLOBALS['wp_filter']['init'][0] as $callback ) {
+			if ( is_array( $callback['function'] ) && 'maybe_upgrade' === $callback['function'][1] ) {
+				$names[] = get_class( $callback['function'][0] );
+			}
+		}
+
+		$this->assertSame( array( Settings::class, Log_Repository::class ), array_slice( $names, 0, 2 ) );
+	}
+
 	public function test_deactivate_clears_the_scheduled_purge() {
 		Plugin_Main::activate();
 		Plugin_Main::deactivate();

@@ -156,6 +156,17 @@ class Connections_Tab_Tests extends WP_UnitTestCase {
 		$this->assertStringContainsString( 'name="smtp_settings[rate_limit_per_minute]"', $html );
 	}
 
+	public function test_the_form_of_a_connection_renders_the_fields_of_every_provider() {
+		$_GET['connection'] = 'new';
+
+		$html = $this->render();
+
+		$this->assertStringNotContainsString( 'save the connection to see its fields', $html );
+		$this->assertMatchesRegularExpression( '/id="smtp-host"[^>]*data-smtp-provider="smtp"/s', $html );
+		$this->assertMatchesRegularExpression( '/<tr class="hidden">\s*<th scope="row">\s*<label for="smtp-google_client_id">/', $html );
+		$this->assertMatchesRegularExpression( '/id="smtp-google_client_id"[^>]*disabled=\'disabled\'[^>]*data-smtp-provider="google"/s', $html );
+	}
+
 	public function test_the_form_of_a_connection_hides_the_limits_behind_a_checkbox() {
 		$_GET['connection'] = 'new';
 

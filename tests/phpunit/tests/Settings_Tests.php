@@ -8,6 +8,7 @@
 use WordPress\SMTP\Connections;
 use WordPress\SMTP\Credentials;
 use WordPress\SMTP\Provider_Registry;
+use WordPress\SMTP\Log_Repository;
 use WordPress\SMTP\Mailer;
 use WordPress\SMTP\Settings;
 
@@ -28,6 +29,9 @@ class Settings_Tests extends WP_UnitTestCase {
 
 		$this->credentials = new Credentials();
 		$this->settings    = new Settings( new Provider_Registry(), $this->credentials );
+
+		// The upgrade already ran when the test site loaded the plugin.
+		delete_option( Settings::VERSION_OPTION );
 	}
 
 	private function save( array $options ) {
@@ -730,11 +734,66 @@ class Settings_Tests extends WP_UnitTestCase {
 
 	public function test_maybe_upgrade_does_nothing_on_new_sites() {
 		delete_option( Settings::OPTION );
+		delete_option( Log_Repository::DB_VERSION_OPTION );
 
 		$this->settings->maybe_upgrade();
 
 		$this->assertFalse( get_option( Settings::OPTION ) );
 		$this->assertTrue( $this->settings->get( 'return_path' ) );
+	}
+
+	public function test_maybe_upgrade_keeps_the_server_return_path_on_sites_that_only_use_constants() {
+		// Version 1.2 saved no settings, but created the log table.
+		delete_option( Settings::OPTION );
+		update_option( Log_Repository::DB_VERSION_OPTION, '1' );
+
+		$this->settings->maybe_upgrade();
+
+		$this->assertFalse( $this->settings->get( 'return_path' ) );
+		$this->assertFalse( $this->settings->get( 'force_from_email' ) );
+		$this->assertFalse( $this->settings->get( 'force_from_name' ) );
+		$this->assertSame( Settings::VERSION, get_option( Settings::VERSION_OPTION ) );
+	}
+
+	public function test_maybe_upgrade_marks_new_sites_as_upgraded() {
+		delete_option( Settings::OPTION );
+		delete_option( Log_Repository::DB_VERSION_OPTION );
+
+		$this->settings->maybe_upgrade();
+
+		// Created later, by the log table upgrade.
+		update_option( Log_Repository::DB_VERSION_OPTION, Log_Repository::DB_VERSION );
+		$this->settings->maybe_upgrade();
+
+		$this->assertFalse( get_option( Settings::OPTION ) );
+		$this->assertTrue( $this->settings->get( 'return_path' ) );
+	}
+
+	public function test_maybe_upgrade_tries_again_when_the_settings_can_not_be_saved() {
+		update_option( Settings::OPTION, array( 'force_from' => true ) );
+
+		$keep_old = static function ( $value, $old ) {
+			return $old;
+		};
+		add_filter( 'pre_update_option_' . Settings::OPTION, $keep_old, 10, 2 );
+		$this->settings->maybe_upgrade();
+		remove_filter( 'pre_update_option_' . Settings::OPTION, $keep_old, 10 );
+
+		$this->assertFalse( get_option( Settings::VERSION_OPTION ) );
+
+		$this->settings->maybe_upgrade();
+
+		$this->assertTrue( $this->settings->get( 'force_from_email' ) );
+		$this->assertSame( Settings::VERSION, get_option( Settings::VERSION_OPTION ) );
+	}
+
+	public function test_maybe_upgrade_skips_sites_already_upgraded() {
+		update_option( Settings::VERSION_OPTION, Settings::VERSION );
+		update_option( Settings::OPTION, array( 'force_from' => true ) );
+
+		$this->settings->maybe_upgrade();
+
+		$this->assertArrayHasKey( 'force_from', get_option( Settings::OPTION ) );
 	}
 
 	public function test_maybe_upgrade_runs_once() {

@@ -109,6 +109,7 @@ class Mailer {
 		add_filter( 'wp_mail', array( $this, 'select_connection' ), PHP_INT_MAX );
 		add_action( 'wp_mail_succeeded', array( $this, 'reset_connection' ), PHP_INT_MAX );
 		add_action( 'wp_mail_failed', array( $this, 'reset_connection' ), PHP_INT_MAX );
+		add_filter( 'wp_mail', array( $this, 'use_transport' ), PHP_INT_MAX );
 		add_action( 'phpmailer_init', array( $this, 'configure' ) );
 		add_filter( 'wp_mail_from', array( $this, 'filter_from_email' ), PHP_INT_MAX );
 		add_filter( 'wp_mail_from_name', array( $this, 'filter_from_name' ), PHP_INT_MAX );
@@ -163,7 +164,8 @@ class Mailer {
 		/**
 		 * Filters the number of seconds to wait for the SMTP server to connect and to answer each command.
 		 *
-		 * The provider can still set its own value when it configures PHPMailer.
+		 * The provider can still set its own value when it configures PHPMailer. Providers that
+		 * send through an API read it from `$phpmailer->Timeout`.
 		 *
 		 * @since 1.2.0
 		 *
@@ -179,14 +181,30 @@ class Mailer {
 			// is awaited for up to Timelimit seconds, 300 by default.
 			$phpmailer->Timeout = $timeout;
 
-			// wp_mail() loads the SMTP class together with PHPMailer.
-			if ( class_exists( '\\PHPMailer\\PHPMailer\\SMTP' ) ) {
+			// wp_mail() loads the SMTP class together with PHPMailer. API providers do not use it.
+			if ( null === $provider['send'] && class_exists( '\\PHPMailer\\PHPMailer\\SMTP' ) ) {
 				$phpmailer->getSMTPInstance()->Timelimit = $timeout;
 			}
 			// phpcs:enable WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase
 		}
 
-		call_user_func( $provider['configure'], $phpmailer, $settings->get_provider_values() );
+		$values = $settings->get_provider_values();
+
+		if ( null !== $provider['configure'] ) {
+			call_user_func( $provider['configure'], $phpmailer, $values );
+		}
+
+		if ( null !== $provider['send'] ) {
+			// Another plugin put its own PHPMailer in place: the email does not go through the provider.
+			// An empty snapshot never matches the real instance, so the tracker credits another plugin.
+			if ( ! $phpmailer instanceof Transport_PHPMailer ) {
+				$this->tracker->remember( null );
+				return;
+			}
+
+			// The secrets are the ones of the connection the email goes through, not of the default one.
+			$phpmailer->set_transport( $provider['send'], $values, $this->get_secrets( $settings, $values ) );
+		}
 
 		// After the provider, since it can change the From address.
 		$this->apply_sender( $phpmailer, $settings );
@@ -258,6 +276,59 @@ class Mailer {
 	}
 
 	/**
+	 * Puts a PHPMailer that can send through a provider `send` callback in place.
+	 *
+	 * Runs on the `wp_mail` filter, before `wp_mail()` creates its PHPMailer instance, when a
+	 * connection uses an API provider. It does not read the provider of the email: other `wp_mail`
+	 * callbacks may still change it, so `configure()` picks it on `phpmailer_init`, also when the
+	 * saved provider is not configured. Without a callback, the instance sends like PHPMailer.
+	 *
+	 * @since 1.3.0
+	 *
+	 * @param array $atts Arguments of `wp_mail()`.
+	 * @return array Unchanged arguments.
+	 */
+	public function use_transport( $atts ) {
+		global $phpmailer;
+
+		// A send callback called wp_mail(): a new instance keeps the email in progress intact,
+		// and Transport_PHPMailer fails the new one. Not autoloaded, PHPMailer may not be loaded yet.
+		$sending = class_exists( Transport_PHPMailer::class, false ) && Transport_PHPMailer::is_sending();
+		if ( ! $sending && ( ! $this->has_send_provider() || $phpmailer instanceof Transport_PHPMailer ) ) {
+			return $atts;
+		}
+
+		// Only replace the instance WordPress creates, never one set by another plugin.
+		$current = is_object( $phpmailer ) ? get_class( $phpmailer ) : '';
+		if ( ! in_array( $current, array( '', 'PHPMailer\\PHPMailer\\PHPMailer', 'WP_PHPMailer', Transport_PHPMailer::class ), true ) ) {
+			return $atts;
+		}
+
+		// wp_mail() only loads these when it creates the instance itself.
+		require_once ABSPATH . WPINC . '/PHPMailer/PHPMailer.php';
+		require_once ABSPATH . WPINC . '/PHPMailer/SMTP.php';
+		require_once ABSPATH . WPINC . '/PHPMailer/Exception.php';
+
+		$phpmailer = new Transport_PHPMailer( true ); // phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited -- wp_mail() reuses this instance.
+
+		// Same setup as wp_mail() gives its own instance.
+		$phpmailer::$validator = static function ( $email ) {
+			return (bool) is_email( $email );
+		};
+
+		// Translated PHPMailer errors. Since WordPress 6.9 the strings are static, so shared by every instance.
+		// shortcut: on 6.8 they belong to each WP_PHPMailer instance, so this one keeps the English errors. Drop when 6.9 is the minimum.
+		if ( file_exists( ABSPATH . WPINC . '/class-wp-phpmailer.php' ) ) {
+			require_once ABSPATH . WPINC . '/class-wp-phpmailer.php';
+			if ( ( new \ReflectionMethod( \WP_PHPMailer::class, 'setLanguage' ) )->isStatic() ) {
+				\WP_PHPMailer::setLanguage();
+			}
+		}
+
+		return $atts;
+	}
+
+	/**
 	 * Filters the From email address.
 	 *
 	 * @since 1.2.0
@@ -318,6 +389,79 @@ class Mailer {
 		}
 
 		return $name;
+	}
+
+	/**
+	 * Returns whether an email may go through a provider `send` callback.
+	 *
+	 * Built-in API providers only count when a connection uses them, so sites that only send through
+	 * SMTP keep the PHPMailer of WordPress. Providers added by other plugins always count: other
+	 * `wp_mail` callbacks may still pick them for the current email.
+	 *
+	 * @since 1.3.0
+	 *
+	 * @return bool True when the email may be sent through a `send` callback.
+	 */
+	private function has_send_provider(): bool {
+		$providers = $this->registry->get_all();
+
+		foreach ( $providers as $slug => $provider ) {
+			if ( null !== $provider['send'] && ! in_array( $slug, Provider_Registry::BUILT_IN, true ) ) {
+				return true;
+			}
+		}
+
+		foreach ( $this->get_connection_provider_slugs() as $slug ) {
+			if ( isset( $providers[ $slug ] ) && null !== $providers[ $slug ]['send'] ) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	/**
+	 * Returns the provider slugs of every connection.
+	 *
+	 * @since 1.3.0
+	 *
+	 * @return string[] Provider slugs.
+	 */
+	private function get_connection_provider_slugs(): array {
+		if ( ! $this->connections ) {
+			return array( $this->settings->get_provider_slug() );
+		}
+
+		$slugs = array();
+		foreach ( $this->connections->get_ids() as $id ) {
+			$settings = $this->connections->get_settings( $id );
+			if ( $settings ) {
+				$slugs[] = $settings->get_provider_slug();
+			}
+		}
+
+		return array_unique( $slugs );
+	}
+
+	/**
+	 * Returns the values of the password fields of the provider of a connection.
+	 *
+	 * @since 1.3.0
+	 *
+	 * @param Settings $settings Settings of the connection the email is sent through.
+	 * @param array    $values   Resolved field values.
+	 * @return string[] Secret values.
+	 */
+	private function get_secrets( Settings $settings, array $values ): array {
+		$secrets = array();
+
+		foreach ( $settings->get_fields() as $key => $field ) {
+			if ( 'password' === $field['type'] && isset( $values[ $key ] ) ) {
+				$secrets[] = (string) $values[ $key ];
+			}
+		}
+
+		return $secrets;
 	}
 
 	/**

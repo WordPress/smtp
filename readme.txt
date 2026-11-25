@@ -16,6 +16,7 @@ Send WordPress emails through an SMTP server, with an extensible provider API an
 SMTP is a minimal, community-maintained plugin that sends the emails of your site through the SMTP server of your choice.
 
 * **Simple settings:** host, port, encryption, authentication, From email and From name, Return-Path and Reply-To under _Tools > SMTP_.
+* **Google (Gmail API):** send through a Google Workspace or Gmail account over the Gmail API with OAuth 2.0, without SMTP passwords.
 * **Constants support:** define `SMTP_HOST`, `SMTP_PORT`, `SMTP_ENCRYPTION`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM_EMAIL`, `SMTP_FROM_NAME`, `SMTP_FORCE_FROM_EMAIL`, `SMTP_FORCE_FROM_NAME`, `SMTP_RETURN_PATH`, `SMTP_REPLY_TO`, `SMTP_FORCE_REPLY_TO` and `SMTP_REPLY_TO_SENDER` in `wp-config.php` to override the saved values. Recommended for production, so credentials stay out of the database.
 * **Email log:** every email sent with `wp_mail()` is logged with its recipient, subject, status and error. The message body and attachments are never stored. Entries are deleted after 30 days.
 * **Alerts:** get a Slack message when an email fails to send, so a broken mailer does not go unnoticed. Developers can add more channels.
@@ -42,9 +43,17 @@ Passwords can be defined with the `SMTP_PASSWORD` constant in `wp-config.php`. O
 
 No. When this version loads for the first time it imports your host, port, encryption, username and password, and keeps sending email as the first user of the site, like before. You will see a notice with a link to review the settings. If your server can no longer decrypt the old password, the notice asks you to enter it again. Your old settings are left untouched.
 
+= How do I send through Google (Gmail API)? =
+
+1. In the Google Cloud console, create a project, enable the Gmail API and create an OAuth client ID of type _Web application_.
+2. Get a refresh token for the account that sends the email, with the `https://www.googleapis.com/auth/gmail.send` scope. For example, with the [OAuth 2.0 Playground](https://developers.google.com/oauthplayground/): use your own OAuth credentials and add `https://developers.google.com/oauthplayground` as an authorized redirect URI of the client.
+3. Under _Tools > SMTP_, pick _Google (Gmail API)_ and enter the client ID, client secret and refresh token, or define `SMTP_GOOGLE_CLIENT_ID`, `SMTP_GOOGLE_CLIENT_SECRET` and `SMTP_GOOGLE_REFRESH_TOKEN` in `wp-config.php`.
+
+Gmail sends from the account of the refresh token. Another From address only works when it is one of the verified _Send mail as_ addresses of that account. Refresh tokens of OAuth clients in _Testing_ publishing status expire after 7 days.
+
 = Does it support providers that use an HTTP API instead of SMTP? =
 
-Not yet. Providers can configure PHPMailer, which covers any service that offers SMTP.
+Yes, for developers. A provider can send the email through an API instead of SMTP, while the email log, the alerts and the test email keep working. The plugin ships with Generic SMTP and Google (Gmail API). See the technical documentation on [GitHub](https://github.com/wordpress/smtp).
 
 == Contributing ==
 
@@ -56,6 +65,8 @@ SMTP is developed in the open. Bug reports, ideas and pull requests are welcome 
 
 * Multiple connections: add mailboxes with their own provider, credentials, From address and sending limits, and pick one per email with `wp_smtp_mail()` or the `smtp_connection_for_email` filter. The existing settings become the default connection.
 * Developers can react when an email falls back to the default connection with the `smtp_connection_fallback` action.
+* Developers can add providers that send through an HTTP API instead of SMTP, with the new `send` callback. The email log, alerts and test email work with them too.
+* New Google (Gmail API) provider: send through a Google account with OAuth 2.0.
 
 = 1.2.0 =
 

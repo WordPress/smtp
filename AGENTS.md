@@ -15,7 +15,7 @@ This file provides context for AI coding agents (Claude Code, OpenAI Codex, Gemi
 
 Existing users of the legacy SMTP plugin keep their settings through an automatic import (see "Legacy plugin migration").
 
-Out of scope for the first release: HTTP-API providers (tracked in [#1](https://github.com/WordPress/smtp/issues/1)), multisite network settings, encryption of stored credentials.
+Out of scope for the first release: multisite network settings, encryption of stored credentials.
 
 ## Repository Structure
 
@@ -34,7 +34,8 @@ smtp/
 │   ├── Settings.php          # Field resolution (constant > saved value > default) and sanitization
 │   ├── Credentials.php       # The only place that reads/writes secrets
 │   ├── Migration.php         # One-time import of the legacy SMTP plugin (smtp_options) settings
-│   ├── Mailer.php            # phpmailer_init and wp_mail_from(_name) integration
+│   ├── Mailer.php            # phpmailer_init and wp_mail_from(_name) integration, Transport_PHPMailer swap
+│   ├── Transport_PHPMailer.php # PHPMailer that hands the email to a provider send callback
 │   ├── Delivery_Tracker.php  # Detects when another plugin delivers the email instead of this one
 │   ├── Log_Repository.php    # Log table schema (dbDelta) and queries
 │   ├── Logger.php            # wp_mail_succeeded / wp_mail_failed listeners and retention purge
@@ -82,8 +83,11 @@ A provider is an array registered through the `smtp_providers` filter:
 - `required_if` (array): `field => condition field` pairs. The field must have a value when the condition field is enabled. Generic SMTP uses it for `username` and `password` when `auth` is on.
 - `configure` (callable): receives the `PHPMailer` instance and the resolved field values.
 - `rate_limits` (array, optional): default sending limits. See "Sending limits".
+- `send` (callable, optional): for HTTP API providers. Receives the `PHPMailer` instance, ready to send, and the resolved field values, delivers the email (with `wp_remote_request()`, using `$phpmailer->Timeout`) and returns `true` or a `WP_Error`. A provider needs `configure`, `send` or both.
 
-`Provider_Registry::get_all()` discards invalid providers. Providers only configure PHPMailer; they must not send mail themselves.
+`Provider_Registry::get_all()` discards invalid providers. Providers without `send` only configure PHPMailer; they must not send mail themselves.
+
+When a registered provider has `send`, `Mailer::use_transport()` (on the `wp_mail` filter) puts a `Transport_PHPMailer` in the global `$phpmailer`, only when it would be the default instance. It does not read which provider the email uses: `Mailer::configure()` decides that on `phpmailer_init`, after every `wp_mail` callback ran. Without a callback the instance sends like PHPMailer. `wp_mail()` then builds the email as usual, and `Transport_PHPMailer::send()` calls the provider instead of sending it. A `WP_Error` is thrown as a PHPMailer exception, so core fires `wp_mail_failed` and the log and alerts work unchanged. **A `send` callback must never call `wp_mail()`**: `Transport_PHPMailer` fails that email and `use_transport()` gives it a new instance, so the email in progress is not changed. Do not use `pre_wp_mail` for this: core skips its parsing and the success and failure actions.
 
 ### Connections
 

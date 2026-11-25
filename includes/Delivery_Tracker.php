@@ -128,7 +128,8 @@ class Delivery_Tracker {
 	 *
 	 * @since 1.2.0
 	 *
-	 * @param \PHPMailer\PHPMailer\PHPMailer $phpmailer PHPMailer instance.
+	 * @param \PHPMailer\PHPMailer\PHPMailer|null $phpmailer PHPMailer instance. Null when another plugin sends the
+	 *                                                       email: the snapshot is empty and never matches the real instance.
 	 */
 	public function remember( $phpmailer ) {
 		$this->snapshot = $this->take_snapshot( $phpmailer );

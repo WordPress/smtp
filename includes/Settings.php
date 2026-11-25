@@ -28,6 +28,20 @@ class Settings {
 	const OPTION = 'smtp_settings';
 
 	/**
+	 * Name of the option that stores the version of the settings, set once they are upgraded.
+	 *
+	 * @since 1.3.0
+	 */
+	const VERSION_OPTION = 'smtp_settings_version';
+
+	/**
+	 * Version of the settings.
+	 *
+	 * @since 1.3.0
+	 */
+	const VERSION = '2';
+
+	/**
 	 * Provider registry.
 	 *
 	 * @since 1.2.0
@@ -108,11 +122,47 @@ class Settings {
 			$slug = $this->get_provider_slug();
 		}
 
+		return array_merge( $this->get_provider_fields( $slug ), self::normalize_fields( $this->get_general_fields() ) );
+	}
+
+	/**
+	 * Returns the normalized fields of a provider, without the general fields.
+	 *
+	 * @since 1.3.0
+	 *
+	 * @param string $slug Provider slug.
+	 * @return array[] Fields keyed by field key, empty for an unknown provider.
+	 */
+	public function get_provider_fields( string $slug ): array {
 		$provider = $this->registry->get( $slug );
-		$fields   = $provider ? $provider['fields'] : array();
 
-		$fields = array_merge( $fields, $this->get_general_fields() );
+		return self::normalize_fields( $provider ? $provider['fields'] : array() );
+	}
 
+	/**
+	 * Returns the resolved value of a field of any provider, also one that is not the active one.
+	 *
+	 * Values of another provider are not saved, so only constants and stored secrets are found.
+	 *
+	 * @since 1.3.0
+	 *
+	 * @param string $key   Field key.
+	 * @param array  $field Normalized field.
+	 * @return string|int|bool Field value.
+	 */
+	public function get_field_value( string $key, array $field ) {
+		return $this->resolve( $key, $field );
+	}
+
+	/**
+	 * Fills the missing keys of field definitions.
+	 *
+	 * @since 1.3.0
+	 *
+	 * @param array $fields Fields keyed by field key.
+	 * @return array[] Normalized fields.
+	 */
+	private static function normalize_fields( array $fields ): array {
 		foreach ( $fields as $key => $field ) {
 			$fields[ $key ] = wp_parse_args(
 				is_array( $field ) ? $field : array(),
@@ -317,29 +367,44 @@ class Settings {
 	/**
 	 * Splits the `force_from` setting of version 1.2 into `force_from_email` and `force_from_name`.
 	 *
-	 * Runs once, on sites that saved their settings before the split. These sites keep the Return-Path
-	 * chosen by their server, only new sites use the From email by default.
+	 * Runs once. Sites installed before version 1.3.0 keep the Return-Path chosen by their server, also
+	 * when they are configured only with constants. Only new sites use the From email by default.
+	 *
+	 * Must run before `Log_Repository::maybe_upgrade()`, which creates the option that tells a new
+	 * site from an existing one.
 	 *
 	 * @since 1.3.0
 	 */
 	public function maybe_upgrade() {
-		$options = get_option( self::OPTION );
-
-		// Version 1.2 always saved this key, and nothing saves it anymore.
-		if ( ! is_array( $options ) || ! array_key_exists( 'force_from', $options ) ) {
+		if ( false !== get_option( self::VERSION_OPTION ) ) {
 			return;
 		}
 
-		$force = ! empty( $options['force_from'] );
-		unset( $options['force_from'] );
+		$saved   = get_option( self::OPTION );
+		$options = is_array( $saved ) ? $saved : array();
 
-		$options += array(
-			'force_from_email' => $force,
-			'force_from_name'  => $force,
-			'return_path'      => false,
-		);
+		// Version 1.2 always saved `force_from`, so settings without it were saved by a later version.
+		// Sites that use only constants saved no settings, but version 1.2 created their log table.
+		$existing = array_key_exists( 'force_from', $options )
+			|| ( false === $saved && false !== get_option( Log_Repository::DB_VERSION_OPTION ) );
 
-		update_option( self::OPTION, $options );
+		if ( $existing ) {
+			$force = ! empty( $options['force_from'] );
+			unset( $options['force_from'] );
+
+			$options += array(
+				'force_from_email' => $force,
+				'force_from_name'  => $force,
+				'return_path'      => false,
+			);
+
+			// The new value always differs from the saved one, so false means the write failed: try again later.
+			if ( ! update_option( self::OPTION, $options ) ) {
+				return;
+			}
+		}
+
+		update_option( self::VERSION_OPTION, self::VERSION );
 	}
 
 	/**

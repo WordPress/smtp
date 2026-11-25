@@ -337,16 +337,25 @@ class Connections_Tab {
 								</option>
 							<?php endforeach; ?>
 						</select>
-						<p class="description" style="max-width: 600px;">
-							<?php esc_html_e( 'After changing the provider, save the connection to see its fields.', 'smtp' ); ?>
-						</p>
 					</td>
 				</tr>
 				<?php
 				$sections = Field_Renderer::get_sections();
 				$current  = 'connection';
 
-				foreach ( $settings->get_fields() as $key => $field ) {
+				// The fields of every provider, so changing the provider shows its fields without saving.
+				$rows = Field_Renderer::get_provider_field_rows( $settings, $this->registry );
+				foreach ( Field_Renderer::get_general_fields( $settings ) as $key => $field ) {
+					$rows[] = array(
+						'key'   => $key,
+						'field' => $field,
+						'id'    => 'smtp-' . $key,
+					);
+				}
+
+				foreach ( $rows as $row ) {
+					$key   = $row['key'];
+					$field = $row['field'];
 					if ( ! Field_Renderer::has_row( $field ) ) {
 						continue;
 					}
@@ -367,16 +376,32 @@ class Connections_Tab {
 						<table class="form-table" role="presentation">
 						<?php
 					}
+
+					$inactive = ! empty( $row['inactive'] );
 					?>
-					<tr>
+					<tr<?php echo $inactive ? ' class="hidden"' : ''; ?>>
 						<th scope="row">
 							<?php if ( Field_Renderer::uses_row_label( $field ) ) : ?>
-								<label for="<?php echo esc_attr( 'smtp-' . $key ); ?>"><?php echo esc_html( $field['label'] ); ?></label>
+								<label for="<?php echo esc_attr( $row['id'] ); ?>"><?php echo esc_html( $field['label'] ); ?></label>
 							<?php else : ?>
 								<?php echo esc_html( $field['label'] ); ?>
 							<?php endif; ?>
 						</th>
-						<td><?php Field_Renderer::render( $key, $field, $settings, Settings::OPTION . '[' . $key . ']' ); ?></td>
+						<td>
+							<?php
+							Field_Renderer::render(
+								$key,
+								$field,
+								$settings,
+								Settings::OPTION . '[' . $key . ']',
+								isset( $row['provider'] ) ? array(
+									'id'       => $row['id'],
+									'provider' => $row['provider'],
+									'inactive' => $inactive,
+								) : array()
+							);
+							?>
+						</td>
 					</tr>
 					<?php
 				}
