@@ -15,9 +15,9 @@ Send WordPress emails through an SMTP server, with an extensible provider API an
 
 SMTP is a minimal, community-maintained plugin that sends the emails of your site through the SMTP server of your choice.
 
-* **Simple settings:** host, port, encryption, authentication, From email and From name under _Tools > SMTP_.
+* **Simple settings:** host, port, encryption, authentication, From email and From name, Return-Path and Reply-To under _Tools > SMTP_.
 * **Google (Gmail API):** send through a Google Workspace or Gmail account over the Gmail API with OAuth 2.0, without SMTP passwords.
-* **Constants support:** define `SMTP_HOST`, `SMTP_PORT`, `SMTP_ENCRYPTION`, `SMTP_USER`, `SMTP_PASSWORD` and `SMTP_FROM_EMAIL` in `wp-config.php` to override the saved values. Recommended for production, so credentials stay out of the database.
+* **Constants support:** define `SMTP_HOST`, `SMTP_PORT`, `SMTP_ENCRYPTION`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM_EMAIL`, `SMTP_FROM_NAME`, `SMTP_FORCE_FROM_EMAIL`, `SMTP_FORCE_FROM_NAME`, `SMTP_RETURN_PATH`, `SMTP_REPLY_TO`, `SMTP_FORCE_REPLY_TO` and `SMTP_REPLY_TO_SENDER` in `wp-config.php` to override the saved values. Recommended for production, so credentials stay out of the database.
 * **Email log:** every email sent with `wp_mail()` is logged with its recipient, subject, status and error. The message body and attachments are never stored. Entries are deleted after 30 days.
 * **Alerts:** get a Slack message when an email fails to send, so a broken mailer does not go unnoticed. Developers can add more channels.
 * **Test email:** send a test message to yourself and see the connection log and a hint on what to check if something goes wrong. Credentials are redacted.

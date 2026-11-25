@@ -107,14 +107,14 @@ class Settings_Command_Tests extends WP_UnitTestCase {
 	}
 
 	public function test_set_keeps_the_other_settings() {
-		$this->run_set( array( 'host=smtp.example.com', 'port=2525', 'username=me', 'auth=no', 'force_from=yes' ) );
+		$this->run_set( array( 'host=smtp.example.com', 'port=2525', 'username=me', 'auth=no', 'force_from_email=yes' ) );
 		$this->run_set( array( 'host=other.example.com' ) );
 
 		$this->assertSame( 'other.example.com', $this->settings->get( 'host' ) );
 		$this->assertSame( 2525, $this->settings->get( 'port' ) );
 		$this->assertSame( 'me', $this->settings->get( 'username' ) );
 		$this->assertFalse( $this->settings->get( 'auth' ) );
-		$this->assertTrue( $this->settings->get( 'force_from' ) );
+		$this->assertTrue( $this->settings->get( 'force_from_email' ) );
 	}
 
 	public function test_set_keeps_an_equals_sign_in_the_value() {

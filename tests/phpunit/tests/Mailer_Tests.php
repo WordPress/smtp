@@ -363,11 +363,11 @@ class Mailer_Tests extends WP_UnitTestCase {
 		$this->assertSame( 'someone@else.com', $this->mailer->filter_from_email( 'someone@else.com' ) );
 	}
 
-	public function test_force_from_overrides_any_address() {
+	public function test_force_from_email_overrides_any_address() {
 		$this->configure(
 			array(
-				'from_email' => 'team@example.com',
-				'force_from' => true,
+				'from_email'       => 'team@example.com',
+				'force_from_email' => true,
 			)
 		);
 
@@ -380,8 +380,8 @@ class Mailer_Tests extends WP_UnitTestCase {
 
 		$this->configure(
 			array(
-				'from_email' => 'not-an-email',
-				'force_from' => true,
+				'from_email'       => 'not-an-email',
+				'force_from_email' => true,
 			)
 		);
 		$this->assertSame( 'someone@else.com', $this->mailer->filter_from_email( 'someone@else.com' ) );
@@ -405,11 +405,11 @@ class Mailer_Tests extends WP_UnitTestCase {
 		$this->assertSame( 'Other', $this->mailer->filter_from_name( 'Other' ) );
 	}
 
-	public function test_force_from_overrides_any_name() {
+	public function test_force_from_name_overrides_any_name() {
 		$this->configure(
 			array(
-				'from_name'  => 'Team',
-				'force_from' => true,
+				'from_name'       => 'Team',
+				'force_from_name' => true,
 			)
 		);
 
@@ -419,8 +419,8 @@ class Mailer_Tests extends WP_UnitTestCase {
 	public function test_from_name_is_untouched_when_empty() {
 		$this->configure(
 			array(
-				'from_name'  => '',
-				'force_from' => true,
+				'from_name'       => '',
+				'force_from_name' => true,
 			)
 		);
 
@@ -443,6 +443,237 @@ class Mailer_Tests extends WP_UnitTestCase {
 		$this->assertSame( 'smtp.example.com', $mailer->Host );
 		$this->assertSame( 'team@example.com', $mailer->From );
 		$this->assertSame( 'Team', $mailer->FromName );
+	}
+
+	public function test_force_from_email_alone_keeps_the_name() {
+		$this->configure(
+			array(
+				'from_email'       => 'team@example.com',
+				'from_name'        => 'Team',
+				'force_from_email' => true,
+			)
+		);
+
+		$this->assertSame( 'team@example.com', $this->mailer->filter_from_email( 'someone@else.com' ) );
+		$this->assertSame( 'Other', $this->mailer->filter_from_name( 'Other' ) );
+	}
+
+	public function test_force_from_name_alone_keeps_the_address() {
+		$this->configure(
+			array(
+				'from_email'      => 'team@example.com',
+				'from_name'       => 'Team',
+				'force_from_name' => true,
+			)
+		);
+
+		$this->assertSame( 'someone@else.com', $this->mailer->filter_from_email( 'someone@else.com' ) );
+		$this->assertSame( 'Team', $this->mailer->filter_from_name( 'Other' ) );
+	}
+
+	public function test_return_path_uses_the_from_email_by_default() {
+		$this->configure( array( 'from_email' => 'team@example.com' ) );
+
+		wp_mail( 'to@example.org', 'Subject', 'Body' );
+
+		$this->assertSame( 'team@example.com', tests_retrieve_phpmailer_instance()->Sender );
+	}
+
+	public function test_return_path_is_not_set_when_off() {
+		reset_phpmailer_instance();
+
+		$this->configure(
+			array(
+				'from_email'  => 'team@example.com',
+				'return_path' => false,
+			)
+		);
+
+		wp_mail( 'to@example.org', 'Subject', 'Body' );
+
+		$this->assertSame( '', tests_retrieve_phpmailer_instance()->Sender );
+	}
+
+	public function test_return_path_of_the_previous_email_is_not_kept() {
+		reset_phpmailer_instance();
+		$this->configure( array( 'from_email' => 'team@example.com' ) );
+		wp_mail( 'to@example.org', 'Subject', 'Body' );
+
+		$this->settings_update( array( 'return_path' => false ) );
+		wp_mail( 'to@example.org', 'Subject', 'Body' );
+
+		$this->assertSame( '', tests_retrieve_phpmailer_instance()->Sender );
+	}
+
+	public function test_return_path_of_the_previous_email_is_not_kept_when_no_longer_configured() {
+		reset_phpmailer_instance();
+		$this->configure( array( 'from_email' => 'team@example.com' ) );
+		wp_mail( 'to@example.org', 'Subject', 'Body' );
+
+		$this->settings_update( array( 'host' => '' ) );
+		wp_mail( 'to@example.org', 'Subject', 'Body', array( 'From: someone@example.org' ) );
+
+		$this->assertSame( '', tests_retrieve_phpmailer_instance()->Sender );
+	}
+
+	public function test_return_path_set_by_another_plugin_is_kept_when_off() {
+		reset_phpmailer_instance();
+		$this->configure(
+			array(
+				'from_email'  => 'team@example.com',
+				'return_path' => false,
+			)
+		);
+		$set_sender = static function ( $phpmailer ) {
+			$phpmailer->Sender = 'bounces@example.com'; // phpcs:ignore WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase
+		};
+		add_action( 'phpmailer_init', $set_sender, 5 );
+
+		wp_mail( 'to@example.org', 'Subject', 'Body' );
+
+		remove_action( 'phpmailer_init', $set_sender, 5 );
+		$this->assertSame( 'bounces@example.com', tests_retrieve_phpmailer_instance()->Sender );
+	}
+
+	private function settings_update( array $values ) {
+		update_option( Settings::OPTION, array_merge( get_option( Settings::OPTION ), $values ) );
+	}
+
+	public function test_return_path_is_not_set_until_configured() {
+		reset_phpmailer_instance();
+
+		update_option( Settings::OPTION, array( 'from_email' => 'team@example.com' ) );
+
+		wp_mail( 'to@example.org', 'Subject', 'Body' );
+
+		$this->assertSame( '', tests_retrieve_phpmailer_instance()->Sender );
+	}
+
+	// The test site runs on localhost, which makes the WordPress default From address invalid.
+	private function configure_with_from( array $extra = array() ) {
+		$this->configure( array_merge( array( 'from_email' => 'team@example.com' ), $extra ) );
+	}
+
+	private function reply_tos(): array {
+		return array_column( tests_retrieve_phpmailer_instance()->getReplyToAddresses(), 0 );
+	}
+
+	public function test_no_reply_to_is_added_by_default() {
+		$this->configure_with_from();
+
+		wp_mail( 'to@example.org', 'Subject', 'Body' );
+
+		$this->assertSame( array(), $this->reply_tos() );
+	}
+
+	public function test_default_reply_to_is_used_when_the_email_has_none() {
+		$this->configure_with_from( array( 'reply_to' => 'help@example.com' ) );
+
+		wp_mail( 'to@example.org', 'Subject', 'Body' );
+
+		$this->assertSame( array( 'help@example.com' ), $this->reply_tos() );
+	}
+
+	public function test_reply_to_of_the_email_wins_over_the_default() {
+		$this->configure_with_from( array( 'reply_to' => 'help@example.com' ) );
+
+		wp_mail( 'to@example.org', 'Subject', 'Body', array( 'Reply-To: visitor@example.org' ) );
+
+		$this->assertSame( array( 'visitor@example.org' ), $this->reply_tos() );
+	}
+
+	public function test_forced_reply_to_replaces_the_reply_to_of_the_email() {
+		$this->configure_with_from(
+			array(
+				'reply_to'       => 'help@example.com',
+				'force_reply_to' => true,
+			)
+		);
+
+		wp_mail( 'to@example.org', 'Subject', 'Body', array( 'Reply-To: visitor@example.org' ) );
+
+		$this->assertSame( array( 'help@example.com' ), $this->reply_tos() );
+	}
+
+	public function test_force_reply_to_without_an_address_keeps_the_reply_to_of_the_email() {
+		$this->configure_with_from( array( 'force_reply_to' => true ) );
+
+		wp_mail( 'to@example.org', 'Subject', 'Body', array( 'Reply-To: visitor@example.org' ) );
+
+		$this->assertSame( array( 'visitor@example.org' ), $this->reply_tos() );
+	}
+
+	public function test_original_sender_becomes_reply_to_when_the_from_email_is_forced() {
+		$this->configure(
+			array(
+				'from_email'       => 'team@example.com',
+				'force_from_email' => true,
+				'reply_to_sender'  => true,
+				'reply_to'         => 'help@example.com',
+			)
+		);
+
+		wp_mail( 'to@example.org', 'Subject', 'Body', array( 'From: Visitor <visitor@example.org>' ) );
+
+		$this->assertSame( 'team@example.com', tests_retrieve_phpmailer_instance()->From );
+		$this->assertSame( array( 'visitor@example.org' ), $this->reply_tos() );
+	}
+
+	public function test_reply_to_of_the_email_wins_over_the_original_sender() {
+		$this->configure(
+			array(
+				'from_email'       => 'team@example.com',
+				'force_from_email' => true,
+				'reply_to_sender'  => true,
+			)
+		);
+
+		wp_mail( 'to@example.org', 'Subject', 'Body', array( 'From: visitor@example.org', 'Reply-To: other@example.org' ) );
+
+		$this->assertSame( array( 'other@example.org' ), $this->reply_tos() );
+	}
+
+	public function test_original_sender_is_ignored_when_the_option_is_off() {
+		$this->configure(
+			array(
+				'from_email'       => 'team@example.com',
+				'force_from_email' => true,
+				'reply_to'         => 'help@example.com',
+			)
+		);
+
+		wp_mail( 'to@example.org', 'Subject', 'Body', array( 'From: visitor@example.org' ) );
+
+		$this->assertSame( array( 'help@example.com' ), $this->reply_tos() );
+	}
+
+	public function test_wordpress_default_address_never_becomes_reply_to() {
+		$this->configure(
+			array(
+				'from_email'       => 'team@example.com',
+				'force_from_email' => true,
+				'reply_to_sender'  => true,
+			)
+		);
+
+		wp_mail( 'to@example.org', 'Subject', 'Body' );
+
+		$this->assertSame( array(), $this->reply_tos() );
+	}
+
+	public function test_original_sender_is_not_kept_for_the_next_email() {
+		$this->configure(
+			array(
+				'from_email'       => 'team@example.com',
+				'force_from_email' => true,
+				'reply_to_sender'  => true,
+			)
+		);
+
+		wp_mail( 'to@example.org', 'Subject', 'Body', array( 'From: visitor@example.org' ) );
+		wp_mail( 'to@example.org', 'Subject', 'Body' );
+
+		$this->assertSame( array(), $this->reply_tos() );
 	}
 
 	private function add_connection( string $id = 'sponsors' ) {
@@ -517,6 +748,32 @@ class Mailer_Tests extends WP_UnitTestCase {
 		$this->assertSame( 'sponsors-secret', $phpmailer->Password );
 		$this->assertSame( 'sponsors@example.org', $phpmailer->From );
 		$this->assertSame( 'Sponsors team', $phpmailer->FromName );
+	}
+
+	public function test_the_sender_options_of_the_selected_connection_are_used() {
+		reset_phpmailer_instance();
+		$this->configure(
+			array(
+				'from_email' => 'team@example.com',
+				'reply_to'   => 'help@example.com',
+			)
+		);
+		// Saved without Return-Path and Reply-To, unlike the default connection.
+		$this->add_connection();
+		add_filter(
+			'smtp_connection_for_email',
+			static function () {
+				return 'sponsors';
+			}
+		);
+		$this->mailer_with_connections();
+
+		wp_mail( 'to@example.org', 'Subject', 'Message' );
+
+		$phpmailer = tests_retrieve_phpmailer_instance();
+		$this->assertSame( 'sponsors@example.org', $phpmailer->From );
+		$this->assertSame( '', $phpmailer->Sender );
+		$this->assertSame( array(), $this->reply_tos() );
 	}
 
 	public function test_the_default_connection_is_used_when_none_is_selected() {

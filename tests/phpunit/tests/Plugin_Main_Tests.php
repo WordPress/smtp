@@ -81,6 +81,17 @@ class Plugin_Main_Tests extends WP_UnitTestCase {
 		return null;
 	}
 
+	public function test_plugin_upgrades_the_settings_on_init() {
+		global $wp_filter;
+
+		$found = false;
+		foreach ( isset( $wp_filter['init'][0] ) ? $wp_filter['init'][0] : array() as $callback ) {
+			$found = $found || ( is_array( $callback['function'] ) && $callback['function'][0] instanceof Settings && 'maybe_upgrade' === $callback['function'][1] );
+		}
+
+		$this->assertTrue( $found );
+	}
+
 	public function test_plugin_creates_the_log_table_on_init_and_no_longer_on_admin_init() {
 		global $wp_filter;
 
@@ -148,6 +159,28 @@ class Plugin_Main_Tests extends WP_UnitTestCase {
 
 		$this->assertNotFalse( wp_next_scheduled( Plugin_Main::PURGE_HOOK ) );
 		$this->assertSame( Log_Repository::DB_VERSION, get_option( 'smtp_db_version' ) );
+	}
+
+	public function test_activate_on_a_new_site_keeps_the_return_path_default() {
+		delete_option( Settings::OPTION );
+		delete_option( Settings::VERSION_OPTION );
+		delete_option( Log_Repository::DB_VERSION_OPTION );
+
+		Plugin_Main::activate();
+
+		$this->assertSame( Settings::VERSION, get_option( Settings::VERSION_OPTION ) );
+		$this->assertTrue( ( new Settings( new Provider_Registry(), new Credentials() ) )->get( 'return_path' ) );
+	}
+
+	public function test_the_settings_upgrade_runs_before_the_log_table_upgrade() {
+		$names = array();
+		foreach ( $GLOBALS['wp_filter']['init'][0] as $callback ) {
+			if ( is_array( $callback['function'] ) && 'maybe_upgrade' === $callback['function'][1] ) {
+				$names[] = get_class( $callback['function'][0] );
+			}
+		}
+
+		$this->assertSame( array( Settings::class, Log_Repository::class ), array_slice( $names, 0, 2 ) );
 	}
 
 	public function test_deactivate_clears_the_scheduled_purge() {

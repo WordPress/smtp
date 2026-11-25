@@ -67,6 +67,22 @@ class Mailer {
 	private $connection_id = Connections::DEFAULT_ID;
 
 	/**
+	 * From email of the current email before Force From email replaced it.
+	 *
+	 * @since 1.3.0
+	 * @var string
+	 */
+	private $replaced_from = '';
+
+	/**
+	 * Return-Path this plugin set on the shared PHPMailer instance.
+	 *
+	 * @since 1.3.0
+	 * @var string
+	 */
+	private $sender = '';
+
+	/**
 	 * Constructor.
 	 *
 	 * @since 1.2.0
@@ -132,6 +148,8 @@ class Mailer {
 	 * @param \PHPMailer\PHPMailer\PHPMailer $phpmailer PHPMailer instance.
 	 */
 	public function configure( $phpmailer ) {
+		$this->drop_previous_sender( $phpmailer );
+
 		$settings = $this->get_settings();
 
 		if ( ! $settings->is_configured() ) {
@@ -188,7 +206,73 @@ class Mailer {
 			$phpmailer->set_transport( $provider['send'], $values, $this->get_secrets( $settings, $values ) );
 		}
 
+		// After the provider, since it can change the From address.
+		$this->apply_sender( $phpmailer, $settings );
+
 		$this->tracker->remember( $phpmailer );
+	}
+
+	/**
+	 * Removes the Return-Path this plugin set for the previous email.
+	 *
+	 * The PHPMailer instance of wp_mail() is reused and Sender is never reset. Runs for every email, so the
+	 * Return-Path is dropped even when this one is not sent through a configured connection.
+	 *
+	 * @since 1.3.0
+	 *
+	 * @param \PHPMailer\PHPMailer\PHPMailer $phpmailer PHPMailer instance.
+	 */
+	private function drop_previous_sender( $phpmailer ) {
+		// PHPMailer property names are not snake_case.
+		// phpcs:disable WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase
+		if ( '' !== $this->sender && $this->sender === $phpmailer->Sender ) {
+			$phpmailer->Sender = '';
+		}
+		// phpcs:enable WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase
+		$this->sender = '';
+	}
+
+	/**
+	 * Sets the Return-Path and the Reply-To.
+	 *
+	 * Reply-To order, highest first: forced Reply-To, the Reply-To of the email, the original
+	 * sender, the default Reply-To.
+	 *
+	 * @since 1.3.0
+	 *
+	 * @param \PHPMailer\PHPMailer\PHPMailer $phpmailer PHPMailer instance.
+	 * @param Settings                       $settings  Settings of the connection the email is sent through.
+	 */
+	private function apply_sender( $phpmailer, Settings $settings ) {
+		$replaced_from       = $this->replaced_from;
+		$this->replaced_from = '';
+
+		// PHPMailer property names are not snake_case.
+		// phpcs:disable WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase
+		if ( $settings->get( 'return_path' ) && is_email( $phpmailer->From ) ) {
+			$phpmailer->Sender = $phpmailer->From;
+			$this->sender      = $phpmailer->Sender;
+		}
+		// phpcs:enable WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase
+
+		$reply_to = (string) $settings->get( 'reply_to' );
+		$reply_to = is_email( $reply_to ) ? $reply_to : '';
+
+		if ( '' !== $reply_to && $settings->get( 'force_reply_to' ) ) {
+			$phpmailer->clearReplyTos();
+			$phpmailer->addReplyTo( $reply_to );
+			return;
+		}
+
+		if ( array() !== $phpmailer->getReplyToAddresses() ) {
+			return;
+		}
+
+		if ( '' !== $replaced_from && $settings->get( 'reply_to_sender' ) ) {
+			$phpmailer->addReplyTo( $replaced_from );
+		} elseif ( '' !== $reply_to ) {
+			$phpmailer->addReplyTo( $reply_to );
+		}
 	}
 
 	/**
@@ -253,6 +337,8 @@ class Mailer {
 	 * @return string From email address.
 	 */
 	public function filter_from_email( $email ) {
+		$this->replaced_from = '';
+
 		$settings = $this->get_settings();
 
 		if ( ! $settings->is_configured() ) {
@@ -264,7 +350,14 @@ class Mailer {
 			return $email;
 		}
 
-		if ( $settings->get( 'force_from' ) || $this->get_default_from_email() === $email ) {
+		$default = self::get_default_from_email() === $email;
+
+		if ( $settings->get( 'force_from_email' ) || $default ) {
+			// The WordPress default address is not a real sender, so replies never go to it.
+			if ( ! $default && is_string( $email ) && is_email( $email ) && strtolower( $email ) !== strtolower( $from_email ) ) {
+				$this->replaced_from = $email;
+			}
+
 			return $from_email;
 		}
 
@@ -291,7 +384,7 @@ class Mailer {
 			return $name;
 		}
 
-		if ( $settings->get( 'force_from' ) || 'WordPress' === $name ) {
+		if ( $settings->get( 'force_from_name' ) || 'WordPress' === $name ) {
 			return $from_name;
 		}
 
@@ -394,10 +487,11 @@ class Mailer {
 	 * Returns the From email address WordPress uses when none is set.
 	 *
 	 * @since 1.2.0
+	 * @since 1.3.0 Public and static, so the settings screen can show the address.
 	 *
 	 * @return string Default From email address.
 	 */
-	private function get_default_from_email(): string {
+	public static function get_default_from_email(): string {
 		$sitename = wp_parse_url( network_home_url(), PHP_URL_HOST );
 
 		if ( is_string( $sitename ) && 0 === strpos( $sitename, 'www.' ) ) {

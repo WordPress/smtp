@@ -178,58 +178,77 @@ class Admin_Page {
 			)
 		);
 
-		add_settings_section( 'smtp_main', '', '__return_empty_string', self::PAGE_SLUG );
-		add_settings_section( 'smtp_limits', __( 'Sending limits', 'smtp' ), array( $this, 'render_limits_section' ), self::PAGE_SLUG );
+		$sections = Field_Renderer::get_sections();
+
+		foreach ( $sections as $section => $title ) {
+			add_settings_section(
+				'smtp_' . $section,
+				$title,
+				'limits' === $section ? array( $this, 'render_limits_section' ) : '__return_empty_string',
+				self::PAGE_SLUG
+			);
+		}
 
 		add_settings_field(
 			'provider',
 			__( 'Provider', 'smtp' ),
 			array( $this, 'render_provider_field' ),
 			self::PAGE_SLUG,
-			'smtp_main',
+			'smtp_connection',
 			array( 'label_for' => 'smtp-provider' )
 		);
 
 		// The fields of every provider, so changing the provider shows its fields without saving.
-		foreach ( Field_Renderer::get_provider_field_rows( $this->settings, $this->registry ) as $row ) {
-			add_settings_field(
-				// The key, unless another provider already uses it.
-				'smtp-' . $row['key'] === $row['id'] ? $row['key'] : $row['id'],
-				$row['field']['label'],
-				array( $this, 'render_field' ),
-				self::PAGE_SLUG,
-				'smtp_main',
-				array(
-					'key'       => $row['key'],
-					'field'     => $row['field'],
-					'label_for' => $row['id'],
-					'id'        => $row['id'],
-					'provider'  => $row['provider'],
-					'inactive'  => $row['inactive'],
-					// Shown by assets/js/provider-fields.js when its provider is selected.
-					'class'     => $row['inactive'] ? 'hidden' : '',
-				)
+		$rows = Field_Renderer::get_provider_field_rows( $this->settings, $this->registry );
+		foreach ( Field_Renderer::get_general_fields( $this->settings ) as $key => $field ) {
+			$rows[] = array(
+				'key'   => $key,
+				'field' => $field,
+				'id'    => 'smtp-' . $key,
 			);
 		}
 
-		foreach ( Field_Renderer::get_general_fields( $this->settings ) as $key => $field ) {
+		foreach ( $rows as $row ) {
+			$field = $row['field'];
+			if ( ! Field_Renderer::has_row( $field ) ) {
+				continue;
+			}
+
+			$args = array(
+				'key'   => $row['key'],
+				'field' => $field,
+			);
+
+			if ( isset( $row['provider'] ) ) {
+				$args['id']       = $row['id'];
+				$args['provider'] = $row['provider'];
+				$args['inactive'] = $row['inactive'];
+				// Shown by assets/js/provider-fields.js when its provider is selected.
+				$args['class'] = $row['inactive'] ? 'hidden' : '';
+			}
+
+			if ( Field_Renderer::uses_row_label( $field ) ) {
+				$args['label_for'] = $row['id'];
+			}
+
+			// A field of an unknown section would not be rendered at all.
+			$section = isset( $sections[ $field['section'] ] ) ? $field['section'] : 'connection';
+
 			add_settings_field(
-				$key,
+				// The key, unless another provider already uses it.
+				'smtp-' . $row['key'] === $row['id'] ? $row['key'] : $row['id'],
 				$field['label'],
 				array( $this, 'render_field' ),
 				self::PAGE_SLUG,
-				0 === strpos( $key, 'rate_limit_' ) ? 'smtp_limits' : 'smtp_main',
-				array(
-					'key'       => $key,
-					'field'     => $field,
-					'label_for' => 'smtp-' . $key,
-				)
+				'smtp_' . $section,
+				$args
 			);
 		}
 	}
 
 	/**
-	 * Adds the script that shows the sending limits when they are customized.
+	 * Adds the scripts that show the sending limits when they are customized, and disable the
+	 * fields that can not take effect.
 	 *
 	 * @since 1.3.0
 	 *
@@ -242,6 +261,8 @@ class Admin_Page {
 
 		wp_enqueue_script( 'smtp-limits', plugins_url( 'assets/js/limits.js', $this->main_file ), array(), WP_SMTP_VERSION, true );
 		wp_enqueue_script( 'smtp-provider-fields', plugins_url( 'assets/js/provider-fields.js', $this->main_file ), array(), WP_SMTP_VERSION, true );
+		// After provider-fields.js, which enables the fields of the selected provider on load.
+		wp_enqueue_script( 'smtp-fields', plugins_url( 'assets/js/fields.js', $this->main_file ), array( 'smtp-provider-fields' ), WP_SMTP_VERSION, true );
 	}
 
 	/**
@@ -488,6 +509,25 @@ class Admin_Page {
 				<div class="notice notice-warning inline">
 					<p><?php esc_html_e( 'The test email was delivered by another plugin, so it does not test the settings of this plugin.', 'smtp' ); ?></p>
 				</div>
+			<?php endif; ?>
+			<?php if ( ! empty( $result['from'] ) ) : ?>
+				<h2><?php esc_html_e( 'Sender', 'smtp' ); ?></h2>
+				<table class="widefat striped" role="presentation" style="max-width: 40em;">
+					<tbody>
+						<tr>
+							<th scope="row"><?php esc_html_e( 'From', 'smtp' ); ?></th>
+							<td><?php echo esc_html( $result['from'] ); ?></td>
+						</tr>
+						<tr>
+							<th scope="row"><?php esc_html_e( 'Reply-To', 'smtp' ); ?></th>
+							<td><?php echo '' !== $result['reply_to'] ? esc_html( $result['reply_to'] ) : esc_html__( 'None', 'smtp' ); ?></td>
+						</tr>
+						<tr>
+							<th scope="row"><?php esc_html_e( 'Return-Path', 'smtp' ); ?></th>
+							<td><?php echo '' !== $result['return_path'] ? esc_html( $result['return_path'] ) : esc_html__( 'Same as From', 'smtp' ); ?></td>
+						</tr>
+					</tbody>
+				</table>
 			<?php endif; ?>
 			<?php if ( '' !== $result['debug'] ) : ?>
 				<h2><?php esc_html_e( 'Connection log', 'smtp' ); ?></h2>

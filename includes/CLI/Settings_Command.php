@@ -80,7 +80,7 @@ class Settings_Command {
 	 *
 	 *     wp smtp settings set host=smtp.example.com port=587 encryption=tls username=me@example.com
 	 *     printf '%s' "$SMTP_PASSWORD" | wp smtp settings set password=-
-	 *     wp smtp settings set from_email=me@example.com from_name="My site" force_from=yes
+	 *     wp smtp settings set from_email=me@example.com from_name="My site" force_from_email=yes force_from_name=yes
 	 *
 	 * @since 1.2.0
 	 *

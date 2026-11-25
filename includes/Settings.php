@@ -28,6 +28,20 @@ class Settings {
 	const OPTION = 'smtp_settings';
 
 	/**
+	 * Name of the option that stores the version of the settings, set once they are upgraded.
+	 *
+	 * @since 1.3.0
+	 */
+	const VERSION_OPTION = 'smtp_settings_version';
+
+	/**
+	 * Version of the settings.
+	 *
+	 * @since 1.3.0
+	 */
+	const VERSION = '2';
+
+	/**
 	 * Provider registry.
 	 *
 	 * @since 1.2.0
@@ -153,13 +167,18 @@ class Settings {
 			$fields[ $key ] = wp_parse_args(
 				is_array( $field ) ? $field : array(),
 				array(
-					'label'       => $key,
-					'type'        => 'text',
-					'default'     => '',
-					'options'     => array(),
-					'description' => '',
-					'constant'    => '',
-					'max'         => 0,
+					'label'          => $key,
+					'type'           => 'text',
+					'default'        => '',
+					'options'        => array(),
+					'description'    => '',
+					'constant'       => '',
+					'max'            => 0,
+					'section'        => 'connection',
+					'parent'         => '',
+					'enabled_by'     => '',
+					'disabled_by'    => '',
+					'checkbox_label' => '',
 				)
 			);
 		}
@@ -346,6 +365,49 @@ class Settings {
 	}
 
 	/**
+	 * Splits the `force_from` setting of version 1.2 into `force_from_email` and `force_from_name`.
+	 *
+	 * Runs once. Sites installed before version 1.3.0 keep the Return-Path chosen by their server, also
+	 * when they are configured only with constants. Only new sites use the From email by default.
+	 *
+	 * Must run before `Log_Repository::maybe_upgrade()`, which creates the option that tells a new
+	 * site from an existing one.
+	 *
+	 * @since 1.3.0
+	 */
+	public function maybe_upgrade() {
+		if ( false !== get_option( self::VERSION_OPTION ) ) {
+			return;
+		}
+
+		$saved   = get_option( self::OPTION );
+		$options = is_array( $saved ) ? $saved : array();
+
+		// Version 1.2 always saved `force_from`, so settings without it were saved by a later version.
+		// Sites that use only constants saved no settings, but version 1.2 created their log table.
+		$existing = array_key_exists( 'force_from', $options )
+			|| ( false === $saved && false !== get_option( Log_Repository::DB_VERSION_OPTION ) );
+
+		if ( $existing ) {
+			$force = ! empty( $options['force_from'] );
+			unset( $options['force_from'] );
+
+			$options += array(
+				'force_from_email' => $force,
+				'force_from_name'  => $force,
+				'return_path'      => false,
+			);
+
+			// The new value always differs from the saved one, so false means the write failed: try again later.
+			if ( ! update_option( self::OPTION, $options ) ) {
+				return;
+			}
+		}
+
+		update_option( self::VERSION_OPTION, self::VERSION );
+	}
+
+	/**
 	 * Returns where the value of a field comes from.
 	 *
 	 * @since 1.2.0
@@ -380,21 +442,77 @@ class Settings {
 	 */
 	private function get_general_fields(): array {
 		$fields = array(
-			'from_email' => array(
+			'from_email'       => array(
 				'label'       => __( 'From email', 'smtp' ),
 				'type'        => 'email',
 				'constant'    => 'SMTP_FROM_EMAIL',
-				'description' => __( 'Leave empty to keep the address chosen by WordPress or other plugins.', 'smtp' ),
+				'section'     => 'sender',
+				'description' => sprintf(
+					/* translators: %s: default From email address of WordPress, for example wordpress@example.com */
+					__( 'Replaces the WordPress default address (%s). Leave empty to keep it.', 'smtp' ),
+					Mailer::get_default_from_email()
+				),
 			),
-			'from_name'  => array(
-				'label' => __( 'From name', 'smtp' ),
-				'type'  => 'text',
-			),
-			'force_from' => array(
-				'label'       => __( 'Force from', 'smtp' ),
+			'force_from_email' => array(
+				'label'       => __( 'Force From email', 'smtp' ),
 				'type'        => 'checkbox',
 				'default'     => false,
-				'description' => __( 'Always use the From email and name above, even when another plugin sets its own.', 'smtp' ),
+				'constant'    => 'SMTP_FORCE_FROM_EMAIL',
+				'parent'      => 'from_email',
+				'enabled_by'  => 'from_email',
+				'description' => __( 'Also replace addresses set by other plugins', 'smtp' ),
+			),
+			'from_name'        => array(
+				'label'       => __( 'From name', 'smtp' ),
+				'type'        => 'text',
+				'constant'    => 'SMTP_FROM_NAME',
+				'section'     => 'sender',
+				'description' => __( 'Replaces the default name "WordPress".', 'smtp' ),
+			),
+			'force_from_name'  => array(
+				'label'       => __( 'Force From name', 'smtp' ),
+				'type'        => 'checkbox',
+				'default'     => false,
+				'constant'    => 'SMTP_FORCE_FROM_NAME',
+				'parent'      => 'from_name',
+				'enabled_by'  => 'from_name',
+				'description' => __( 'Also replace names set by other plugins', 'smtp' ),
+			),
+			'reply_to'         => array(
+				'label'       => __( 'Reply-To', 'smtp' ),
+				'type'        => 'email',
+				'constant'    => 'SMTP_REPLY_TO',
+				'section'     => 'replies',
+				'description' => __( 'Used when an email has no Reply-To of its own. Leave empty to add none.', 'smtp' ),
+			),
+			'force_reply_to'   => array(
+				'label'       => __( 'Force Reply-To', 'smtp' ),
+				'type'        => 'checkbox',
+				'default'     => false,
+				'constant'    => 'SMTP_FORCE_REPLY_TO',
+				'parent'      => 'reply_to',
+				'enabled_by'  => 'reply_to',
+				'description' => __( 'Also replace Reply-To addresses set by other plugins', 'smtp' ),
+			),
+			'reply_to_sender'  => array(
+				'label'       => __( 'Keep the sender as Reply-To', 'smtp' ),
+				'type'        => 'checkbox',
+				'default'     => false,
+				'constant'    => 'SMTP_REPLY_TO_SENDER',
+				'parent'      => 'reply_to',
+				// A forced Reply-To always wins, so the original sender would never be used.
+				'enabled_by'  => 'force_from_email',
+				'disabled_by' => 'force_reply_to',
+				'description' => __( 'When the From email is replaced, reply to the original sender instead', 'smtp' ),
+			),
+			'return_path'      => array(
+				'label'          => __( 'Return-Path', 'smtp' ),
+				'type'           => 'checkbox',
+				'default'        => true,
+				'constant'       => 'SMTP_RETURN_PATH',
+				'section'        => 'replies',
+				'checkbox_label' => __( "Use each email's From address as Return-Path", 'smtp' ),
+				'description'    => __( 'Bounces go to it and SPF checks match its domain.', 'smtp' ),
 			),
 		);
 

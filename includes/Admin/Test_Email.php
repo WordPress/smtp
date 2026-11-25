@@ -124,9 +124,16 @@ class Test_Email {
 	 *
 	 * @param string $to         Recipient address.
 	 * @param string $connection Optional. ID of the connection to test. Default empty, the connection the email would normally use.
-	 * @return array Result with `success`, `to`, `error`, `debug`, `provider` and `connection_id`. The credentials are removed from `debug`.
+	 * @return array Result with `success`, `to`, `error`, `debug`, `provider`, `connection_id`, `from`, `reply_to`
+	 *               and `return_path`. The credentials are removed from `debug`.
 	 */
 	public function send( string $to, string $connection = '' ): array {
+		$sender = array(
+			'from'        => '',
+			'reply_to'    => '',
+			'return_path' => '',
+		);
+
 		if ( ! is_email( $to ) ) {
 			return array(
 				'success'       => false,
@@ -135,7 +142,7 @@ class Test_Email {
 				'debug'         => '',
 				'provider'      => '',
 				'connection_id' => '' === $connection ? Connections::DEFAULT_ID : $connection,
-			);
+			) + $sender;
 		}
 
 		// Pick the connection like a plugin would, with the filter.
@@ -154,7 +161,13 @@ class Test_Email {
 
 		// PHPMailer property names are not snake_case.
 		// phpcs:disable WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase
-		$capture_debug = static function ( $phpmailer ) use ( &$debug ) {
+		$capture_debug = static function ( $phpmailer ) use ( &$debug, &$sender ) {
+			$sender = array(
+				'from'        => (string) $phpmailer->From,
+				'reply_to'    => implode( ', ', array_column( $phpmailer->getReplyToAddresses(), 0 ) ),
+				'return_path' => (string) $phpmailer->Sender,
+			);
+
 			$phpmailer->SMTPDebug   = 2;
 			$phpmailer->Debugoutput = static function ( $message ) use ( &$debug ) {
 				$debug[] = trim( (string) $message );
@@ -199,7 +212,7 @@ class Test_Email {
 			'debug'         => $this->redact( implode( "\n", $debug ), $connection_id ),
 			'provider'      => $provider,
 			'connection_id' => $connection_id,
-		);
+		) + $sender;
 	}
 
 	/**
@@ -208,7 +221,7 @@ class Test_Email {
 	 * @since 1.2.0
 	 *
 	 * @param int   $user_id User ID.
-	 * @param array $result  Result with `success`, `to`, `error`, `debug` and `provider`.
+	 * @param array $result  Result of Test_Email::send().
 	 */
 	private function finish( int $user_id, array $result ) {
 		set_transient( self::ACTION . '_' . $user_id, $result, 5 * MINUTE_IN_SECONDS );

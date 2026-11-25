@@ -172,6 +172,7 @@ class Rate_Limits {
 				'label'   => $labels[ $key ],
 				'type'    => 'number',
 				'default' => '',
+				'section' => 'limits',
 			);
 		}
 

@@ -285,6 +285,26 @@ class Test_Email_Tests extends WP_UnitTestCase {
 		$this->assertSame( 'someone@example.com', tests_retrieve_phpmailer_instance()->get_recipient( 'to' )->address );
 	}
 
+	public function test_send_returns_the_resulting_sender() {
+		update_option(
+			Settings::OPTION,
+			array(
+				'provider'         => 'smtp',
+				'host'             => 'smtp.example.com',
+				'auth'             => false,
+				'from_email'       => 'team@example.com',
+				'force_from_email' => true,
+				'reply_to'         => 'help@example.com',
+			)
+		);
+
+		$result = $this->test_email->send( 'someone@example.com' );
+
+		$this->assertSame( 'team@example.com', $result['from'] );
+		$this->assertSame( 'help@example.com', $result['reply_to'] );
+		$this->assertSame( 'team@example.com', $result['return_path'] );
+	}
+
 	public function test_send_rejects_an_invalid_address_without_sending() {
 		$result = $this->test_email->send( 'not-an-email' );
 

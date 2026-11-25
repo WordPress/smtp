@@ -18,6 +18,7 @@ $smtp_uninstall_site = static function () {
 	global $wpdb;
 
 	delete_option( 'smtp_settings' );
+	delete_option( 'smtp_settings_version' );
 	delete_option( 'smtp_connections' );
 	delete_option( 'smtp_credentials' );
 	delete_option( 'smtp_db_version' );

@@ -163,7 +163,7 @@ class Connections_Tab_Tests extends WP_UnitTestCase {
 
 		$this->assertStringNotContainsString( 'save the connection to see its fields', $html );
 		$this->assertMatchesRegularExpression( '/id="smtp-host"[^>]*data-smtp-provider="smtp"/s', $html );
-		$this->assertMatchesRegularExpression( '/<tr class="hidden">\s*<th scope="row"><label for="smtp-google_client_id">/', $html );
+		$this->assertMatchesRegularExpression( '/<tr class="hidden">\s*<th scope="row">\s*<label for="smtp-google_client_id">/', $html );
 		$this->assertMatchesRegularExpression( '/id="smtp-google_client_id"[^>]*disabled=\'disabled\'[^>]*data-smtp-provider="google"/s', $html );
 	}
 
@@ -188,6 +188,16 @@ class Connections_Tab_Tests extends WP_UnitTestCase {
 		$_GET['connection'] = 'sponsors';
 
 		$this->assertMatchesRegularExpression( '/id="smtp-customize-limits"[^>]*checked/', $this->render() );
+	}
+
+	public function test_the_form_of_a_connection_groups_the_fields_like_the_settings_tab() {
+		$_GET['connection'] = 'new';
+
+		$html = $this->render();
+
+		$this->assertMatchesRegularExpression( '/<h3>Connection<\/h3>.*?name="smtp_settings\[host\]".*?<h3>Sender<\/h3>.*?name="smtp_settings\[from_email\]".*?<h3>Replies and bounces<\/h3>.*?name="smtp_settings\[reply_to\]".*?<h3>Sending limits<\/h3>/s', $html );
+		$this->assertSame( 1, substr_count( $html, 'id="smtp-force_from_email"' ) );
+		$this->assertStringNotContainsString( '<label for="smtp-return_path">Return-Path</label>', $html );
 	}
 
 	public function test_the_form_to_edit_a_connection_keeps_its_id_and_never_prints_the_password() {

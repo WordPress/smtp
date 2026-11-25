@@ -302,6 +302,7 @@ class Connections_Tab {
 			<?php else : ?>
 				<input type="hidden" name="connection_id" value="<?php echo esc_attr( $id ); ?>" />
 			<?php endif; ?>
+			<h3><?php echo esc_html( Field_Renderer::get_sections()['connection'] ); ?></h3>
 			<table class="form-table" role="presentation">
 				<tr>
 					<th scope="row"><label for="smtp-connection-label"><?php esc_html_e( 'Name', 'smtp' ); ?></label></th>
@@ -314,7 +315,7 @@ class Connections_Tab {
 							value="<?php echo esc_attr( $is_new ? '' : $this->connections->get_label( $id ) ); ?>"
 							required
 						/>
-						<p class="description">
+						<p class="description" style="max-width: 600px;">
 							<?php
 							echo $is_new
 								? esc_html__( 'The ID used in code to pick this connection is generated from the name, for example "sponsors".', 'smtp' )
@@ -339,45 +340,68 @@ class Connections_Tab {
 					</td>
 				</tr>
 				<?php
+				$sections = Field_Renderer::get_sections();
+				$current  = 'connection';
+
 				// The fields of every provider, so changing the provider shows its fields without saving.
-				foreach ( Field_Renderer::get_provider_field_rows( $settings, $this->registry ) as $row ) {
+				$rows = Field_Renderer::get_provider_field_rows( $settings, $this->registry );
+				foreach ( Field_Renderer::get_general_fields( $settings ) as $key => $field ) {
+					$rows[] = array(
+						'key'   => $key,
+						'field' => $field,
+						'id'    => 'smtp-' . $key,
+					);
+				}
+
+				foreach ( $rows as $row ) {
+					$key   = $row['key'];
+					$field = $row['field'];
+					if ( ! Field_Renderer::has_row( $field ) ) {
+						continue;
+					}
+
+					$section = isset( $sections[ $field['section'] ] ) ? $field['section'] : 'connection';
+
+					// Same sections as the Settings tab, each one in its own table.
+					if ( $section !== $current ) {
+						$current = $section;
+						?>
+						</table>
+						<h3><?php echo esc_html( $sections[ $section ] ); ?></h3>
+						<?php
+						if ( 'limits' === $section ) {
+							Field_Renderer::render_limits_toggle( $settings );
+						}
+						?>
+						<table class="form-table" role="presentation">
+						<?php
+					}
+
+					$inactive = ! empty( $row['inactive'] );
 					?>
-					<tr<?php echo $row['inactive'] ? ' class="hidden"' : ''; ?>>
-						<th scope="row"><label for="<?php echo esc_attr( $row['id'] ); ?>"><?php echo esc_html( $row['field']['label'] ); ?></label></th>
+					<tr<?php echo $inactive ? ' class="hidden"' : ''; ?>>
+						<th scope="row">
+							<?php if ( Field_Renderer::uses_row_label( $field ) ) : ?>
+								<label for="<?php echo esc_attr( $row['id'] ); ?>"><?php echo esc_html( $field['label'] ); ?></label>
+							<?php else : ?>
+								<?php echo esc_html( $field['label'] ); ?>
+							<?php endif; ?>
+						</th>
 						<td>
 							<?php
 							Field_Renderer::render(
-								$row['key'],
-								$row['field'],
+								$key,
+								$field,
 								$settings,
-								Settings::OPTION . '[' . $row['key'] . ']',
-								array(
+								Settings::OPTION . '[' . $key . ']',
+								isset( $row['provider'] ) ? array(
 									'id'       => $row['id'],
 									'provider' => $row['provider'],
-									'inactive' => $row['inactive'],
-								)
+									'inactive' => $inactive,
+								) : array()
 							);
 							?>
 						</td>
-					</tr>
-					<?php
-				}
-
-				$limits_toggled = false;
-				foreach ( Field_Renderer::get_general_fields( $settings ) as $key => $field ) {
-					if ( ! $limits_toggled && 0 === strpos( $key, 'rate_limit_' ) ) {
-						$limits_toggled = true;
-						?>
-						<tr>
-							<th scope="row"><?php esc_html_e( 'Sending limits', 'smtp' ); ?></th>
-							<td><?php Field_Renderer::render_limits_toggle( $settings ); ?></td>
-						</tr>
-						<?php
-					}
-					?>
-					<tr>
-						<th scope="row"><label for="<?php echo esc_attr( 'smtp-' . $key ); ?>"><?php echo esc_html( $field['label'] ); ?></label></th>
-						<td><?php Field_Renderer::render( $key, $field, $settings, Settings::OPTION . '[' . $key . ']' ); ?></td>
 					</tr>
 					<?php
 				}
