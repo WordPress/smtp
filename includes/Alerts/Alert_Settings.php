@@ -137,9 +137,10 @@ class Alert_Settings {
 	 * Sanitizes the submitted alert settings.
 	 *
 	 * The fields of every channel are kept, so switching channels does not lose them.
-	 * An empty secret keeps the saved one.
+	 * An empty secret keeps the saved one, unless it is listed in the `remove_secrets` of its channel.
 	 *
 	 * @since 1.2.0
+	 * @since 1.3.0 Accepts `remove_secrets`.
 	 *
 	 * @param mixed $input Submitted settings.
 	 * @return array Sanitized settings.
@@ -171,6 +172,8 @@ class Alert_Settings {
 				if ( 'password' === ( $field['type'] ?? '' ) ) {
 					if ( '' !== $value ) {
 						$this->credentials->set( self::get_secret_key( $id, $key ), $value );
+					} elseif ( ! empty( $raw['remove_secrets'][ $key ] ) ) {
+						$this->credentials->delete( self::get_secret_key( $id, $key ) );
 					}
 					continue;
 				}

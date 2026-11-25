@@ -87,4 +87,29 @@ class Credentials {
 
 		update_option( self::OPTION, $secrets, false );
 	}
+
+	/**
+	 * Removes a stored secret. The option is deleted once it holds no secret.
+	 *
+	 * @since 1.3.0
+	 *
+	 * @param string $key Secret key.
+	 */
+	public function delete( string $key ) {
+		$secrets = get_option( self::OPTION, array() );
+
+		if ( ! is_array( $secrets ) || ! array_key_exists( $key, $secrets ) ) {
+			return;
+		}
+
+		unset( $secrets[ $key ] );
+
+		if ( empty( $secrets ) ) {
+			delete_option( self::OPTION );
+
+			return;
+		}
+
+		update_option( self::OPTION, $secrets, false );
+	}
 }

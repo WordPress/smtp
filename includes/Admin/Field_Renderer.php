@@ -127,7 +127,16 @@ class Field_Renderer {
 				/>
 				<?php
 				if ( '' !== $value && ! $locked ) {
-					$field['description'] = __( 'A password is saved. Leave empty to keep it.', 'smtp' );
+					$remove_id = $id . '-remove';
+					?>
+					<p>
+						<label for="<?php echo esc_attr( $remove_id ); ?>">
+							<input type="checkbox" id="<?php echo esc_attr( $remove_id ); ?>" name="<?php echo esc_attr( Settings::OPTION . '[remove_secrets][' . $key . ']' ); ?>" value="1" />
+							<?php esc_html_e( 'Remove the saved password', 'smtp' ); ?>
+						</label>
+					</p>
+					<?php
+					$field['description'] = __( 'A password is saved. Leave empty to keep it, or check the box above to remove it.', 'smtp' );
 				}
 				break;
 
