@@ -190,7 +190,29 @@ class Admin_Page {
 			array( 'label_for' => 'smtp-provider' )
 		);
 
-		foreach ( $this->settings->get_fields() as $key => $field ) {
+		// The fields of every provider, so changing the provider shows its fields without saving.
+		foreach ( Field_Renderer::get_provider_field_rows( $this->settings, $this->registry ) as $row ) {
+			add_settings_field(
+				// The key, unless another provider already uses it.
+				'smtp-' . $row['key'] === $row['id'] ? $row['key'] : $row['id'],
+				$row['field']['label'],
+				array( $this, 'render_field' ),
+				self::PAGE_SLUG,
+				'smtp_main',
+				array(
+					'key'       => $row['key'],
+					'field'     => $row['field'],
+					'label_for' => $row['id'],
+					'id'        => $row['id'],
+					'provider'  => $row['provider'],
+					'inactive'  => $row['inactive'],
+					// Shown by assets/js/provider-fields.js when its provider is selected.
+					'class'     => $row['inactive'] ? 'hidden' : '',
+				)
+			);
+		}
+
+		foreach ( Field_Renderer::get_general_fields( $this->settings ) as $key => $field ) {
 			add_settings_field(
 				$key,
 				$field['label'],
@@ -219,6 +241,7 @@ class Admin_Page {
 		}
 
 		wp_enqueue_script( 'smtp-limits', plugins_url( 'assets/js/limits.js', $this->main_file ), array(), WP_SMTP_VERSION, true );
+		wp_enqueue_script( 'smtp-provider-fields', plugins_url( 'assets/js/provider-fields.js', $this->main_file ), array(), WP_SMTP_VERSION, true );
 	}
 
 	/**
@@ -322,9 +345,6 @@ class Admin_Page {
 				</option>
 			<?php endforeach; ?>
 		</select>
-		<p class="description">
-			<?php esc_html_e( 'After changing the provider, save the settings to see its fields.', 'smtp' ); ?>
-		</p>
 		<?php
 	}
 
@@ -333,10 +353,17 @@ class Admin_Page {
 	 *
 	 * @since 1.2.0
 	 *
-	 * @param array $args Field arguments: `key` and `field`.
+	 * @param array $args Field arguments: `key` and `field`, plus `id`, `provider` and `inactive` for the
+	 *                    fields of a provider.
 	 */
 	public function render_field( array $args ) {
-		Field_Renderer::render( $args['key'], $args['field'], $this->settings, Settings::OPTION . '[' . $args['key'] . ']' );
+		Field_Renderer::render(
+			$args['key'],
+			$args['field'],
+			$this->settings,
+			Settings::OPTION . '[' . $args['key'] . ']',
+			array_intersect_key( $args, array_flip( array( 'id', 'provider', 'inactive' ) ) )
+		);
 	}
 
 	/**

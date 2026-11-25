@@ -194,10 +194,10 @@ class Mailer {
 	/**
 	 * Puts a PHPMailer that can send through a provider `send` callback in place.
 	 *
-	 * Runs on the `wp_mail` filter, before `wp_mail()` creates its PHPMailer instance. It does not
-	 * read the provider of the email: other `wp_mail` callbacks may still change it, so `configure()`
-	 * picks it on `phpmailer_init`, also when the saved provider is not configured. Without a
-	 * callback, the instance sends like PHPMailer.
+	 * Runs on the `wp_mail` filter, before `wp_mail()` creates its PHPMailer instance, when a
+	 * connection uses an API provider. It does not read the provider of the email: other `wp_mail`
+	 * callbacks may still change it, so `configure()` picks it on `phpmailer_init`, also when the
+	 * saved provider is not configured. Without a callback, the instance sends like PHPMailer.
 	 *
 	 * @since 1.3.0
 	 *
@@ -299,20 +299,55 @@ class Mailer {
 	}
 
 	/**
-	 * Returns whether a registered provider sends through a `send` callback.
+	 * Returns whether an email may go through a provider `send` callback.
+	 *
+	 * Built-in API providers only count when a connection uses them, so sites that only send through
+	 * SMTP keep the PHPMailer of WordPress. Providers added by other plugins always count: other
+	 * `wp_mail` callbacks may still pick them for the current email.
 	 *
 	 * @since 1.3.0
 	 *
-	 * @return bool True when at least one provider has a `send` callback.
+	 * @return bool True when the email may be sent through a `send` callback.
 	 */
 	private function has_send_provider(): bool {
-		foreach ( $this->registry->get_all() as $provider ) {
-			if ( null !== $provider['send'] ) {
+		$providers = $this->registry->get_all();
+
+		foreach ( $providers as $slug => $provider ) {
+			if ( null !== $provider['send'] && ! in_array( $slug, Provider_Registry::BUILT_IN, true ) ) {
+				return true;
+			}
+		}
+
+		foreach ( $this->get_connection_provider_slugs() as $slug ) {
+			if ( isset( $providers[ $slug ] ) && null !== $providers[ $slug ]['send'] ) {
 				return true;
 			}
 		}
 
 		return false;
+	}
+
+	/**
+	 * Returns the provider slugs of every connection.
+	 *
+	 * @since 1.3.0
+	 *
+	 * @return string[] Provider slugs.
+	 */
+	private function get_connection_provider_slugs(): array {
+		if ( ! $this->connections ) {
+			return array( $this->settings->get_provider_slug() );
+		}
+
+		$slugs = array();
+		foreach ( $this->connections->get_ids() as $id ) {
+			$settings = $this->connections->get_settings( $id );
+			if ( $settings ) {
+				$slugs[] = $settings->get_provider_slug();
+			}
+		}
+
+		return array_unique( $slugs );
 	}
 
 	/**
