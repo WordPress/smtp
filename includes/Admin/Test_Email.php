@@ -151,14 +151,17 @@ class Test_Email {
 		$error         = '';
 		$provider      = '';
 		$connection_id = Connections::DEFAULT_ID;
+		$auth          = array( '', '' );
 
 		// PHPMailer property names are not snake_case.
 		// phpcs:disable WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase
-		$capture_debug = static function ( $phpmailer ) use ( &$debug ) {
+		$capture_debug = static function ( $phpmailer ) use ( &$debug, &$auth ) {
 			$phpmailer->SMTPDebug   = 2;
 			$phpmailer->Debugoutput = static function ( $message ) use ( &$debug ) {
 				$debug[] = trim( (string) $message );
 			};
+			// Runs after the provider configured PHPMailer, so these are the credentials sent to the server, whatever the provider calls its fields.
+			$auth = array( (string) $phpmailer->Username, (string) $phpmailer->Password );
 		};
 		// phpcs:enable WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase
 		$capture_error = static function ( $wp_error ) use ( &$error ) {
@@ -196,7 +199,7 @@ class Test_Email {
 			'success'       => $sent,
 			'to'            => $to,
 			'error'         => $error,
-			'debug'         => $this->redact( implode( "\n", $debug ), $connection_id ),
+			'debug'         => $this->redact( implode( "\n", $debug ), $connection_id, $auth ),
 			'provider'      => $provider,
 			'connection_id' => $connection_id,
 		);
@@ -224,9 +227,10 @@ class Test_Email {
 	 *
 	 * @param string $text          Connection log.
 	 * @param string $connection_id Optional. ID of the connection that was used. Default the default connection.
+	 * @param array  $auth          Optional. Username and password PHPMailer authenticated with. Default empty.
 	 * @return string Connection log without credentials.
 	 */
-	private function redact( string $text, string $connection_id = Connections::DEFAULT_ID ): string {
+	private function redact( string $text, string $connection_id = Connections::DEFAULT_ID, array $auth = array( '', '' ) ): string {
 		// The fields and the values must come from the same connection: another provider has other field keys.
 		$settings = ( $this->connections ? $this->connections->get_settings( $connection_id ) : null ) ?? $this->settings;
 		$fields   = $settings->get_fields();
@@ -236,15 +240,19 @@ class Test_Email {
 
 		// Every password field is a secret, not only the one named `password`: providers added
 		// through the smtp_providers filter may call it `api_key` or `token`.
-		foreach ( $values as $key => $value ) {
+		$passwords   = array_intersect_key( $values, wp_list_filter( $fields, array( 'type' => 'password' ) ) );
+		$passwords[] = $auth[1];
+
+		foreach ( $passwords as $value ) {
 			$value = (string) $value;
-			if ( '' === $value || ! isset( $fields[ $key ] ) || 'password' !== $fields[ $key ]['type'] ) {
+			if ( '' === $value ) {
 				continue;
 			}
 
 			$secrets[] = $value;
 			$secrets[] = base64_encode( $value ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode -- Needed to match the SMTP AUTH exchange.
 			$secrets[] = base64_encode( "\0" . $username . "\0" . $value ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode -- Needed to match the SMTP AUTH exchange.
+			$secrets[] = base64_encode( "\0" . $auth[0] . "\0" . $value ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode -- Needed to match the SMTP AUTH exchange.
 		}
 
 		// Longest first, so a secret that contains another one is replaced as a whole.
