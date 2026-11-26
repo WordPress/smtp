@@ -173,7 +173,8 @@ class Connections {
 	 * Generates the ID of a new connection from its name.
 	 *
 	 * The name goes through sanitize_title(). When the result is the reserved default ID or is already
-	 * taken, a number is appended: `sponsors`, `sponsors-2`, `sponsors-3`...
+	 * taken, a number is appended: `sponsors`, `sponsors-2`, `sponsors-3`... The connections are read
+	 * from the database, not from the copy cached earlier in the request, so call it right before saving.
 	 *
 	 * @since 1.3.0
 	 *
@@ -186,6 +187,10 @@ class Connections {
 		if ( '' === $base ) {
 			return '';
 		}
+
+		// Another request may have added a connection since the option was read and cached in this one.
+		wp_cache_delete( self::OPTION, 'options' );
+		wp_cache_delete( 'notoptions', 'options' );
 
 		$id     = $base;
 		$number = 2;

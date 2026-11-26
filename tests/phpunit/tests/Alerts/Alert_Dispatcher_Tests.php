@@ -159,6 +159,29 @@ class Alert_Dispatcher_Tests extends WP_UnitTestCase {
 		$this->assertSame( 0, $this->dispatcher->get_state( 'fake' )['suppressed'] );
 	}
 
+	public function test_the_alert_is_marked_as_sent_before_the_channel_delivers_it() {
+		global $wpdb;
+
+		$this->enable();
+
+		$saved_before = null;
+		// Another request reads the state while the channel waits for Slack, and counts its own failure.
+		$this->fake->on_send = static function () use ( $wpdb, &$saved_before ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+			$stored       = maybe_unserialize( $wpdb->get_var( $wpdb->prepare( "SELECT option_value FROM {$wpdb->options} WHERE option_name = %s", Alert_Dispatcher::STATE_OPTION ) ) );
+			$saved_before = $stored['fake']['last_sent'] ?? 0;
+
+			$stored['fake']['suppressed'] = 1;
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+			$wpdb->update( $wpdb->options, array( 'option_value' => maybe_serialize( $stored ) ), array( 'option_name' => Alert_Dispatcher::STATE_OPTION ) );
+		};
+
+		$this->dispatcher->handle_failure( $this->mail_error() );
+
+		$this->assertGreaterThan( 0, $saved_before );
+		$this->assertSame( 1, $this->dispatcher->get_state( 'fake' )['suppressed'] );
+	}
+
 	public function test_the_throttle_can_be_disabled_with_a_filter() {
 		$this->enable();
 		add_filter( 'smtp_alert_throttle', '__return_zero' );

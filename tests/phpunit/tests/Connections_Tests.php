@@ -94,6 +94,30 @@ class Connections_Tests extends WP_UnitTestCase {
 		$this->assertSame( Connections::MAX_ID_LENGTH, strlen( Connections::sanitize_id( str_repeat( 'a', 80 ) ) ) );
 	}
 
+	public function test_generate_id_sees_a_connection_added_by_another_request() {
+		global $wpdb;
+
+		// This request reads the connections early, then another request adds one with the same name.
+		$this->assertFalse( $this->connections->exists( 'sponsors' ) );
+		$stored = array(
+			'sponsors' => array(
+				'label'    => 'Sponsors',
+				'settings' => array(),
+			),
+		);
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+		$wpdb->replace(
+			$wpdb->options,
+			array(
+				'option_name'  => Connections::OPTION,
+				'option_value' => maybe_serialize( $stored ),
+				'autoload'     => 'no',
+			)
+		);
+
+		$this->assertSame( 'sponsors-2', $this->connections->generate_id( 'Sponsors' ) );
+	}
+
 	public function test_generate_id_uses_sanitize_title_on_the_name() {
 		$this->assertSame( 'sponsors-team', $this->connections->generate_id( 'Sponsors Team!' ) );
 		$this->assertSame( 'cafe-del-mar', $this->connections->generate_id( 'Café del Mar' ) );
