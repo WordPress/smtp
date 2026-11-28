@@ -75,6 +75,14 @@ class Privacy_Tests extends WP_UnitTestCase {
 		$this->assertSame( array( 'First', 'Second' ), $subjects );
 	}
 
+	public function test_export_does_not_show_the_other_recipients() {
+		$this->log_to( 'John Doe <john@example.com>, Jane <JANE@example.com>,bob@example.org' );
+
+		$values = wp_list_pluck( $this->privacy->export( 'jane@example.com', 1 )['data'][0]['data'], 'value', 'name' );
+
+		$this->assertSame( 'Jane <JANE@example.com>', $values['To'] );
+	}
+
 	public function test_addresses_must_match_a_whole_recipient() {
 		$this->log_to( 'jbob@example.com' );
 		$this->log_to( 'bob@example.com.evil' );

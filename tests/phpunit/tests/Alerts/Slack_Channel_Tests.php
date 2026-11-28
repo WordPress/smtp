@@ -114,6 +114,12 @@ class Slack_Channel_Tests extends WP_UnitTestCase {
 		$this->assertStringContainsString( 'Test alert', $body['text'] );
 	}
 
+	public function test_send_rejects_unsafe_urls() {
+		$this->channel->send( new Alert( Alert::TYPE_TEST ), array( 'webhook_url' => self::WEBHOOK ) );
+
+		$this->assertTrue( $this->requests[0]['args']['reject_unsafe_urls'] );
+	}
+
 	public function test_send_does_nothing_without_a_webhook_url() {
 		$result = $this->channel->send( new Alert( Alert::TYPE_TEST ), array( 'webhook_url' => '' ) );
 

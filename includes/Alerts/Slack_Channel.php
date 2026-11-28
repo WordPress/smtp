@@ -111,7 +111,7 @@ class Slack_Channel implements Alert_Channel {
 			return new \WP_Error( 'smtp_slack_not_configured', __( 'The Slack webhook URL is missing or invalid.', 'smtp' ) );
 		}
 
-		$response = wp_remote_post(
+		$response = wp_safe_remote_post(
 			$values['webhook_url'],
 			array(
 				'timeout' => self::TIMEOUT,
